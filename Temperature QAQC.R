@@ -5,12 +5,21 @@ library(lubridate)
 library(hms)
 library(gratia)
 library(sf)
+library(stars)
+
+Delta<-st_read("Delta Subregions")%>%
+  filter(!SubRegion%in%c("South Bay", "San Francisco Bay", "San Pablo Bay", "Upper Yolo Bypass"))%>%
+  select(SubRegion)
 
 Data <- DeltaDater(Start_year = 1900, 
                    WQ_sources = c("EMP", "TNS", "FMWT", "EDSM", "SKT", "20mm", "Suisun"), 
                    Variables = "Water quality", 
                    Regions = NULL)%>%
   filter(!is.na(Temperature) & !is.na(Datetime) & !is.na(Latitude) & !is.na(Longitude) & !is.na(Date))%>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)%>%
+  st_transform(crs=st_crs(Delta))%>%
+  st_join(Delta, join=st_intersects)%>%
+  filter(!is.na(SubRegion))%>%
   mutate(Datetime = with_tz(Datetime, tz="America/Phoenix"),
          Date = with_tz(Date, tz="America/Phoenix"),
          Julian_day = yday(Date))%>%
@@ -23,7 +32,7 @@ model <- gam(Temperature ~ t2(Date_num_s, Longitude_s, Latitude_s, d=c(1,2)) + t
              data = Data, method="REML")
 
 modelb <- gam(Temperature ~ s(Longitude_s, Latitude_s) + s(Date_num_s) + ti(Date_num_s, Longitude_s, Latitude_s) + s(Julian_day, bs="cc") + poly(Time_num_s, 2),
-             data = Data, method="REML")
+              data = Data, method="REML")
 
 modelc <- gam(Temperature ~ s(Longitude_s, Latitude_s) + s(Date_num_s) + ti(Date_num_s, Longitude_s, Latitude_s, d=c(1,2)) + s(Julian_day, bs="cc") + poly(Time_num_s, 2),
               data = Data, method="REML")
@@ -41,29 +50,29 @@ modelg <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2)) + te(J
               data = Data, method="REML")
 
 modelh <- gamm(Temperature ~ s(Longitude_s, Latitude_s) + s(Date_num_s) + ti(Date_num_s, Longitude_s, Latitude_s) + s(Julian_day, bs="cc") + poly(Time_num_s, 2),
-              data = Data, correlation = corCAR1(form = ~ Date_num_s), method="REML")
+               data = Data, correlation = corCAR1(form = ~ Date_num_s), method="REML")
 
 gam.check(model)
 concurvity(model, full=TRUE) # Check for values over 0.8
 #If concurvity is bad, run again with full=FALSE
 
 modeld2 <- gam(Temperature ~ s(Longitude_s, Latitude_s) + s(Date_num_s, k=120) + s(Julian_day, bs="cc") + poly(Time_num_s, 2),
-              data = Data, method="REML")
+               data = Data, method="REML")
 
 modele2 <- gam(Temperature ~ s(Longitude_s, Latitude_s, k=80) + s(Year_s, k=15) + te(Julian_day_s, Time_num_s, bs="cc", k=10),
-              data = Data, method="REML")
+               data = Data, method="REML")
 
 modelf2 <- gam(Temperature ~ s(Longitude_s, Latitude_s, k=80) + s(Year_s, k=15) + ti(Year_s, Longitude_s, Latitude_s) + te(Julian_day_s, Time_num_s, bs="cc", k=10),
                data = Data, method="REML")
 
 modelb2 <- gam(Temperature ~ s(Longitude_s, Latitude_s, k=60) + s(Date_num_s, k=40) + ti(Date_num_s, Longitude_s, Latitude_s) + s(Julian_day, bs="cc", k=16) + poly(Time_num_s, 2),
-              data = Data, method="REML")
+               data = Data, method="REML")
 
 modelb3 <- gam(Temperature ~ s(Longitude_s, Latitude_s, k=80) + s(Date_num_s, k=200) + ti(Date_num_s, Longitude_s, Latitude_s) + s(Julian_day, bs="cc", k=16) + poly(Time_num_s, 2),
                data = Data, method="REML")
 
 modelg2 <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2), k=c(15, 40)) + te(Julian_day_s, Time_num_s, bs="cc", k=10),
-              data = Data, method="REML")
+               data = Data, method="REML")
 
 gam.check(model2)
 concurvity(model2, full=TRUE)
@@ -89,7 +98,26 @@ ggplot(Space)+
   guides(fill = guide_colourbar(title = "Effect",
                                 direction = "vertical",
                                 barheight = grid::unit(0.25, "npc")))
-  ageom_ribbon(data=Year, aes(x=Year_s, ymax=est+2*se, ymin=est-2*se), alpha=0.1)
+ageom_ribbon(data=Year, aes(x=Year_s, ymax=est+2*se, ymin=est-2*se), alpha=0.1)
 
 ggplot(data=Data)+
   geom_point(aes(x=Temperature, y=Fitted, fill=Flag), shape=21)
+
+
+Delta<-st_read("EDSM_Subregions")%>%
+  st_transform(crs=26910)%>%
+  filter(!SubRegion%in%c("South Bay", "San Francisco Bay", "San Pablo Bay"))
+Coords<-Data%>%
+  select(Latitude, Longitude, StationID)%>%
+  distinct()%>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326)%>%
+  st_transform(crs=26910)
+DEM<-read_stars("~/dem_bay_delta_10m_20181128/dem_bay_delta_10m_20181128.tif", proxy=TRUE)%>%
+  st_crop(Delta)
+Coords_joined<-aggregate(DEM, Coords, function(x) mean(x))
+
+## Need to use velox package (when fixed) or rgis package
+
+#DEM<-read_stars("~/dem_bay_delta_10m_20181128/dem_bay_delta_10m_20181128.tif", rasterIO=list(nXSize=18527, nYSize=16660, nBufXSize = 1852, nBufYSize = 1666))%>%
+#  st_crop(Delta)
+#saveRDS(DEM, file="DEM_cropped.rds", compress="xz")
