@@ -73,6 +73,8 @@ modelb3 <- gam(Temperature ~ s(Longitude_s, Latitude_s, k=80) + s(Date_num_s, k=
 
 modelg2 <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2), k=c(15, 40)) + te(Julian_day_s, Time_num_s, bs="cc", k=10),
                data = Data, method="REML")
+modelg3 <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2), k=c(15, 60)) + te(Julian_day_s, Time_num_s, bs="cc", k=10),
+               data = Data, method="REML")
 
 gam.check(model2)
 concurvity(model2, full=TRUE)
@@ -82,11 +84,11 @@ plot(model2, all.terms=TRUE, residuals=TRUE, shade=TRUE)
 #vis.gam
 
 Data<-Data%>%
-  mutate(Residuals = residuals(modele2),
-         Fitted=fitted(modele2))%>%
-  mutate(Flag=if_else(abs(Data$Residuals)>sd(Data$Residuals)*3, TRUE, FALSE))
+  mutate(Residuals = residuals(modelg3),
+         Fitted=fitted(modelg3))%>%
+  mutate(Flag=if_else(abs(Residuals)>sd(Residuals)*3, "Bad", "Good"))
 
-Space<-evaluate_smooth(modele2, "s(Longitude_s,Latitude_s)", dist=0.05)%>%
+Space<-evaluate_smooth(modelg, "s(Longitude_s,Latitude_s)", dist=0.05)%>%
   mutate(Latitude = Latitude_s*sd(Data$Latitude)+mean(Data$Latitude),
          Longitude = Longitude_s*sd(Data$Longitude)+mean(Data$Longitude))
 
@@ -121,3 +123,45 @@ Coords_joined<-aggregate(DEM, Coords, function(x) mean(x))
 #DEM<-read_stars("~/dem_bay_delta_10m_20181128/dem_bay_delta_10m_20181128.tif", rasterIO=list(nXSize=18527, nYSize=16660, nBufXSize = 1852, nBufYSize = 1666))%>%
 #  st_crop(Delta)
 #saveRDS(DEM, file="DEM_cropped.rds", compress="xz")
+
+n=100
+
+Points<-st_make_grid(Delta, n=n)%>%
+  st_as_sf(crs=st_crs(Delta))%>%
+  st_join(spacetools::Delta%>%
+            select(Shape_Area)%>%
+            st_transform(crs=st_crs(Delta)))%>%
+  filter(!is.na(Shape_Area))%>%
+  st_transform(crs=4326)%>%
+  st_coordinates()%>%
+  as_tibble()%>%
+  mutate(Location=1:nrow(.))%>%
+  select(Longitude=X, Latitude=Y, Location)
+
+newdata<-expand.grid(Year_s= seq(min(Data$Year_s)+0.2, max(Data$Year_s)-0.2, length.out=9),
+                     Location=1:nrow(Points),
+                     Julian_day_s=0,# seq(min(Data$Julian_day_s), max(Data$Julian_day_s), length.out=9),
+                     Time_num_s=0)%>%
+  left_join(Points, by="Location")%>%
+  mutate(Latitude_s=(Latitude-mean(Data$Latitude, na.rm=T))/sd(Data$Latitude, na.rm=T),
+         Longitude_s=(Longitude-mean(Data$Longitude, na.rm=T))/sd(Data$Longitude, na.rm=T))%>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)
+
+pred<-predict(modelg3, newdata=newdata, type="response")
+
+newdata<-newdata%>%
+  mutate(Prediction=pred,
+         Year=round(Year_s*sd(Data$Year)+mean(Data$Year)))
+
+bounds<-st_bbox(Delta%>%st_transform(crs=4326))
+
+ggplot(newdata)+
+  geom_tile(aes(x=Longitude, y=Latitude, fill=Prediction), width=(bounds["xmax"]-bounds["xmin"])/n, height=(bounds["ymax"]-bounds["ymin"])/n)+
+  facet_wrap(~Year)+
+  scale_fill_viridis_c()
+
+ggplot(newdata)+
+  geom_point(aes(x=Longitude, y=Latitude, color=Prediction))+
+  facet_wrap(~Year)+
+  scale_colour_viridis_c()+
+  theme_bw()
