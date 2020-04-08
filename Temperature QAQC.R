@@ -3,12 +3,11 @@ library(deltareportr)
 library(mgcv)
 library(lubridate)
 library(hms)
-library(gratia)
 library(sf)
 library(stars)
 
 Delta<-st_read("Delta Subregions")%>%
-  filter(!SubRegion%in%c("South Bay", "San Francisco Bay", "San Pablo Bay", "Upper Yolo Bypass"))%>%
+  filter(!SubRegion%in%c("South Bay", "San Francisco Bay", "San Pablo Bay", "Upper Yolo Bypass", "Upper Napa River", "Lower Napa River", "Carquinez Straight"))%>%
   select(SubRegion)
 
 Data <- DeltaDater(Start_year = 1900, 
@@ -27,6 +26,10 @@ Data <- DeltaDater(Start_year = 1900,
          Time = as_hms(Datetime))%>%
   mutate(Time_num=as.numeric(Time))%>%
   mutate_at(vars(Date_num, Longitude, Latitude, Time_num, Year, Julian_day), list(s=~(.-mean(., na.rm=T))/sd(., na.rm=T)))
+
+#Give all datasets the same ending year
+max_date <- Data%>%group_by(Source)%>%summarise(Date=max(Date))%>%pull(Date)%>%min()
+Data <- filter(Data, Year<=year(max_date) & !(Source=="SKT" & Field_coords))
 
 model <- gam(Temperature ~ t2(Date_num_s, Longitude_s, Latitude_s, d=c(1,2)) + t2(Julian_day, bs="cc") + poly(Time_num_s, 2),
              data = Data, method="REML")
@@ -47,6 +50,12 @@ modelf <- gam(Temperature ~ s(Longitude_s, Latitude_s) + s(Year_s) + ti(Year_s, 
               data = Data, method="REML")
 
 modelg <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2)) + te(Julian_day_s, Time_num_s, bs="cc"),
+              data = Data, method="REML")
+
+modelh <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2)) + te(Julian_day_s, Time_num_s, Year_s, bs=c("cc", "cr", "cr")),
+              data = Data, method="REML")
+
+modeli <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2)) + te(Julian_day_s, Time_num_s, by=Year_s, bs=c("cc", "cr")),
               data = Data, method="REML")
 
 modelh <- gamm(Temperature ~ s(Longitude_s, Latitude_s) + s(Date_num_s) + ti(Date_num_s, Longitude_s, Latitude_s) + s(Julian_day, bs="cc") + poly(Time_num_s, 2),
@@ -73,7 +82,20 @@ modelb3 <- gam(Temperature ~ s(Longitude_s, Latitude_s, k=80) + s(Date_num_s, k=
 
 modelg2 <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2), k=c(15, 40)) + te(Julian_day_s, Time_num_s, bs="cc", k=10),
                data = Data, method="REML")
+
 modelg3 <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2), k=c(15, 60)) + te(Julian_day_s, Time_num_s, bs="cc", k=10),
+               data = Data, method="REML")
+
+modelg3_bayes <- brm(Temperature ~ t2(Year_s, Longitude_s, Latitude_s, d=c(1,2), k=c(15, 60)) + t2(Julian_day_s, Time_num_s, bs="cc", k=10),
+                     family=gaussian(), data = Data,
+                     prior=prior(normal(0,10), class="Intercept")+
+                       prior(normal(0,5), class="b")+
+                       prior(cauchy(0,5), class="sigma")+
+                       prior(cauchy(0,5), class="sds"),
+                     chains=1, cores=1,
+                     iter = 5e3, warmup = 5e3/4)
+
+modelh2 <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2), k=c(15, 60)) + te(Julian_day_s, Time_num_s, Year_s, bs=c("cc", "cr", "cr"), k=c(8, 5, 15)),
                data = Data, method="REML")
 
 gam.check(model2)
@@ -124,6 +146,13 @@ Coords_joined<-aggregate(DEM, Coords, function(x) mean(x))
 #  st_crop(Delta)
 #saveRDS(DEM, file="DEM_cropped.rds", compress="xz")
 
+Delta_water <- spacetools::Delta%>%
+  st_transform(crs=st_crs(Delta))%>%
+  st_crop(Delta)%>%
+  st_rasterize(.,options="ALL_TOUCHED=TRUE")%>%
+  st_join(Delta)%>%
+  mutate(Include=if_else(is.na(SubRegion), TRUE, FALSE))
+
 n=100
 
 Points<-st_make_grid(Delta, n=n)%>%
@@ -147,21 +176,23 @@ newdata<-expand.grid(Year_s= seq(min(Data$Year_s)+0.2, max(Data$Year_s)-0.2, len
          Longitude_s=(Longitude-mean(Data$Longitude, na.rm=T))/sd(Data$Longitude, na.rm=T))%>%
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)
 
-pred<-predict(modelg3, newdata=newdata, type="response")
+pred<-predict(modelg3, newdata=newdata, type="response", se.fit=TRUE)
 
 newdata<-newdata%>%
-  mutate(Prediction=pred,
+  mutate(Prediction=pred$fit,
+         L95=pred$fit-pred$se.fit*1.96,
+         U95=pred$fit+pred$se.fit*1.96,
          Year=round(Year_s*sd(Data$Year)+mean(Data$Year)))
 
 bounds<-st_bbox(Delta%>%st_transform(crs=4326))
-
-ggplot(newdata)+
-  geom_tile(aes(x=Longitude, y=Latitude, fill=Prediction), width=(bounds["xmax"]-bounds["xmin"])/n, height=(bounds["ymax"]-bounds["ymin"])/n)+
-  facet_wrap(~Year)+
-  scale_fill_viridis_c()
 
 ggplot(newdata)+
   geom_point(aes(x=Longitude, y=Latitude, color=Prediction))+
   facet_wrap(~Year)+
   scale_colour_viridis_c()+
   theme_bw()
+
+ggplot(newdata)+
+  geom_tile(aes(x=Longitude, y=Latitude, fill=Prediction), width=(bounds["xmax"]-bounds["xmin"])/n, height=(bounds["ymax"]-bounds["ymin"])/n)+
+  facet_wrap(~Year)+
+  scale_fill_viridis_c()
