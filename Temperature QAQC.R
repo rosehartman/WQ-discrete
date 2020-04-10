@@ -7,11 +7,14 @@ library(sf)
 library(stars)
 
 Delta<-st_read("Delta Subregions")%>%
-  filter(!SubRegion%in%c("South Bay", "San Francisco Bay", "San Pablo Bay", "Upper Yolo Bypass", "Upper Napa River", "Lower Napa River", "Carquinez Straight"))%>%
+  filter(!SubRegion%in%c("South Bay", "San Francisco Bay", "San Pablo Bay", "Upper Yolo Bypass", 
+                         "Upper Napa River", "Lower Napa River", "Carquinez Strait"))%>%
   select(SubRegion)
 
+
+
 Data <- DeltaDater(Start_year = 1900, 
-                   WQ_sources = c("EMP", "TNS", "FMWT", "EDSM", "SKT", "20mm", "Suisun"), 
+                   WQ_sources = c("EMP", "TNS", "FMWT", "EDSM", "DJFMP", "SKT", "20mm", "Suisun"), 
                    Variables = "Water quality", 
                    Regions = NULL)%>%
   filter(!is.na(Temperature) & !is.na(Datetime) & !is.na(Latitude) & !is.na(Longitude) & !is.na(Date))%>%
@@ -27,9 +30,38 @@ Data <- DeltaDater(Start_year = 1900,
   mutate(Time_num=as.numeric(Time))%>%
   mutate_at(vars(Date_num, Longitude, Latitude, Time_num, Year, Julian_day), list(s=~(.-mean(., na.rm=T))/sd(., na.rm=T)))
 
+# Pull station locations for major monitoring programs
+# This will be used to set a boundary for this analysis focused on well-sampled regions.
+WQ_stations<-Data%>%
+  filter(Source%in%c("FMWT", "TNS", "SKT", "20mm", "EMP", "Suisun"))%>%
+  group_by(StationID, Source)%>%
+  summarise(N=n())%>%
+  filter(N>50 & !StationID%in%c("20mm 918", "TNS 918"))%>% # These 2 stations are far south of the rest of the well-sampled sites and are not sampled year round, so we're removing them to exclude that far southern region
+  st_join(Delta)
+
+Delta <- Delta%>%
+  filter(SubRegion%in%unique(WQ_stations$SubRegion) | SubRegion=="Georgiana Slough")
+# Visualize sampling regions of major surveys
+
+Data<-Data%>%
+  filter(SubRegion%in%unique(Delta$SubRegion))%>%
+  st_join(WQ_stations%>%
+            st_union()%>%
+            st_convex_hull()%>%
+            st_as_sf()%>%
+            mutate(IN=TRUE),
+          join=st_intersects)%>%
+  filter(IN)%>%
+  select(-IN)
+
+ggplot()+
+  geom_sf(data=Delta, aes(fill=SubRegion))+
+  #geom_sf_label(data=st_centroid(Delta)%>%st_transform(crs=4326), aes(label=SubRegion))+
+  geom_sf(data=WQ_stations%>%st_union()%>%st_convex_hull(), alpha=0.1, color="red", size=2)+
+  geom_sf(data=WQ_stations)
 #Give all datasets the same ending year
-max_date <- Data%>%group_by(Source)%>%summarise(Date=max(Date))%>%pull(Date)%>%min()
-Data <- filter(Data, Year<=year(max_date) & !(Source=="SKT" & Field_coords))
+#max_date <- Data%>%group_by(Source)%>%summarise(Date=max(Date))%>%pull(Date)%>%min()
+#Data <- filter(Data, Year<=year(max_date) & !(Source=="SKT" & Field_coords))
 
 model <- gam(Temperature ~ t2(Date_num_s, Longitude_s, Latitude_s, d=c(1,2)) + t2(Julian_day, bs="cc") + poly(Time_num_s, 2),
              data = Data, method="REML")
@@ -52,10 +84,16 @@ modelf <- gam(Temperature ~ s(Longitude_s, Latitude_s) + s(Year_s) + ti(Year_s, 
 modelg <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2)) + te(Julian_day_s, Time_num_s, bs="cc"),
               data = Data, method="REML")
 
-modelh <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2)) + te(Julian_day_s, Time_num_s, Year_s, bs=c("cc", "cr", "cr")),
+modelh <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2)) + te(Julian_day_s, Time_num_s, bs=c("cc", "cr"), d=c(1,1)),
               data = Data, method="REML")
 
-modeli <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2)) + te(Julian_day_s, Time_num_s, by=Year_s, bs=c("cc", "cr")),
+modeli <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2)) + te(Julian_day_s, Time_num_s, bs=c("cc", "cr"), d=c(1,1)), random=list(Source=~1),
+              data = Data, method="REML")
+
+modelj <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, by=factor(Season), d=c(1,2)) + te(Julian_day_s, Time_num_s, bs=c("cc", "cr"), d=c(1,1)),
+              data = Data, method="REML")
+
+modelk <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Month, d=c(1,2,1), bs=c("cr", "tp", "cc")) + te(Julian_day_s, Time_num_s, bs=c("cc", "cr"), d=c(1,1)),
               data = Data, method="REML")
 
 modelh <- gamm(Temperature ~ s(Longitude_s, Latitude_s) + s(Date_num_s) + ti(Date_num_s, Longitude_s, Latitude_s) + s(Julian_day, bs="cc") + poly(Time_num_s, 2),
@@ -80,22 +118,16 @@ modelb2 <- gam(Temperature ~ s(Longitude_s, Latitude_s, k=60) + s(Date_num_s, k=
 modelb3 <- gam(Temperature ~ s(Longitude_s, Latitude_s, k=80) + s(Date_num_s, k=200) + ti(Date_num_s, Longitude_s, Latitude_s) + s(Julian_day, bs="cc", k=16) + poly(Time_num_s, 2),
                data = Data, method="REML")
 
-modelg2 <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2), k=c(15, 40)) + te(Julian_day_s, Time_num_s, bs="cc", k=10),
+modelg2 <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2), k=c(15, 30)) + te(Julian_day_s, Time_num_s, bs="cc", k=10),
                data = Data, method="REML")
 
 modelg3 <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2), k=c(15, 60)) + te(Julian_day_s, Time_num_s, bs="cc", k=10),
                data = Data, method="REML")
 
-modelg3_bayes <- brm(Temperature ~ t2(Year_s, Longitude_s, Latitude_s, d=c(1,2), k=c(15, 60)) + t2(Julian_day_s, Time_num_s, bs="cc", k=10),
-                     family=gaussian(), data = Data,
-                     prior=prior(normal(0,10), class="Intercept")+
-                       prior(normal(0,5), class="b")+
-                       prior(cauchy(0,5), class="sigma")+
-                       prior(cauchy(0,5), class="sds"),
-                     chains=1, cores=1,
-                     iter = 5e3, warmup = 5e3/4)
-
 modelh2 <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2), k=c(15, 60)) + te(Julian_day_s, Time_num_s, Year_s, bs=c("cc", "cr", "cr"), k=c(8, 5, 15)),
+               data = Data, method="REML")
+
+modeli2 <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2), k=c(15, 30)) + te(Julian_day_s, Time_num_s, bs=c("cc", "cr"), d=c(1,1), k=c(10,10)), random=list(Source=~1),
                data = Data, method="REML")
 
 gam.check(model2)
@@ -161,6 +193,14 @@ Points<-st_make_grid(Delta, n=n)%>%
             select(Shape_Area)%>%
             st_transform(crs=st_crs(Delta)))%>%
   filter(!is.na(Shape_Area))%>%
+  st_join(WQ_stations%>%
+            st_union()%>%
+            st_convex_hull()%>%
+            st_as_sf()%>%
+            mutate(IN=TRUE),
+          join=st_intersects)%>%
+  filter(IN)%>%
+  select(-IN)%>%
   st_transform(crs=4326)%>%
   st_coordinates()%>%
   as_tibble()%>%
@@ -170,13 +210,14 @@ Points<-st_make_grid(Delta, n=n)%>%
 newdata<-expand.grid(Year_s= seq(min(Data$Year_s)+0.2, max(Data$Year_s)-0.2, length.out=9),
                      Location=1:nrow(Points),
                      Julian_day_s=0,# seq(min(Data$Julian_day_s), max(Data$Julian_day_s), length.out=9),
-                     Time_num_s=0)%>%
+                     Time_num_s=0,
+                     Season="Summer")%>%
   left_join(Points, by="Location")%>%
   mutate(Latitude_s=(Latitude-mean(Data$Latitude, na.rm=T))/sd(Data$Latitude, na.rm=T),
          Longitude_s=(Longitude-mean(Data$Longitude, na.rm=T))/sd(Data$Longitude, na.rm=T))%>%
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)
 
-pred<-predict(modelg3, newdata=newdata, type="response", se.fit=TRUE)
+pred<-predict(modelj, newdata=newdata, type="response", se.fit=TRUE)
 
 newdata<-newdata%>%
   mutate(Prediction=pred$fit,
