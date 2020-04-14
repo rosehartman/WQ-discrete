@@ -24,7 +24,8 @@ Data <- DeltaDater(Start_year = 1900,
   filter(!is.na(SubRegion))%>%
   mutate(Datetime = with_tz(Datetime, tz="America/Phoenix"),
          Date = with_tz(Date, tz="America/Phoenix"),
-         Julian_day = yday(Date))%>%
+         Julian_day = yday(Date),
+         Month_fac=factor(Month))%>%
   mutate(Date_num = as.numeric(Date),
          Time = as_hms(Datetime))%>%
   mutate(Time_num=as.numeric(Time))%>%
@@ -93,7 +94,10 @@ modeli <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2)) + te(
 modelj <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, by=factor(Season), d=c(1,2)) + te(Julian_day_s, Time_num_s, bs=c("cc", "cr"), d=c(1,1)),
               data = Data, method="REML")
 
-modelk <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Month, d=c(1,2,1), bs=c("cr", "tp", "cc")) + te(Julian_day_s, Time_num_s, bs=c("cc", "cr"), d=c(1,1)),
+modelk <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Month_fac, d=c(1,2,1), bs=c("cr", "tp", "fs")) + te(Julian_day_s, Time_num_s, bs=c("cc", "cr"), d=c(1,1)),
+              data = Data, method="REML")
+
+modell <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc")) + s(Time_num_s),
               data = Data, method="REML")
 
 modelh <- gamm(Temperature ~ s(Longitude_s, Latitude_s) + s(Date_num_s) + ti(Date_num_s, Longitude_s, Latitude_s) + s(Julian_day, bs="cc") + poly(Time_num_s, 2),
@@ -129,6 +133,9 @@ modelh2 <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2), k=c(1
 
 modeli2 <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2), k=c(15, 30)) + te(Julian_day_s, Time_num_s, bs=c("cc", "cr"), d=c(1,1), k=c(10,10)), random=list(Source=~1),
                data = Data, method="REML")
+
+modell2 <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(15, 30, 10)) + s(Time_num_s),
+              data = Data, method="REML")
 
 gam.check(model2)
 concurvity(model2, full=TRUE)
