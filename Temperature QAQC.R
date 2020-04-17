@@ -100,6 +100,9 @@ modelk <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Month_fac, d=c(1
 modell <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc")) + s(Time_num_s),
               data = Data, method="REML")
 
+modelm <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc")) + s(Time_num_s), random=list(Source=~1),
+              data = Data, method="REML")
+
 modelh <- gamm(Temperature ~ s(Longitude_s, Latitude_s) + s(Date_num_s) + ti(Date_num_s, Longitude_s, Latitude_s) + s(Julian_day, bs="cc") + poly(Time_num_s, 2),
                data = Data, correlation = corCAR1(form = ~ Date_num_s), method="REML")
 
@@ -136,6 +139,9 @@ modeli2 <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2), k=c(
 
 modell2 <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(15, 30, 10)) + s(Time_num_s),
               data = Data, method="REML")
+
+modelm2 <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 20, 10)) + s(Time_num_s), random=list(Source=~1),
+               data = Data, method="REML")
 
 gam.check(model2)
 concurvity(model2, full=TRUE)
@@ -214,33 +220,78 @@ Points<-st_make_grid(Delta, n=n)%>%
   mutate(Location=1:nrow(.))%>%
   select(Longitude=X, Latitude=Y, Location)
 
+Data_effort <- Data%>%
+  st_drop_geometry()%>%
+  group_by(SubRegion, Season, Year)%>%
+  summarise(N=n())%>%
+  ungroup()%>%
+  left_join(Delta, by="SubRegion")%>%
+  select(-geometry)
+
 newdata<-expand.grid(Year_s= seq(min(Data$Year_s)+0.2, max(Data$Year_s)-0.2, length.out=9),
                      Location=1:nrow(Points),
-                     Julian_day_s=0,# seq(min(Data$Julian_day_s), max(Data$Julian_day_s), length.out=9),
+                     Julian_day_s=seq(min(Data$Julian_day_s), max(Data$Julian_day_s), length.out=5)[1:4],# min and max are basically the same so excluding the max
                      Time_num_s=0,
                      Season="Summer")%>%
   left_join(Points, by="Location")%>%
   mutate(Latitude_s=(Latitude-mean(Data$Latitude, na.rm=T))/sd(Data$Latitude, na.rm=T),
-         Longitude_s=(Longitude-mean(Data$Longitude, na.rm=T))/sd(Data$Longitude, na.rm=T))%>%
-  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)
+         Longitude_s=(Longitude-mean(Data$Longitude, na.rm=T))/sd(Data$Longitude, na.rm=T),
+         Year=round(Year_s*sd(Data$Year)+mean(Data$Year)),
+         Julian_day = Julian_day_s*sd(Data$Julian_day, na.rm=T)+mean(Data$Julian_day, na.rm=T),
+         Season=case_when(Julian_day<=80 | Julian_day>=356 ~ "Winter",
+                          Julian_day>80 & Julian_day<=172 ~ "Spring",
+                          Julian_day>173 & Julian_day<=264 ~ "Summer",
+                          Julian_day>265 & Julian_day<=355 ~ "Fall"))%>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)%>%
+  st_transform(crs=st_crs(Delta))%>%
+  st_join(Delta, join = st_intersects)%>%
+  filter(!is.na(SubRegion))%>%
+  left_join(Data_effort, by=c("SubRegion", "Season", "Year"))%>%
+  filter(!is.na(N))
 
-pred<-predict(modelj, newdata=newdata, type="response", se.fit=TRUE)
+pred<-predict(modelm2$gam, newdata=newdata, type="response", se.fit=TRUE)
 
 newdata<-newdata%>%
   mutate(Prediction=pred$fit,
          L95=pred$fit-pred$se.fit*1.96,
-         U95=pred$fit+pred$se.fit*1.96,
-         Year=round(Year_s*sd(Data$Year)+mean(Data$Year)))
+         U95=pred$fit+pred$se.fit*1.96)%>%
+  mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))))
 
 bounds<-st_bbox(Delta%>%st_transform(crs=4326))
 
-ggplot(newdata)+
-  geom_point(aes(x=Longitude, y=Latitude, color=Prediction))+
-  facet_wrap(~Year)+
-  scale_colour_viridis_c()+
-  theme_bw()
+pred_plot <- function(data, season){
+  ggplot(filter(data, Season==season))+
+    geom_point(aes(x=Longitude, y=Latitude, color=Prediction))+
+    ggtitle(paste(month(unique(filter(data, Season==season)$Date), label=TRUE), day(unique(filter(data, Season==season)$Date)), ":", season))+
+    facet_wrap(~Year)+
+    scale_colour_viridis_c()+
+    theme_bw()+
+    theme(strip.background = element_blank(), plot.title = element_text(hjust=0.5))
+}
+
+p<-map(set_names(c("Winter", "Spring", "Summer", "Fall")), ~pred_plot(newdata, .))
+
+#walk(set_names(c("Winter", "Spring", "Summer", "Fall")), ~ggsave(plot=p[[.]], filename=paste0("C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Prediction", ., "modelm2.png"),
+#                                                                                              dpi=300, width=7, height=7, units="in", device="png"))
 
 ggplot(newdata)+
   geom_tile(aes(x=Longitude, y=Latitude, fill=Prediction), width=(bounds["xmax"]-bounds["xmin"])/n, height=(bounds["ymax"]-bounds["ymin"])/n)+
   facet_wrap(~Year)+
   scale_fill_viridis_c()
+
+# Sampling effort
+Data_effort <- Data%>%
+  st_drop_geometry()%>%
+  mutate(Decade=floor(Year/10)*10)%>%
+  group_by(SubRegion, Season, Decade)%>%
+  summarise(N=n())%>%
+  ungroup()%>%
+  left_join(Delta, by="SubRegion")%>%
+  st_as_sf()
+
+ggplot(Data_effort)+
+  geom_sf(aes(fill=N))+
+  scale_fill_viridis_c(name="Number of\nsamples")+
+  facet_grid(Decade~Season)+
+  theme_bw()+
+  theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
