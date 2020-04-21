@@ -14,7 +14,7 @@ Delta<-st_read("Delta Subregions")%>%
 
 
 Data <- DeltaDater(Start_year = 1900, 
-                   WQ_sources = c("EMP", "TNS", "FMWT", "EDSM", "DJFMP", "SKT", "20mm", "Suisun"), 
+                   WQ_sources = c("EMP", "STN", "FMWT", "EDSM", "DJFMP", "SKT", "20mm", "Suisun", "Baystudy", "USBR"), 
                    Variables = "Water quality", 
                    Regions = NULL)%>%
   filter(!is.na(Temperature) & !is.na(Datetime) & !is.na(Latitude) & !is.na(Longitude) & !is.na(Date))%>%
@@ -34,10 +34,10 @@ Data <- DeltaDater(Start_year = 1900,
 # Pull station locations for major monitoring programs
 # This will be used to set a boundary for this analysis focused on well-sampled regions.
 WQ_stations<-Data%>%
-  filter(Source%in%c("FMWT", "TNS", "SKT", "20mm", "EMP", "Suisun"))%>%
+  filter(Source%in%c("FMWT", "STN", "SKT", "20mm", "EMP", "Suisun"))%>%
   group_by(StationID, Source)%>%
   summarise(N=n())%>%
-  filter(N>50 & !StationID%in%c("20mm 918", "TNS 918"))%>% # These 2 stations are far south of the rest of the well-sampled sites and are not sampled year round, so we're removing them to exclude that far southern region
+  filter(N>50 & !StationID%in%c("20mm 918", "STN 918"))%>% # These 2 stations are far south of the rest of the well-sampled sites and are not sampled year round, so we're removing them to exclude that far southern region
   st_join(Delta)
 
 Delta <- Delta%>%
@@ -271,7 +271,7 @@ pred_plot <- function(data, season){
 
 p<-map(set_names(c("Winter", "Spring", "Summer", "Fall")), ~pred_plot(newdata, .))
 
-#walk(set_names(c("Winter", "Spring", "Summer", "Fall")), ~ggsave(plot=p[[.]], filename=paste0("C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Prediction", ., "modelm2.png"),
+#walk(set_names(c("Winter", "Spring", "Summer", "Fall")), ~ggsave(plot=p[[.]], filename=paste0("C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Prediction", ., " modelm2.png"),
 #                                                                                              dpi=300, width=7, height=7, units="in", device="png"))
 
 ggplot(newdata)+
