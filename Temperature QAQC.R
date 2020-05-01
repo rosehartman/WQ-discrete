@@ -14,10 +14,11 @@ Delta<-st_read("Delta Subregions")%>%
 
 
 Data <- DeltaDater(Start_year = 1900, 
-                   WQ_sources = c("EMP", "STN", "FMWT", "EDSM", "DJFMP", "SKT", "20mm", "Suisun", "Baystudy", "USBR"), 
+                   WQ_sources = c("EMP", "STN", "FMWT", "EDSM", "DJFMP", "SKT", "20mm", "Suisun", "Baystudy", "USBR", "USGS"), 
                    Variables = "Water quality", 
                    Regions = NULL)%>%
   filter(!is.na(Temperature) & !is.na(Datetime) & !is.na(Latitude) & !is.na(Longitude) & !is.na(Date))%>%
+  filter(hour(Datetime)>=5 & hour(Datetime)<=20)%>%
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)%>%
   st_transform(crs=st_crs(Delta))%>%
   st_join(Delta, join=st_intersects)%>%
@@ -140,11 +141,14 @@ modeli2 <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2), k=c(
 modell2 <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(15, 30, 10)) + s(Time_num_s),
               data = Data, method="REML")
 
-modelm2 <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 20, 10)) + s(Time_num_s), random=list(Source=~1),
+modelm2 <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 15, 7)) + s(Time_num_s, k=5), random=list(Source=~1),
                data = Data, method="REML")
 
-gam.check(model2)
-concurvity(model2, full=TRUE)
+modelm2_bottom <- gamm(Temperature_bottom ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 15, 7)) + s(Time_num_s, k=5), random=list(Source=~1),
+                data = filter(Data, !is.na(Temperature_bottom)), method="REML")
+
+gam.check(modelm2$gam)
+concurvity(modelm2$gam, full=TRUE)
 
 #model 2 seems good
 plot(model2, all.terms=TRUE, residuals=TRUE, shade=TRUE)
