@@ -9,7 +9,7 @@ library(stars)
 Delta<-st_read("Delta Subregions")%>%
   filter(!SubRegion%in%c("South Bay", "San Francisco Bay", "San Pablo Bay", "Upper Yolo Bypass", 
                          "Upper Napa River", "Lower Napa River", "Carquinez Strait"))%>%
-  select(SubRegion)
+  dplyr::select(SubRegion)
 
 
 
@@ -54,7 +54,7 @@ Data<-Data%>%
             mutate(IN=TRUE),
           join=st_intersects)%>%
   filter(IN)%>%
-  select(-IN)
+  dplyr::select(-IN)
 
 ggplot()+
   geom_sf(data=Delta, aes(fill=SubRegion))+
@@ -181,7 +181,7 @@ Delta<-st_read("EDSM_Subregions")%>%
   st_transform(crs=26910)%>%
   filter(!SubRegion%in%c("South Bay", "San Francisco Bay", "San Pablo Bay"))
 Coords<-Data%>%
-  select(Latitude, Longitude, StationID)%>%
+  dplyr::select(Latitude, Longitude, StationID)%>%
   distinct()%>%
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326)%>%
   st_transform(crs=26910)
@@ -207,7 +207,7 @@ n=100
 Points<-st_make_grid(Delta, n=n)%>%
   st_as_sf(crs=st_crs(Delta))%>%
   st_join(spacetools::Delta%>%
-            select(Shape_Area)%>%
+            dplyr::select(Shape_Area)%>%
             st_transform(crs=st_crs(Delta)))%>%
   filter(!is.na(Shape_Area))%>%
   st_join(WQ_stations%>%
@@ -217,12 +217,13 @@ Points<-st_make_grid(Delta, n=n)%>%
             mutate(IN=TRUE),
           join=st_intersects)%>%
   filter(IN)%>%
-  select(-IN)%>%
+  dplyr::select(-IN)%>%
+  st_centroid()%>%
   st_transform(crs=4326)%>%
   st_coordinates()%>%
   as_tibble()%>%
   mutate(Location=1:nrow(.))%>%
-  select(Longitude=X, Latitude=Y, Location)
+  dplyr::select(Longitude=X, Latitude=Y, Location)
 
 Data_effort <- Data%>%
   st_drop_geometry()%>%
@@ -230,13 +231,12 @@ Data_effort <- Data%>%
   summarise(N=n())%>%
   ungroup()%>%
   left_join(Delta, by="SubRegion")%>%
-  select(-geometry)
+  dplyr::select(-geometry)
 
 newdata<-expand.grid(Year_s= seq(min(Data$Year_s)+0.2, max(Data$Year_s)-0.2, length.out=9),
                      Location=1:nrow(Points),
                      Julian_day_s=seq(min(Data$Julian_day_s), max(Data$Julian_day_s), length.out=5)[1:4],# min and max are basically the same so excluding the max
-                     Time_num_s=0,
-                     Season="Summer")%>%
+                     Time_num_s=0)%>%
   left_join(Points, by="Location")%>%
   mutate(Latitude_s=(Latitude-mean(Data$Latitude, na.rm=T))/sd(Data$Latitude, na.rm=T),
          Longitude_s=(Longitude-mean(Data$Longitude, na.rm=T))/sd(Data$Longitude, na.rm=T),
@@ -299,3 +299,18 @@ ggplot(Data_effort)+
   facet_grid(Decade~Season)+
   theme_bw()+
   theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
+
+test<-st_rasterize(newdata%>%
+                     dplyr::select(Year, Julian_day, Prediction, Latitude, Longitude)%>%
+                     filter(Year==max(Year) & Julian_day==max(Julian_day))%>%
+                     dplyr::select(Prediction), 
+                   template=st_as_stars(st_bbox(Delta), dx=diff(st_bbox(Delta)[c(1, 3)])/n, dy=diff(st_bbox(Delta)[c(2, 4)])/n, values = NA_real_))%>%
+  st_warp(crs=4326)
+
+ggplot()+
+  geom_stars(data=test)+
+  scale_fill_viridis_c(na.value="white")+
+  coord_equal()+
+  ylab("Latitude")+
+  xlab("Longitude")+
+  theme_bw()
