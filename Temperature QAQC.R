@@ -367,43 +367,53 @@ Fall<-Rasterize_season("Fall", newdata)
 
 pw<-ggplot()+
   geom_stars(data=Winter)+
-  facet_grid(Year~.)+
-  scale_fill_viridis_c(na.value="white")+
-  coord_equal()+
+  geom_blank(data=tibble(Year=1969, Season="Winter"))+
+  facet_grid(Year~Season)+
+  scale_fill_viridis_c(name="Temperature", na.value="white", guide = guide_colorbar(direction="horizontal", title.position = "top", title.hjust=0.5, label.position="bottom"))+
+  coord_sf()+
   ylab("Latitude")+
   xlab("Longitude")+
   theme_bw()+
-  theme(axis.text.x = element_text(angle=45, hjust=1), plot.margin = margin(0,0,0,0))
+  theme(axis.text.x = element_text(angle=45, hjust=1), plot.margin = margin(0,0,0,0), 
+        panel.grid=element_blank(), legend.position = c(0.7, 0.965), legend.background = element_rect(color="black"))
 
 psp<-ggplot()+
   geom_stars(data=Spring)+
-  facet_grid(Year~.)+
-  scale_fill_viridis_c(na.value="white")+
-  coord_equal()+
+  facet_grid(Year~Season)+
+  scale_fill_viridis_c(name="Temperature", na.value="white", guide = guide_colorbar(direction="horizontal", title.position = "top", title.hjust=0.5, label.position="bottom"))+
+  coord_sf()+
   ylab("Latitude")+
   xlab("Longitude")+
   theme_bw()+
-  theme(axis.text.x = element_text(angle=45, hjust=1), plot.margin = margin(0,0,0,0))
+  theme(axis.text.x = element_text(angle=45, hjust=1), plot.margin = margin(0,0,0,0), 
+        panel.grid=element_blank(), legend.position = c(0.7, 0.965), legend.background = element_rect(color="black"))
 
 psu<-ggplot()+
   geom_stars(data=Summer)+
-  facet_grid(Year~.)+
-  scale_fill_viridis_c(na.value="white")+
-  coord_equal()+
+  facet_grid(Year~Season)+
+  scale_fill_viridis_c(name="Temperature", na.value="white", guide = guide_colorbar(direction="horizontal", title.position = "top", title.hjust=0.5, label.position="bottom"))+
+  coord_sf()+
   ylab("Latitude")+
   xlab("Longitude")+
   theme_bw()+
-  theme(axis.text.x = element_text(angle=45, hjust=1), plot.margin = margin(0,0,0,0))
+  theme(axis.text.x = element_text(angle=45, hjust=1), plot.margin = margin(0,0,0,0), 
+        panel.grid=element_blank(), legend.position = c(0.7, 0.965), legend.background = element_rect(color="black"))
 
 pf<-ggplot()+
   geom_stars(data=Fall)+
-  facet_grid(Year~.)+
-  scale_fill_viridis_c(na.value="white")+
-  coord_equal()+
+  facet_grid(Year~Season)+
+  scale_fill_viridis_c(name="Temperature", na.value="white", 
+                       guide = guide_colorbar(direction="horizontal", title.position = "top", 
+                                              title.hjust=0.5, label.position="bottom",
+                                              keyheight=0.3))+
+  coord_sf()+
   ylab("Latitude")+
   xlab("Longitude")+
   theme_bw()+
-  theme(axis.text.x = element_text(angle=45, hjust=1), plot.margin = margin(0,0,0,0))
+  theme(axis.text.x = element_text(angle=45, hjust=1), plot.margin = margin(0,0,0,0), 
+        panel.grid=element_blank(), legend.position = c(0.7, 0.965), legend.background = element_rect(color="black"))
 
-pw+psp+psu+pf
-  
+p<-pw+psp+psu+pf+plot_layout(nrow=1, heights=c(0.9,1,1,1))
+ggsave(filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Rasterized predictions.png", device=png(), width=10, height=20, units="in")
+
+plot_grid(pw, psp, psu, pf, nrow=1)
