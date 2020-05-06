@@ -301,16 +301,109 @@ ggplot(Data_effort)+
   theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
 
 test<-st_rasterize(newdata%>%
-                     dplyr::select(Year, Julian_day, Prediction, Latitude, Longitude)%>%
-                     filter(Year==max(Year) & Julian_day==max(Julian_day))%>%
+                     filter(Year==max(Year) & Season=="Winter")%>%
                      dplyr::select(Prediction), 
                    template=st_as_stars(st_bbox(Delta), dx=diff(st_bbox(Delta)[c(1, 3)])/n, dy=diff(st_bbox(Delta)[c(2, 4)])/n, values = NA_real_))%>%
   st_warp(crs=4326)
 
+test2<-st_rasterize(newdata%>%
+                     filter(Year==max(Year) & Season=="Fall")%>%
+                     dplyr::select(Prediction), 
+                   template=st_as_stars(st_bbox(Delta), dx=diff(st_bbox(Delta)[c(1, 3)])/n, dy=diff(st_bbox(Delta)[c(2, 4)])/n, values = NA_real_))%>%
+  st_warp(crs=4326)
+
+test3<-st_rasterize(newdata%>%
+                     filter(Year==2000 & Season=="Winter")%>%
+                     dplyr::select(Prediction), 
+                   template=st_as_stars(st_bbox(Delta), dx=diff(st_bbox(Delta)[c(1, 3)])/n, dy=diff(st_bbox(Delta)[c(2, 4)])/n, values = NA_real_))%>%
+  st_warp(crs=4326)
+
+test4<-st_rasterize(newdata%>%
+                      filter(Year==2000 & Season=="Fall")%>%
+                      dplyr::select(Prediction), 
+                    template=st_as_stars(st_bbox(Delta), dx=diff(st_bbox(Delta)[c(1, 3)])/n, dy=diff(st_bbox(Delta)[c(2, 4)])/n, values = NA_real_))%>%
+  st_warp(crs=4326)
+
+test5<-c(test, test2, test3, test4, along=list(Season=c("Winter", "Fall"), Year=c(2018, 2000), type="prediction"))
+
 ggplot()+
   geom_stars(data=test)+
+  facet_grid(Year~Season)+
   scale_fill_viridis_c(na.value="white")+
   coord_equal()+
   ylab("Latitude")+
   xlab("Longitude")+
   theme_bw()
+
+Rasterize_season<-function(season, data, out_crs=4326){
+  Years <- data%>%
+    filter(Season==season)%>%
+    pull(Year)%>%
+    unique()
+  
+  preds<-map(Years, function(x) st_rasterize(data%>%
+                                               filter(Year==x & Season==season)%>%
+                                               dplyr::select(Prediction), 
+                                             template=st_as_stars(st_bbox(Delta), dx=diff(st_bbox(Delta)[c(1, 3)])/n, dy=diff(st_bbox(Delta)[c(2, 4)])/n, values = NA_real_))%>%
+               st_warp(crs=out_crs))
+  
+  out <- exec(c, !!!preds, along=list(Year=Years, Season=season))
+}
+
+Rasterize_all <- function(data, out_crs=4326){
+  
+  preds<-map(set_names(unique(data$Season)), function(x) Rasterize_season(season=x, data=data, out_crs=out_crs))
+  
+  out <- exec(c, !!!preds, along="Season")
+  
+  return(out)
+  
+}
+
+Winter<-Rasterize_season("Winter", newdata)
+Spring<-Rasterize_season("Spring", newdata)
+Summer<-Rasterize_season("Summer", newdata)
+Fall<-Rasterize_season("Fall", newdata)
+
+pw<-ggplot()+
+  geom_stars(data=Winter)+
+  facet_grid(Year~.)+
+  scale_fill_viridis_c(na.value="white")+
+  coord_equal()+
+  ylab("Latitude")+
+  xlab("Longitude")+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle=45, hjust=1), plot.margin = margin(0,0,0,0))
+
+psp<-ggplot()+
+  geom_stars(data=Spring)+
+  facet_grid(Year~.)+
+  scale_fill_viridis_c(na.value="white")+
+  coord_equal()+
+  ylab("Latitude")+
+  xlab("Longitude")+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle=45, hjust=1), plot.margin = margin(0,0,0,0))
+
+psu<-ggplot()+
+  geom_stars(data=Summer)+
+  facet_grid(Year~.)+
+  scale_fill_viridis_c(na.value="white")+
+  coord_equal()+
+  ylab("Latitude")+
+  xlab("Longitude")+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle=45, hjust=1), plot.margin = margin(0,0,0,0))
+
+pf<-ggplot()+
+  geom_stars(data=Fall)+
+  facet_grid(Year~.)+
+  scale_fill_viridis_c(na.value="white")+
+  coord_equal()+
+  ylab("Latitude")+
+  xlab("Longitude")+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle=45, hjust=1), plot.margin = margin(0,0,0,0))
+
+pw+psp+psu+pf
+  
