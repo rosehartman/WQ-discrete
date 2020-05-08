@@ -7,55 +7,60 @@ library(sf)
 library(stars)
 require(patchwork)
 
+# Load Delta Shapefile from Brian
 Delta<-st_read("Delta Subregions")%>%
   filter(!SubRegion%in%c("South Bay", "San Francisco Bay", "San Pablo Bay", "Upper Yolo Bypass", 
-                         "Upper Napa River", "Lower Napa River", "Carquinez Strait"))%>%
+                         "Upper Napa River", "Lower Napa River", "Carquinez Strait"))%>% # Remove regions outside our domain of interest
   dplyr::select(SubRegion)
 
-
-
+# Load data
 Data <- DeltaDater(Start_year = 1900, 
                    WQ_sources = c("EMP", "STN", "FMWT", "EDSM", "DJFMP", "SKT", "20mm", "Suisun", "Baystudy", "USBR", "USGS"), 
                    Variables = "Water quality", 
                    Regions = NULL)%>%
-  filter(!is.na(Temperature) & !is.na(Datetime) & !is.na(Latitude) & !is.na(Longitude) & !is.na(Date))%>%
-  filter(hour(Datetime)>=5 & hour(Datetime)<=20)%>%
-  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)%>%
-  st_transform(crs=st_crs(Delta))%>%
-  st_join(Delta, join=st_intersects)%>%
-  filter(!is.na(SubRegion))%>%
-  mutate(Datetime = with_tz(Datetime, tz="America/Phoenix"),
+  filter(!is.na(Temperature) & !is.na(Datetime) & !is.na(Latitude) & !is.na(Longitude) & !is.na(Date))%>% #Remove any rows with NAs in our key variables
+  filter(hour(Datetime)>=5 & hour(Datetime)<=20)%>% # Only keep data betwen 5AM and 8PM
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)%>% # Convert to sf object
+  st_transform(crs=st_crs(Delta))%>% # Change to crs of Delta
+  st_join(Delta, join=st_intersects)%>% # Add subregions
+  filter(!is.na(SubRegion))%>% # Remove any data outside our subregions of interest
+  mutate(Datetime = with_tz(Datetime, tz="America/Phoenix"), #Convert to a timezone without daylight savings time
          Date = with_tz(Date, tz="America/Phoenix"),
-         Julian_day = yday(Date),
-         Month_fac=factor(Month))%>%
-  mutate(Date_num = as.numeric(Date),
-         Time = as_hms(Datetime))%>%
-  mutate(Time_num=as.numeric(Time))%>%
-  mutate_at(vars(Date_num, Longitude, Latitude, Time_num, Year, Julian_day), list(s=~(.-mean(., na.rm=T))/sd(., na.rm=T)))
+         Julian_day = yday(Date), # Create julian day variable
+         Month_fac=factor(Month))%>% # Create month factor variable
+  mutate(Date_num = as.numeric(Date), # Create numeric version of date for models
+         Time = as_hms(Datetime))%>% # Create variable for time-of-day, not date. 
+  mutate(Time_num=as.numeric(Time))%>% # Create numeric version of time for models (=seconds since midnight)
+  mutate_at(vars(Date_num, Longitude, Latitude, Time_num, Year, Julian_day), list(s=~(.-mean(., na.rm=T))/sd(., na.rm=T))) # Create centered and standardized versions of covariates
 
 # Pull station locations for major monitoring programs
 # This will be used to set a boundary for this analysis focused on well-sampled regions.
 WQ_stations<-Data%>%
   filter(Source%in%c("FMWT", "STN", "SKT", "20mm", "EMP", "Suisun"))%>%
   group_by(StationID, Source)%>%
-  summarise(N=n())%>%
-  filter(N>50 & !StationID%in%c("20mm 918", "STN 918"))%>% # These 2 stations are far south of the rest of the well-sampled sites and are not sampled year round, so we're removing them to exclude that far southern region
-  st_join(Delta)
+  summarise(N=n())%>% # Calculate how many times each station was sampled
+  filter(N>50 & !StationID%in%c("20mm 918", "STN 918"))%>% # Only keep stations sampled >50 times when deciding which regions to retain. 
+  # "20mm 918", "STN 918" are far south of the rest of the well-sampled sites and are not sampled year round, so we're removing them to exclude that far southern region
+  st_join(Delta) # Add subregions
 
+# Remove any subregions that do not contain at least one of these >50 samples stations from the major monitoring programs
 Delta <- Delta%>%
-  filter(SubRegion%in%unique(WQ_stations$SubRegion) | SubRegion=="Georgiana Slough")
+  filter(SubRegion%in%unique(WQ_stations$SubRegion) | SubRegion=="Georgiana Slough") # Retain Georgiana Slough because it's surrounded by well-sampled regions
 # Visualize sampling regions of major surveys
 
+# Now filter data to only include this final set of subregions, and any stations outside the convex hull formed by the >50 samples stations from the major monitoring programs
 Data<-Data%>%
   filter(SubRegion%in%unique(Delta$SubRegion))%>%
   st_join(WQ_stations%>%
             st_union()%>%
-            st_convex_hull()%>%
+            st_convex_hull()%>% # Draws a hexagram or pentagram or similar around the outer-most points
             st_as_sf()%>%
             mutate(IN=TRUE),
           join=st_intersects)%>%
   filter(IN)%>%
   dplyr::select(-IN)
+
+# Old code to visualize the prior steps
 
 ggplot()+
   geom_sf(data=Delta, aes(fill=SubRegion))+
@@ -65,6 +70,10 @@ ggplot()+
 #Give all datasets the same ending year
 #max_date <- Data%>%group_by(Source)%>%summarise(Date=max(Date))%>%pull(Date)%>%min()
 #Data <- filter(Data, Year<=year(max_date) & !(Source=="SKT" & Field_coords))
+
+
+# Initial models ----------------------------------------------------------
+
 
 model <- gam(Temperature ~ t2(Date_num_s, Longitude_s, Latitude_s, d=c(1,2)) + t2(Julian_day, bs="cc") + poly(Time_num_s, 2),
              data = Data, method="REML")
@@ -108,9 +117,13 @@ modelm <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d
 modelh <- gamm(Temperature ~ s(Longitude_s, Latitude_s) + s(Date_num_s) + ti(Date_num_s, Longitude_s, Latitude_s) + s(Julian_day, bs="cc") + poly(Time_num_s, 2),
                data = Data, correlation = corCAR1(form = ~ Date_num_s), method="REML")
 
+# Check models
 gam.check(model)
 concurvity(model, full=TRUE) # Check for values over 0.8
 #If concurvity is bad, run again with full=FALSE
+
+
+# Models optimizing k values ----------------------------------------------
 
 modeld2 <- gam(Temperature ~ s(Longitude_s, Latitude_s) + s(Date_num_s, k=120) + s(Julian_day, bs="cc") + poly(Time_num_s, 2),
                data = Data, method="REML")
@@ -152,32 +165,36 @@ gam.check(modelm2$gam)
 concurvity(modelm2$gam, full=TRUE)
 
 #model 2 seems good
-plot(model2, all.terms=TRUE, residuals=TRUE, shade=TRUE)
+plot(modelm2, all.terms=TRUE, residuals=TRUE, shade=TRUE)
 #vis.gam
 
-Data<-Data%>%
-  mutate(Residuals = residuals(modelg3),
-         Fitted=fitted(modelg3))%>%
-  mutate(Flag=if_else(abs(Residuals)>sd(Residuals)*3, "Bad", "Good"))
 
-Space<-evaluate_smooth(modelg, "s(Longitude_s,Latitude_s)", dist=0.05)%>%
-  mutate(Latitude = Latitude_s*sd(Data$Latitude)+mean(Data$Latitude),
-         Longitude = Longitude_s*sd(Data$Longitude)+mean(Data$Longitude))
-
-ggplot(Space)+
-  geom_raster(aes(x=Longitude, y=Latitude, fill=est))+
-  geom_contour(aes(x=Longitude, y=Latitude, z=est))+ 
-  geom_sf(data=deltareportr::deltaregions%>%st_transform(crs=4326), aes(color=Stratum))+
-  scale_fill_distiller(palette = "RdBu", type = "div")+
-  guides(fill = guide_colourbar(title = "Effect",
-                                direction = "vertical",
-                                barheight = grid::unit(0.25, "npc")))
-ageom_ribbon(data=Year, aes(x=Year_s, ymax=est+2*se, ymin=est-2*se), alpha=0.1)
-
-ggplot(data=Data)+
-  geom_point(aes(x=Temperature, y=Fitted, fill=Flag), shape=21)
+# QAQC by residuals -------------------------------------------------------
 
 
+Data_qaqc<-Data%>%
+  mutate(Residuals = residuals(modelm2$gam),
+         Fitted=fitted(modelm2$gam))%>% # Fitted = model predictipn
+  mutate(Flag=if_else(abs(Residuals)>sd(Residuals)*3, "Bad", "Good")) # Anything greater than 3 standard deviations of residuals is "bad"
+
+ggplot(data=Data_qaqc)+
+  geom_point(aes(x=Temperature, y=Fitted, fill=Flag), shape=21)+
+  geom_abline(intercept=0, slope=1, size=2)
+
+#Refit model with "good" data
+
+modelm2_qaqc <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 15, 7)) + s(Time_num_s, k=5), random=list(Source=~1),
+                data = filter(Data_qaqc, Flag=="Good"), method="REML")
+
+Data_qaqc2<-Data_qaqc%>%
+  filter(Flag=="Good")%>%
+  mutate(Residuals = residuals(modelm2_qaqc$gam),
+         Fitted=fitted(modelm2_qaqc$gam))%>% # Fitted = model predictipn
+  mutate(Flag=if_else(abs(Residuals)>sd(Residuals)*3, "Bad", "Good")) # Anything greater than 3 standard deviations of residuals is "bad"
+
+ggplot(data=Data_qaqc2)+
+  geom_point(aes(x=Temperature, y=Fitted, fill=Flag), shape=21)+
+  geom_abline(intercept=0, slope=1, size=2)
 
 # DEM ---------------------------------------------------------------------
 
@@ -220,13 +237,14 @@ WQ_pred<-function(model,
                   Julian_days=seq(min(Full_data$Julian_day), max(Full_data$Julian_day), length.out=5)[1:4],
                   Time_num=0){
   
+  # Create point locations on a grid for predictions
   Points<-st_make_grid(Delta_subregions, n=n)%>%
     st_as_sf(crs=st_crs(Delta_subregions))%>%
-    st_join(Delta_water%>%
+    st_join(Delta_water%>% # Joining a map of delta waterways (from my spacetools package) to ensure all these points are over water.
               dplyr::select(Shape_Area)%>%
               st_transform(crs=st_crs(Delta_subregions)))%>%
     filter(!is.na(Shape_Area))%>%
-    st_join(Stations%>%
+    st_join(Stations%>% # Applying the same approach we did to the full data: remove any pounts outside the convex hull formed by major survey stations sampled >50 times
               st_union()%>%
               st_convex_hull()%>%
               st_as_sf()%>%
@@ -234,13 +252,14 @@ WQ_pred<-function(model,
             join=st_intersects)%>%
     filter(IN)%>%
     dplyr::select(-IN)%>%
-    st_centroid()%>%
+    st_centroid()%>% # The prior grid was actually a set of polygons, this picks the center point of each
     st_transform(crs=4326)%>%
     st_coordinates()%>%
     as_tibble()%>%
     mutate(Location=1:nrow(.))%>%
     dplyr::select(Longitude=X, Latitude=Y, Location)
   
+  # Create dataset for each year and season showing which subregions were sampled
   Data_effort <- Full_data%>%
     st_drop_geometry()%>%
     group_by(SubRegion, Season, Year)%>%
@@ -249,58 +268,66 @@ WQ_pred<-function(model,
     left_join(Delta_subregions, by="SubRegion")%>%
     dplyr::select(-geometry)
   
+  
+  # Create full dataset for predictions
   newdata<-expand.grid(Year= Years,
                        Location=1:nrow(Points),
                        Julian_day=Julian_days,
-                       Time_num=0)%>%
-    left_join(Points, by="Location")%>%
-    mutate(Latitude_s=(Latitude-mean(Full_data$Latitude, na.rm=T))/sd(Full_data$Latitude, na.rm=T),
+                       Time_num=Time_num)%>% # Create all combinations of predictor variables
+    left_join(Points, by="Location")%>% #Add Lat/Longs to each location
+    mutate(Latitude_s=(Latitude-mean(Full_data$Latitude, na.rm=T))/sd(Full_data$Latitude, na.rm=T), # Standardize each variable based on full dataset for model
            Longitude_s=(Longitude-mean(Full_data$Longitude, na.rm=T))/sd(Full_data$Longitude, na.rm=T),
            Year_s=(Year-mean(Full_data$Year, na.rm=T))/sd(Full_data$Year, na.rm=T),
            Julian_day_s = (Julian_day-mean(Full_data$Julian_day, na.rm=T))/sd(Full_data$Julian_day, na.rm=T),
-           Season=case_when(Julian_day<=80 | Julian_day>=356 ~ "Winter",
+           Time_num_s=(Time_num-mean(Full_data$Time_num, na.rm=T))/sd(Full_data$Time_num, na.rm=T),
+           Season=case_when(Julian_day<=80 | Julian_day>=356 ~ "Winter", # Create a variable for season
                             Julian_day>80 & Julian_day<=172 ~ "Spring",
                             Julian_day>173 & Julian_day<=264 ~ "Summer",
-                            Julian_day>265 & Julian_day<=355 ~ "Fall"),
-           Time_num_s=(Time_num-mean(Full_data$Time_num, na.rm=T))/sd(Full_data$Time_num, na.rm=T))%>%
-    st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)%>%
-    st_transform(crs=st_crs(Delta_subregions))%>%
+                            Julian_day>265 & Julian_day<=355 ~ "Fall"))%>%
+    st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)%>% # Turn into sf object
+    st_transform(crs=st_crs(Delta_subregions))%>% # transform to crs of Delta shapefile
     st_join(Delta_subregions, join = st_intersects)%>%
-    filter(!is.na(SubRegion))%>%
-    left_join(Data_effort, by=c("SubRegion", "Season", "Year"))%>%
+    filter(!is.na(SubRegion))%>% # Make sure all points are within our desired subregions
+    left_join(Data_effort, by=c("SubRegion", "Season", "Year"))%>% # Use the Data_effort key created above to remove points in subregions that were not sampled that region, season, and year.
     filter(!is.na(N))
   
-  pred<-predict(model, newdata=newdata, type="response", se.fit=TRUE)
+  pred<-predict(model, newdata=newdata, type="response", se.fit=TRUE) # Create predictions
   
+  # Add predictions to predicter dataset
   newdata<-newdata%>%
     mutate(Prediction=pred$fit,
            L95=pred$fit-pred$se.fit*1.96,
            U95=pred$fit+pred$se.fit*1.96)%>%
-    mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))))
+    mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-")))) # Create Date variable from Julian Day and Year
   
   return(newdata)
 }
 
-newdata <- WQ_pred(modelm2$gam)
+newdata <- WQ_pred(modelm2$gam) # Run function above on modelm2. 
 
 # Rasterizing -------------------------------------------------------------
 
-
+# Function to rasterize season by season. Creates a 4D raster Latitude x Longitude x Year x Season (But Season only has 1 value for the season passed to the function)
 Rasterize_season<-function(season, data, n, out_crs=4326){
+  
   Years <- data%>%
     filter(Season==season)%>%
     pull(Year)%>%
     unique()
   
+  #First rasterize year by year
   preds<-map(Years, function(x) st_rasterize(data%>%
                                                filter(Year==x & Season==season)%>%
                                                dplyr::select(Prediction), 
                                              template=st_as_stars(st_bbox(Delta), dx=diff(st_bbox(Delta)[c(1, 3)])/n, dy=diff(st_bbox(Delta)[c(2, 4)])/n, values = NA_real_))%>%
                st_warp(crs=out_crs))
   
+  # Then bind all years together into 1 raster
   out <- exec(c, !!!preds, along=list(Year=Years, Season=season))
 }
 
+# Function to rasterize all seasons. Creates a 4D raster Latitude x Longitude x Year x Season (including all 4 seasons). 
+# Unfortunately, this requires equal dimension values across all seasons. Since some seasons are missing earlier years, this doesn't work well. 
 Rasterize_all <- function(data, out_crs=4326){
   
   preds<-map(set_names(unique(data$Season)), function(x) Rasterize_season(season=x, data=data, out_crs=out_crs))
@@ -311,6 +338,7 @@ Rasterize_all <- function(data, out_crs=4326){
   
 }
 
+# Plot the rasters. Sizing optimized for 9 different years in predictions. 
 raster_plot<-function(data, Years=unique(newdata$Year), labels="All"){
   ggplot()+
     geom_blank(data=tibble(Year=Years, Season=st_get_dimension_values(data, "Season")))+
@@ -334,29 +362,33 @@ raster_plot<-function(data, Years=unique(newdata$Year), labels="All"){
           panel.grid=element_blank(), legend.position = c(0.5,1.06), legend.background = element_rect(color="black"))
 }
 
+# Surface temperature
+
+# Rasterize each season
 rastered_preds <- map(set_names(c("Winter", "Spring", "Summer", "Fall")), function(x) Rasterize_season(season=x, data=newdata, n=100))
 
+# Plot each season
 p<-map2(rastered_preds, c("Left", "None", "None", "Right"), ~raster_plot(data=.x, labels=.y))
 
+# Use Patchwork to bind plots together. Won't look very good until the plot is saved
 p2<-wrap_plots(p)+plot_layout(nrow=1, heights=c(1,1,1,1))
 
+# Save plots
 ggsave(plot=p2, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Rasterized predictions.png", device=png(), width=7, height=12, units="in")
 
-# Bottom temperature
+# Do the same for Bottom temperature
 
 newdata_bottom <- WQ_pred(modelm2_bottom$gam,
-                          Full_data=filter(Data, !is.na(Temperature_bottom)),
-                          Delta_subregions=Delta,
-                          Delta_water=spacetools::Delta,
-                          Stations = WQ_stations,
-                          n=100,
-                          Time_num=0)
+                          Full_data=filter(Data, !is.na(Temperature_bottom)))
 
 rastered_preds_bottom <- map(set_names(c("Winter", "Spring", "Summer", "Fall")), function(x) Rasterize_season(season=x, data=newdata_bottom, n=100))
 
 p_bottom<-map2(rastered_preds_bottom, c("Left", "None", "None", "Right"), ~raster_plot(data=.x, Years=unique(newdata_bottom$Year), labels=.y))
 
 p2_bottom<-wrap_plots(p_bottom)+plot_layout(nrow=1, heights=c(1,1,1,1))
+
+ggsave(plot=p2_bottom, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Rasterized predictions_bottom.png", device=png(), width=7, height=12, units="in")
+
 
 # Data effort -------------------------------------------------------------
 
