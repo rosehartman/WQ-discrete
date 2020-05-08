@@ -5,6 +5,7 @@ library(lubridate)
 library(hms)
 library(sf)
 library(stars)
+require(patchwork)
 
 Delta<-st_read("Delta Subregions")%>%
   filter(!SubRegion%in%c("South Bay", "San Francisco Bay", "San Pablo Bay", "Upper Yolo Bypass", 
@@ -90,7 +91,7 @@ modelh <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2)) + te(J
               data = Data, method="REML")
 
 modeli <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2)) + te(Julian_day_s, Time_num_s, bs=c("cc", "cr"), d=c(1,1)), random=list(Source=~1),
-              data = Data, method="REML")
+               data = Data, method="REML")
 
 modelj <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, by=factor(Season), d=c(1,2)) + te(Julian_day_s, Time_num_s, bs=c("cc", "cr"), d=c(1,1)),
               data = Data, method="REML")
@@ -102,7 +103,7 @@ modell <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=
               data = Data, method="REML")
 
 modelm <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc")) + s(Time_num_s), random=list(Source=~1),
-              data = Data, method="REML")
+               data = Data, method="REML")
 
 modelh <- gamm(Temperature ~ s(Longitude_s, Latitude_s) + s(Date_num_s) + ti(Date_num_s, Longitude_s, Latitude_s) + s(Julian_day, bs="cc") + poly(Time_num_s, 2),
                data = Data, correlation = corCAR1(form = ~ Date_num_s), method="REML")
@@ -136,16 +137,16 @@ modelh2 <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2), k=c(1
                data = Data, method="REML")
 
 modeli2 <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2), k=c(15, 30)) + te(Julian_day_s, Time_num_s, bs=c("cc", "cr"), d=c(1,1), k=c(10,10)), random=list(Source=~1),
-               data = Data, method="REML")
+                data = Data, method="REML")
 
 modell2 <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(15, 30, 10)) + s(Time_num_s),
-              data = Data, method="REML")
-
-modelm2 <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 15, 7)) + s(Time_num_s, k=5), random=list(Source=~1),
                data = Data, method="REML")
 
+modelm2 <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 15, 7)) + s(Time_num_s, k=5), random=list(Source=~1),
+                data = Data, method="REML")
+
 modelm2_bottom <- gamm(Temperature_bottom ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 15, 7)) + s(Time_num_s, k=5), random=list(Source=~1),
-                data = filter(Data, !is.na(Temperature_bottom)), method="REML")
+                       data = filter(Data, !is.na(Temperature_bottom)), method="REML")
 
 gam.check(modelm2$gam)
 concurvity(modelm2$gam, full=TRUE)
@@ -177,6 +178,10 @@ ggplot(data=Data)+
   geom_point(aes(x=Temperature, y=Fitted, fill=Flag), shape=21)
 
 
+
+# DEM ---------------------------------------------------------------------
+
+
 Delta<-st_read("EDSM_Subregions")%>%
   st_transform(crs=26910)%>%
   filter(!SubRegion%in%c("South Bay", "San Francisco Bay", "San Pablo Bay"))
@@ -202,140 +207,86 @@ Delta_water <- spacetools::Delta%>%
   st_join(Delta)%>%
   mutate(Include=if_else(is.na(SubRegion), TRUE, FALSE))
 
-n=100
 
-Points<-st_make_grid(Delta, n=n)%>%
-  st_as_sf(crs=st_crs(Delta))%>%
-  st_join(spacetools::Delta%>%
-            dplyr::select(Shape_Area)%>%
-            st_transform(crs=st_crs(Delta)))%>%
-  filter(!is.na(Shape_Area))%>%
-  st_join(WQ_stations%>%
-            st_union()%>%
-            st_convex_hull()%>%
-            st_as_sf()%>%
-            mutate(IN=TRUE),
-          join=st_intersects)%>%
-  filter(IN)%>%
-  dplyr::select(-IN)%>%
-  st_centroid()%>%
-  st_transform(crs=4326)%>%
-  st_coordinates()%>%
-  as_tibble()%>%
-  mutate(Location=1:nrow(.))%>%
-  dplyr::select(Longitude=X, Latitude=Y, Location)
+# Model predictions -------------------------------------------------------------
 
-Data_effort <- Data%>%
-  st_drop_geometry()%>%
-  group_by(SubRegion, Season, Year)%>%
-  summarise(N=n())%>%
-  ungroup()%>%
-  left_join(Delta, by="SubRegion")%>%
-  dplyr::select(-geometry)
-
-newdata<-expand.grid(Year_s= seq(min(Data$Year_s)+0.2, max(Data$Year_s)-0.2, length.out=9),
-                     Location=1:nrow(Points),
-                     Julian_day_s=seq(min(Data$Julian_day_s), max(Data$Julian_day_s), length.out=5)[1:4],# min and max are basically the same so excluding the max
-                     Time_num_s=0)%>%
-  left_join(Points, by="Location")%>%
-  mutate(Latitude_s=(Latitude-mean(Data$Latitude, na.rm=T))/sd(Data$Latitude, na.rm=T),
-         Longitude_s=(Longitude-mean(Data$Longitude, na.rm=T))/sd(Data$Longitude, na.rm=T),
-         Year=round(Year_s*sd(Data$Year)+mean(Data$Year)),
-         Julian_day = Julian_day_s*sd(Data$Julian_day, na.rm=T)+mean(Data$Julian_day, na.rm=T),
-         Season=case_when(Julian_day<=80 | Julian_day>=356 ~ "Winter",
-                          Julian_day>80 & Julian_day<=172 ~ "Spring",
-                          Julian_day>173 & Julian_day<=264 ~ "Summer",
-                          Julian_day>265 & Julian_day<=355 ~ "Fall"))%>%
-  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)%>%
-  st_transform(crs=st_crs(Delta))%>%
-  st_join(Delta, join = st_intersects)%>%
-  filter(!is.na(SubRegion))%>%
-  left_join(Data_effort, by=c("SubRegion", "Season", "Year"))%>%
-  filter(!is.na(N))
-
-pred<-predict(modelm2$gam, newdata=newdata, type="response", se.fit=TRUE)
-
-newdata<-newdata%>%
-  mutate(Prediction=pred$fit,
-         L95=pred$fit-pred$se.fit*1.96,
-         U95=pred$fit+pred$se.fit*1.96)%>%
-  mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))))
-
-bounds<-st_bbox(Delta%>%st_transform(crs=4326))
-
-pred_plot <- function(data, season){
-  ggplot(filter(data, Season==season))+
-    geom_point(aes(x=Longitude, y=Latitude, color=Prediction))+
-    ggtitle(paste(month(unique(filter(data, Season==season)$Date), label=TRUE), day(unique(filter(data, Season==season)$Date)), ":", season))+
-    facet_wrap(~Year)+
-    scale_colour_viridis_c()+
-    theme_bw()+
-    theme(strip.background = element_blank(), plot.title = element_text(hjust=0.5))
+WQ_pred<-function(model,
+                  Full_data=Data,
+                  Delta_subregions=Delta,
+                  Delta_water=spacetools::Delta,
+                  Stations = WQ_stations,
+                  n=100, 
+                  Years=round(seq(min(Full_data$Year)+2, max(Full_data$Year)-2, length.out=9)),
+                  Julian_days=seq(min(Full_data$Julian_day), max(Full_data$Julian_day), length.out=5)[1:4],
+                  Time_num=0){
+  
+  Points<-st_make_grid(Delta_subregions, n=n)%>%
+    st_as_sf(crs=st_crs(Delta_subregions))%>%
+    st_join(Delta_water%>%
+              dplyr::select(Shape_Area)%>%
+              st_transform(crs=st_crs(Delta_subregions)))%>%
+    filter(!is.na(Shape_Area))%>%
+    st_join(Stations%>%
+              st_union()%>%
+              st_convex_hull()%>%
+              st_as_sf()%>%
+              mutate(IN=TRUE),
+            join=st_intersects)%>%
+    filter(IN)%>%
+    dplyr::select(-IN)%>%
+    st_centroid()%>%
+    st_transform(crs=4326)%>%
+    st_coordinates()%>%
+    as_tibble()%>%
+    mutate(Location=1:nrow(.))%>%
+    dplyr::select(Longitude=X, Latitude=Y, Location)
+  
+  Data_effort <- Full_data%>%
+    st_drop_geometry()%>%
+    group_by(SubRegion, Season, Year)%>%
+    summarise(N=n())%>%
+    ungroup()%>%
+    left_join(Delta_subregions, by="SubRegion")%>%
+    dplyr::select(-geometry)
+  
+  newdata<-expand.grid(Year= Years,
+                       Location=1:nrow(Points),
+                       Julian_day=Julian_days,
+                       Time_num=0)%>%
+    left_join(Points, by="Location")%>%
+    mutate(Latitude_s=(Latitude-mean(Full_data$Latitude, na.rm=T))/sd(Full_data$Latitude, na.rm=T),
+           Longitude_s=(Longitude-mean(Full_data$Longitude, na.rm=T))/sd(Full_data$Longitude, na.rm=T),
+           Year_s=(Year-mean(Full_data$Year, na.rm=T))/sd(Full_data$Year, na.rm=T),
+           Julian_day_s = (Julian_day-mean(Full_data$Julian_day, na.rm=T))/sd(Full_data$Julian_day, na.rm=T),
+           Season=case_when(Julian_day<=80 | Julian_day>=356 ~ "Winter",
+                            Julian_day>80 & Julian_day<=172 ~ "Spring",
+                            Julian_day>173 & Julian_day<=264 ~ "Summer",
+                            Julian_day>265 & Julian_day<=355 ~ "Fall"),
+           Time_num_s=(Time_num-mean(Full_data$Time_num, na.rm=T))/sd(Full_data$Time_num, na.rm=T))%>%
+    st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)%>%
+    st_transform(crs=st_crs(Delta_subregions))%>%
+    st_join(Delta_subregions, join = st_intersects)%>%
+    filter(!is.na(SubRegion))%>%
+    left_join(Data_effort, by=c("SubRegion", "Season", "Year"))%>%
+    filter(!is.na(N))
+  
+  pred<-predict(model, newdata=newdata, type="response", se.fit=TRUE)
+  
+  newdata<-newdata%>%
+    mutate(Prediction=pred$fit,
+           L95=pred$fit-pred$se.fit*1.96,
+           U95=pred$fit+pred$se.fit*1.96)%>%
+    mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))))
+  
+  return(newdata)
 }
 
-p<-map(set_names(c("Winter", "Spring", "Summer", "Fall")), ~pred_plot(newdata, .))
+newdata <- WQ_pred(modelm2$gam)
 
-#walk(set_names(c("Winter", "Spring", "Summer", "Fall")), ~ggsave(plot=p[[.]], filename=paste0("C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Prediction", ., " modelm2.png"),
-#                                                                                              dpi=300, width=7, height=7, units="in", device="png"))
+# Rasterizing -------------------------------------------------------------
 
-ggplot(newdata)+
-  geom_tile(aes(x=Longitude, y=Latitude, fill=Prediction), width=(bounds["xmax"]-bounds["xmin"])/n, height=(bounds["ymax"]-bounds["ymin"])/n)+
-  facet_wrap(~Year)+
-  scale_fill_viridis_c()
 
-# Sampling effort
-Data_effort <- Data%>%
-  st_drop_geometry()%>%
-  mutate(Decade=floor(Year/10)*10)%>%
-  group_by(SubRegion, Season, Decade)%>%
-  summarise(N=n())%>%
-  ungroup()%>%
-  left_join(Delta, by="SubRegion")%>%
-  st_as_sf()
-
-ggplot(Data_effort)+
-  geom_sf(aes(fill=N))+
-  scale_fill_viridis_c(name="Number of\nsamples")+
-  facet_grid(Decade~Season)+
-  theme_bw()+
-  theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
-
-test<-st_rasterize(newdata%>%
-                     filter(Year==max(Year) & Season=="Winter")%>%
-                     dplyr::select(Prediction), 
-                   template=st_as_stars(st_bbox(Delta), dx=diff(st_bbox(Delta)[c(1, 3)])/n, dy=diff(st_bbox(Delta)[c(2, 4)])/n, values = NA_real_))%>%
-  st_warp(crs=4326)
-
-test2<-st_rasterize(newdata%>%
-                     filter(Year==max(Year) & Season=="Fall")%>%
-                     dplyr::select(Prediction), 
-                   template=st_as_stars(st_bbox(Delta), dx=diff(st_bbox(Delta)[c(1, 3)])/n, dy=diff(st_bbox(Delta)[c(2, 4)])/n, values = NA_real_))%>%
-  st_warp(crs=4326)
-
-test3<-st_rasterize(newdata%>%
-                     filter(Year==2000 & Season=="Winter")%>%
-                     dplyr::select(Prediction), 
-                   template=st_as_stars(st_bbox(Delta), dx=diff(st_bbox(Delta)[c(1, 3)])/n, dy=diff(st_bbox(Delta)[c(2, 4)])/n, values = NA_real_))%>%
-  st_warp(crs=4326)
-
-test4<-st_rasterize(newdata%>%
-                      filter(Year==2000 & Season=="Fall")%>%
-                      dplyr::select(Prediction), 
-                    template=st_as_stars(st_bbox(Delta), dx=diff(st_bbox(Delta)[c(1, 3)])/n, dy=diff(st_bbox(Delta)[c(2, 4)])/n, values = NA_real_))%>%
-  st_warp(crs=4326)
-
-test5<-c(test, test2, test3, test4, along=list(Season=c("Winter", "Fall"), Year=c(2018, 2000), type="prediction"))
-
-ggplot()+
-  geom_stars(data=test)+
-  facet_grid(Year~Season)+
-  scale_fill_viridis_c(na.value="white")+
-  coord_equal()+
-  ylab("Latitude")+
-  xlab("Longitude")+
-  theme_bw()
-
-Rasterize_season<-function(season, data, out_crs=4326){
+Rasterize_season<-function(season, data, n, out_crs=4326){
   Years <- data%>%
     filter(Season==season)%>%
     pull(Year)%>%
@@ -360,60 +311,68 @@ Rasterize_all <- function(data, out_crs=4326){
   
 }
 
-Winter<-Rasterize_season("Winter", newdata)
-Spring<-Rasterize_season("Spring", newdata)
-Summer<-Rasterize_season("Summer", newdata)
-Fall<-Rasterize_season("Fall", newdata)
+raster_plot<-function(data, Years=unique(newdata$Year), labels="All"){
+  ggplot()+
+    geom_blank(data=tibble(Year=Years, Season=st_get_dimension_values(data, "Season")))+
+    geom_stars(data=data)+
+    facet_grid(Year~Season)+
+    scale_fill_viridis_c(name="Temperature", na.value="white", breaks=seq(6,26,by=2),
+                         guide = guide_colorbar(direction="horizontal", title.position = "top", barwidth = 4, ticks.linewidth = 2,
+                                                barheight=0.4, title.hjust=0.5, label.position="bottom", label.theme=element_text(size=8), 
+                                                title.theme=element_text(size=10)))+
+    coord_sf()+
+    ylab("Latitude")+
+    xlab("Longitude")+
+    theme_bw()+
+    {if(labels%in%c("None", "Right")){
+      theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), axis.title.y = element_blank())
+    }}+
+    {if(labels%in%c("None", "Left")){
+      theme(strip.text.y=element_blank())
+    }}+
+    theme(axis.text.x = element_text(angle=45, hjust=1), plot.margin = margin(30,0,0,0), strip.background=element_blank(),
+          panel.grid=element_blank(), legend.position = c(0.5,1.06), legend.background = element_rect(color="black"))
+}
 
-pw<-ggplot()+
-  geom_stars(data=Winter)+
-  geom_blank(data=tibble(Year=1969, Season="Winter"))+
-  facet_grid(Year~Season)+
-  scale_fill_viridis_c(name="Temperature", na.value="white", guide = guide_colorbar(direction="horizontal", title.position = "top", title.hjust=0.5, label.position="bottom"))+
-  coord_sf()+
-  ylab("Latitude")+
-  xlab("Longitude")+
+rastered_preds <- map(set_names(c("Winter", "Spring", "Summer", "Fall")), function(x) Rasterize_season(season=x, data=newdata, n=100))
+
+p<-map2(rastered_preds, c("Left", "None", "None", "Right"), ~raster_plot(data=.x, labels=.y))
+
+p2<-wrap_plots(p)+plot_layout(nrow=1, heights=c(1,1,1,1))
+
+ggsave(plot=p2, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Rasterized predictions.png", device=png(), width=7, height=12, units="in")
+
+# Bottom temperature
+
+newdata_bottom <- WQ_pred(modelm2_bottom$gam,
+                          Full_data=filter(Data, !is.na(Temperature_bottom)),
+                          Delta_subregions=Delta,
+                          Delta_water=spacetools::Delta,
+                          Stations = WQ_stations,
+                          n=100,
+                          Time_num=0)
+
+rastered_preds_bottom <- map(set_names(c("Winter", "Spring", "Summer", "Fall")), function(x) Rasterize_season(season=x, data=newdata_bottom, n=100))
+
+p_bottom<-map2(rastered_preds_bottom, c("Left", "None", "None", "Right"), ~raster_plot(data=.x, Years=unique(newdata_bottom$Year), labels=.y))
+
+p2_bottom<-wrap_plots(p_bottom)+plot_layout(nrow=1, heights=c(1,1,1,1))
+
+# Data effort -------------------------------------------------------------
+
+Data_effort <- Data%>%
+  st_drop_geometry()%>%
+  mutate(Decade=floor(Year/10)*10)%>%
+  group_by(SubRegion, Season, Decade)%>%
+  summarise(N=n())%>%
+  ungroup()%>%
+  left_join(Delta, by="SubRegion")%>%
+  st_as_sf()
+
+ggplot(Data_effort)+
+  geom_sf(aes(fill=N))+
+  scale_fill_viridis_c(name="Number of\nsamples")+
+  facet_grid(Decade~Season)+
   theme_bw()+
-  theme(axis.text.x = element_text(angle=45, hjust=1), plot.margin = margin(0,0,0,0), 
-        panel.grid=element_blank(), legend.position = c(0.7, 0.965), legend.background = element_rect(color="black"))
+  theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
 
-psp<-ggplot()+
-  geom_stars(data=Spring)+
-  facet_grid(Year~Season)+
-  scale_fill_viridis_c(name="Temperature", na.value="white", guide = guide_colorbar(direction="horizontal", title.position = "top", title.hjust=0.5, label.position="bottom"))+
-  coord_sf()+
-  ylab("Latitude")+
-  xlab("Longitude")+
-  theme_bw()+
-  theme(axis.text.x = element_text(angle=45, hjust=1), plot.margin = margin(0,0,0,0), 
-        panel.grid=element_blank(), legend.position = c(0.7, 0.965), legend.background = element_rect(color="black"))
-
-psu<-ggplot()+
-  geom_stars(data=Summer)+
-  facet_grid(Year~Season)+
-  scale_fill_viridis_c(name="Temperature", na.value="white", guide = guide_colorbar(direction="horizontal", title.position = "top", title.hjust=0.5, label.position="bottom"))+
-  coord_sf()+
-  ylab("Latitude")+
-  xlab("Longitude")+
-  theme_bw()+
-  theme(axis.text.x = element_text(angle=45, hjust=1), plot.margin = margin(0,0,0,0), 
-        panel.grid=element_blank(), legend.position = c(0.7, 0.965), legend.background = element_rect(color="black"))
-
-pf<-ggplot()+
-  geom_stars(data=Fall)+
-  facet_grid(Year~Season)+
-  scale_fill_viridis_c(name="Temperature", na.value="white", 
-                       guide = guide_colorbar(direction="horizontal", title.position = "top", 
-                                              title.hjust=0.5, label.position="bottom",
-                                              keyheight=0.3))+
-  coord_sf()+
-  ylab("Latitude")+
-  xlab("Longitude")+
-  theme_bw()+
-  theme(axis.text.x = element_text(angle=45, hjust=1), plot.margin = margin(0,0,0,0), 
-        panel.grid=element_blank(), legend.position = c(0.7, 0.965), legend.background = element_rect(color="black"))
-
-p<-pw+psp+psu+pf+plot_layout(nrow=1, heights=c(0.9,1,1,1))
-ggsave(filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Rasterized predictions.png", device=png(), width=10, height=20, units="in")
-
-plot_grid(pw, psp, psu, pf, nrow=1)
