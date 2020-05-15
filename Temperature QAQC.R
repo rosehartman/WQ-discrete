@@ -6,6 +6,9 @@ library(hms)
 library(sf)
 library(stars)
 require(patchwork)
+require(geofacet)
+require(gamm4)
+require(dtplyr)
 
 # Load Delta Shapefile from Brian
 Delta<-st_read("Delta Subregions")%>%
@@ -19,6 +22,8 @@ Data <- DeltaDater(Start_year = 1900,
                    Variables = "Water quality", 
                    Regions = NULL)%>%
   filter(!is.na(Temperature) & !is.na(Datetime) & !is.na(Latitude) & !is.na(Longitude) & !is.na(Date))%>% #Remove any rows with NAs in our key variables
+  filter(Temperature !=0)%>% #Remove 0 temps
+  mutate(Temperature_bottom=if_else(Temperature_bottom>30, NA_real_, Temperature_bottom))%>% #Remove bad bottom temps
   filter(hour(Datetime)>=5 & hour(Datetime)<=20)%>% # Only keep data betwen 5AM and 8PM
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)%>% # Convert to sf object
   st_transform(crs=st_crs(Delta))%>% # Change to crs of Delta
@@ -27,7 +32,8 @@ Data <- DeltaDater(Start_year = 1900,
   mutate(Datetime = with_tz(Datetime, tz="America/Phoenix"), #Convert to a timezone without daylight savings time
          Date = with_tz(Date, tz="America/Phoenix"),
          Julian_day = yday(Date), # Create julian day variable
-         Month_fac=factor(Month))%>% # Create month factor variable
+         Month_fac=factor(Month), # Create month factor variable
+         Source_fac=factor(Source))%>% 
   mutate(Date_num = as.numeric(Date), # Create numeric version of date for models
          Time = as_hms(Datetime))%>% # Create variable for time-of-day, not date. 
   mutate(Time_num=as.numeric(Time))%>% # Create numeric version of time for models (=seconds since midnight)
@@ -152,49 +158,36 @@ modelh2 <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2), k=c(1
 modeli2 <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2), k=c(15, 30)) + te(Julian_day_s, Time_num_s, bs=c("cc", "cr"), d=c(1,1), k=c(10,10)), random=list(Source=~1),
                 data = Data, method="REML")
 
-modell2 <- gam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(15, 30, 10)) + s(Time_num_s),
-               data = Data, method="REML")
+modell2 <- bam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 25, 7)) + s(Time_num_s, k=5),
+               data = Data, method="fREML", discrete=T, nthreads=4)
 
 modelm2 <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 15, 7)) + s(Time_num_s, k=5), random=list(Source=~1),
                 data = Data, method="REML")
 
+modelm2b <- bam(Temperature ~ t2(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 15, 7)) + 
+                  s(Time_num_s, k=5) + s(Source_fac, bs="re"), 
+                data = Data, method="REML")
+
+modelm2b2 <- bam(Temperature ~ t2(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 25, 7)) + 
+                  s(Time_num_s, k=5) + s(Source_fac, bs="re"), 
+                data = Data, method="REML")
+
+modelm2b <- gamm4(Temperature ~ t2(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 15, 7)) + s(Time_num_s, k=5), 
+                  random=~(1|Source), data = Data, REML=TRUE, verbose=2)
+
 modelm2_bottom <- gamm(Temperature_bottom ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 15, 7)) + s(Time_num_s, k=5), random=list(Source=~1),
                        data = filter(Data, !is.na(Temperature_bottom)), method="REML")
+save.image("~/WQ-discrete/Temperature QAQC.RData")
+
 
 gam.check(modelm2$gam)
 concurvity(modelm2$gam, full=TRUE)
 
 #model 2 seems good
-plot(modelm2, all.terms=TRUE, residuals=TRUE, shade=TRUE)
+plot(modelm2$gam, all.terms=TRUE, residuals=TRUE, shade=TRUE)
 #vis.gam
 
 
-# QAQC by residuals -------------------------------------------------------
-
-
-Data_qaqc<-Data%>%
-  mutate(Residuals = residuals(modelm2$gam),
-         Fitted=fitted(modelm2$gam))%>% # Fitted = model predictipn
-  mutate(Flag=if_else(abs(Residuals)>sd(Residuals)*3, "Bad", "Good")) # Anything greater than 3 standard deviations of residuals is "bad"
-
-ggplot(data=Data_qaqc)+
-  geom_point(aes(x=Temperature, y=Fitted, fill=Flag), shape=21)+
-  geom_abline(intercept=0, slope=1, size=2)
-
-#Refit model with "good" data
-
-modelm2_qaqc <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 15, 7)) + s(Time_num_s, k=5), random=list(Source=~1),
-                data = filter(Data_qaqc, Flag=="Good"), method="REML")
-
-Data_qaqc2<-Data_qaqc%>%
-  filter(Flag=="Good")%>%
-  mutate(Residuals = residuals(modelm2_qaqc$gam),
-         Fitted=fitted(modelm2_qaqc$gam))%>% # Fitted = model predictipn
-  mutate(Flag=if_else(abs(Residuals)>sd(Residuals)*3, "Bad", "Good")) # Anything greater than 3 standard deviations of residuals is "bad"
-
-ggplot(data=Data_qaqc2)+
-  geom_point(aes(x=Temperature, y=Fitted, fill=Flag), shape=21)+
-  geom_abline(intercept=0, slope=1, size=2)
 
 # DEM ---------------------------------------------------------------------
 
@@ -207,7 +200,7 @@ Coords<-Data%>%
   distinct()%>%
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326)%>%
   st_transform(crs=26910)
-DEM<-read_stars("~/dem_bay_delta_10m_20181128/dem_bay_delta_10m_20181128.tif", proxy=TRUE)%>%
+DEM<-read_stars("~/dem_bay_delta_10m_20181128/dem_bay_delta_10m_20181128.tif")%>%
   st_crop(Delta)
 Coords_joined<-aggregate(DEM, Coords, function(x) mean(x))
 
@@ -234,8 +227,12 @@ WQ_pred<-function(model,
                   Stations = WQ_stations,
                   n=100, 
                   Years=round(seq(min(Full_data$Year)+2, max(Full_data$Year)-2, length.out=9)),
-                  Julian_days=seq(min(Full_data$Julian_day), max(Full_data$Julian_day), length.out=5)[1:4],
-                  Time_num=0){
+                  Julian_days=yday(ymd(paste("2001", c(1,4,7,10), "15", sep="-"))), #Jan, Apr, Jul, and Oct 15 for a non-leap year
+                  Time_num=12*60*60, # 12PM x 60 seconds x 60 minutes
+                  Source="none",
+                  Source_gam_re=TRUE, #Was source included as a random effect in a smoother with bs="re"?
+                  Variance="CI" # "CI" or "SE" Anything else won't return any variance
+){
   
   # Create point locations on a grid for predictions
   Points<-st_make_grid(Delta_subregions, n=n)%>%
@@ -273,7 +270,8 @@ WQ_pred<-function(model,
   newdata<-expand.grid(Year= Years,
                        Location=1:nrow(Points),
                        Julian_day=Julian_days,
-                       Time_num=Time_num)%>% # Create all combinations of predictor variables
+                       Time_num=Time_num,
+                       Source_fac=Source)%>% # Create all combinations of predictor variables
     left_join(Points, by="Location")%>% #Add Lat/Longs to each location
     mutate(Latitude_s=(Latitude-mean(Full_data$Latitude, na.rm=T))/sd(Full_data$Latitude, na.rm=T), # Standardize each variable based on full dataset for model
            Longitude_s=(Longitude-mean(Full_data$Longitude, na.rm=T))/sd(Full_data$Longitude, na.rm=T),
@@ -291,19 +289,30 @@ WQ_pred<-function(model,
     left_join(Data_effort, by=c("SubRegion", "Season", "Year"))%>% # Use the Data_effort key created above to remove points in subregions that were not sampled that region, season, and year.
     filter(!is.na(N))
   
-  pred<-predict(model, newdata=newdata, type="response", se.fit=TRUE) # Create predictions
+  pred<-predict(model, newdata=newdata, type="response", se.fit=TRUE, discrete=T, n.threads=4) # Create predictions
+  
+  if(Source_gam_re){
+    pred$fit<-pred$fit+mean(model$coefficients[grep("Source_fac", names(model$coefficients))]) # Add mean effect of random intercept
+  }
   
   # Add predictions to predicter dataset
   newdata<-newdata%>%
-    mutate(Prediction=pred$fit,
-           L95=pred$fit-pred$se.fit*1.96,
-           U95=pred$fit+pred$se.fit*1.96)%>%
-    mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-")))) # Create Date variable from Julian Day and Year
+    mutate(Prediction=pred$fit)%>%
+    {if(Variance=="CI"){
+      mutate(., L95=pred$fit-pred$se.fit*1.96,
+             U95=pred$fit+pred$se.fit*1.96)
+    } else{
+      .
+    }}%>%
+    {if(Variance=="SE"){
+      mutate(., SE=pred$se.fit)
+    } else{
+      .
+    }}%>%
+  mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-")))) # Create Date variable from Julian Day and Year
   
   return(newdata)
 }
-
-newdata <- WQ_pred(modelm2$gam) # Run function above on modelm2. 
 
 # Rasterizing -------------------------------------------------------------
 
@@ -344,7 +353,7 @@ raster_plot<-function(data, Years=unique(newdata$Year), labels="All"){
     geom_blank(data=tibble(Year=Years, Season=st_get_dimension_values(data, "Season")))+
     geom_stars(data=data)+
     facet_grid(Year~Season)+
-    scale_fill_viridis_c(name="Temperature", na.value="white", breaks=seq(6,26,by=2),
+    scale_fill_viridis_c(name="Temperature", na.value="white", breaks=seq(6,26,by=1), labels= function(x) ifelse((x/2)==as.integer(x/2), as.character(x), ""),
                          guide = guide_colorbar(direction="horizontal", title.position = "top", barwidth = 4, ticks.linewidth = 2,
                                                 barheight=0.4, title.hjust=0.5, label.position="bottom", label.theme=element_text(size=8), 
                                                 title.theme=element_text(size=10)))+
@@ -358,11 +367,13 @@ raster_plot<-function(data, Years=unique(newdata$Year), labels="All"){
     {if(labels%in%c("None", "Left")){
       theme(strip.text.y=element_blank())
     }}+
-    theme(axis.text.x = element_text(angle=45, hjust=1), plot.margin = margin(30,0,0,0), strip.background=element_blank(),
-          panel.grid=element_blank(), legend.position = c(0.5,1.06), legend.background = element_rect(color="black"))
+    theme(axis.text.x = element_text(angle=45, hjust=1), plot.margin = margin(40,0,0,0), strip.background=element_blank(),
+          panel.grid=element_blank(), legend.position = c(0.5,1.05), legend.background = element_rect(color="black"))
 }
 
 # Surface temperature
+
+newdata <- WQ_pred(modell2, Source_gam_re=FALSE) # Run predict function above on modelm2. 
 
 # Rasterize each season
 rastered_preds <- map(set_names(c("Winter", "Spring", "Summer", "Fall")), function(x) Rasterize_season(season=x, data=newdata, n=100))
@@ -374,7 +385,7 @@ p<-map2(rastered_preds, c("Left", "None", "None", "Right"), ~raster_plot(data=.x
 p2<-wrap_plots(p)+plot_layout(nrow=1, heights=c(1,1,1,1))
 
 # Save plots
-ggsave(plot=p2, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Rasterized predictions.png", device=png(), width=7, height=12, units="in")
+ggsave(plot=p2, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Rasterized predictions 5.15.20.png", device=png(), width=7, height=12, units="in")
 
 # Do the same for Bottom temperature
 
@@ -387,7 +398,100 @@ p_bottom<-map2(rastered_preds_bottom, c("Left", "None", "None", "Right"), ~raste
 
 p2_bottom<-wrap_plots(p_bottom)+plot_layout(nrow=1, heights=c(1,1,1,1))
 
-ggsave(plot=p2_bottom, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Rasterized predictions_bottom.png", device=png(), width=7, height=12, units="in")
+ggsave(plot=p2_bottom, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Rasterized predictions_bottom.png", device=png(), width=7, height=12, units="in")
+
+
+# Plots by year -----------------------------------------------------------
+
+mygrid <- data.frame(
+  name = c("Cache Slough and Lindsey Slough", "Lower Sacramento River Ship Channel", "Liberty Island", "Suisun Marsh", "Middle Sacramento River", "Lower Cache Slough", "Steamboat and Miner Slough", "Upper Mokelumne River", "Lower Mokelumne River", "Georgiana Slough", "Sacramento River near Ryde", "Sacramento River near Rio Vista", "Grizzly Bay", "West Suisun Bay", "Mid Suisun Bay", "Honker Bay", "Confluence", "Lower Sacramento River", "San Joaquin River at Twitchell Island", "San Joaquin River at Prisoners Pt", "Disappointment Slough", "Lower San Joaquin River", "Franks Tract", "Holland Cut", "San Joaquin River near Stockton", "Mildred Island", "Middle River", "Old River", "Upper San Joaquin River", "Grant Line Canal and Old River", "Victoria Canal"),
+  row = c(2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 7, 7, 8, 8, 8),
+  col = c(4, 6, 5, 2, 8, 6, 7, 9, 9, 8, 7, 6, 2, 1, 2, 3, 4, 5, 6, 8, 9, 5, 6, 7, 9, 8, 8, 7, 9, 8, 7),
+  code = c(" 1", " 2", " 3", " 8", " 4", " 5", " 6", " 7", " 9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "30", "29", "31"),
+  stringsAsFactors = FALSE
+)
+#geofacet::grid_preview(mygrid)
+
+newdata_year <- WQ_pred(modell2,
+                   Full_data=Data, 
+                   Julian_days = yday(ymd(paste("2001", 1:12, "15", sep="-"))),
+                   Years=round(min(Data$Year):max(Data$Year)),
+                   Variance="SE",
+                   Source_gam_re=FALSE) 
+
+Data_year<-Data%>%
+  filter(hour(Time)<14 & hour(Time)>10)%>%
+  lazy_dt()%>%
+  group_by(Year, Month, Season, SubRegion)%>%
+  summarize(SD=sd(Temperature), Temperature=mean(Temperature))%>%
+  ungroup()%>%
+  as_tibble()
+
+newdata_sum<-newdata%>%
+  mutate(Var=SE^2,
+         Month=month(Date))%>%
+  lazy_dt()%>%
+  group_by(Year, Month, SubRegion)%>%
+  summarise(Temperature=mean(Prediction), SE=sqrt(sum(Var)/(n()^2)))%>%
+  ungroup()%>%
+  as_tibble()%>%
+  mutate(L95=Temperature-1.96*SE,
+         U95=Temperature+1.96*SE)
+
+# Plot by Season for 1 subregion
+ggplot(filter(newdata_sum, SubRegion=="Confluence"))+
+  geom_ribbon(aes(x=Year, ymin=L95, ymax=U95), fill="darkorchid4", alpha=0.5)+
+  geom_line(aes(x=Year, y=Temperature))+
+  geom_pointrange(data=filter(Data_year, SubRegion=="Confluence"), aes(x=Year, y=Temperature, ymin=Temperature-SD, ymax=Temperature+SD))+
+  facet_grid(~Month)+
+  theme_bw()+
+  theme(panel.grid=element_blank())
+
+# Plot by Subregion for 1 season
+mapyear<-function(month){
+  ggplot(filter(newdata_sum, Month==month))+
+    geom_ribbon(aes(x=Year, ymin=L95, ymax=U95), fill="firebrick3", alpha=0.5)+
+    geom_line(aes(x=Year, y=Temperature), color="firebrick3")+
+    geom_pointrange(data=filter(Data_year, Month==month), aes(x=Year, y=Temperature, ymin=Temperature-SD, ymax=Temperature+SD), size=0.5, alpha=0.4)+
+    facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
+    theme_bw()+
+    theme(panel.grid=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
+}
+
+walk(1:12, function(x) ggsave(plot=mapyear(x), filename=paste0("C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Year predictions month ", x, ".png"), device=png(), width=15, height=12, units="in"))
+# QAQC by residuals -------------------------------------------------------
+
+
+Data_qaqc<-Data%>%
+  mutate(Residuals = residuals(modell2),
+         Fitted=fitted(modell2))%>% # Fitted = model predictipn
+  mutate(Flag=if_else(abs(Residuals)>sd(Residuals)*3, "Bad", "Good")) # Anything greater than 3 standard deviations of residuals is "bad"
+
+p<-ggplot(data=Data_qaqc)+
+  geom_point(aes(x=Temperature, y=Fitted, fill=Flag), shape=21)+
+  geom_abline(intercept=0, slope=1, size=2)+
+  ylab("Fitted temperature value from model")+
+  xlab("Recorded temperature from surveys")+
+  scale_fill_discrete(labels=c("Bad: Residuals > 3 SD", "Good: Residuals < 3 SD"))+
+  theme_bw()+
+  theme(panel.grid=element_blank(), legend.position=c(0.9,0.1), legend.background = element_rect(color="black"))
+ggsave(plot=p, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Data qaqc.png", device=png(), width=7, height=7, units="in")
+
+
+#Refit model with "good" data
+
+modelm2_qaqc <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 15, 7)) + s(Time_num_s, k=5), random=list(Source=~1),
+                     data = filter(Data_qaqc, Flag=="Good"), method="REML")
+
+Data_qaqc2<-Data_qaqc%>%
+  filter(Flag=="Good")%>%
+  mutate(Residuals = residuals(modelm2_qaqc$gam),
+         Fitted=fitted(modelm2_qaqc$gam))%>% # Fitted = model predictipn
+  mutate(Flag=if_else(abs(Residuals)>sd(Residuals)*3, "Bad", "Good")) # Anything greater than 3 standard deviations of residuals is "bad"
+
+ggplot(data=Data_qaqc2)+
+  geom_point(aes(x=Temperature, y=Fitted, fill=Flag), shape=21)+
+  geom_abline(intercept=0, slope=1, size=2)
 
 
 # Data effort -------------------------------------------------------------
