@@ -161,6 +161,19 @@ modeli2 <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2), k=c(
 modell2 <- bam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 25, 7)) + s(Time_num_s, k=5),
                data = Data, method="fREML", discrete=T, nthreads=4)
 
+
+modell3 <- bam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(15, 35, 7)) + s(Time_num_s, k=5),
+               data = Data, method="fREML", discrete=T, nthreads=4)
+
+
+modell4 <- bam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 35, 7)) + s(Time_num_s, k=5),
+               data = Data, method="fREML", discrete=T, nthreads=4)
+
+### Best of the modell models by BIC, second best after modell3 by AIC
+modell5 <- bam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(15, 25, 7)) + s(Time_num_s, k=5),
+               data = Data, method="fREML", discrete=T, nthreads=4)
+### Best of the modell models by BIC, second best after modell3 by AIC
+
 modelm2 <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 15, 7)) + s(Time_num_s, k=5), random=list(Source=~1),
                 data = Data, method="REML")
 
@@ -474,7 +487,8 @@ p<-ggplot(data=Data_qaqc)+
   xlab("Recorded temperature from surveys")+
   scale_fill_discrete(labels=c("Bad: Residuals > 3 SD", "Good: Residuals < 3 SD"))+
   theme_bw()+
-  theme(panel.grid=element_blank(), legend.position=c(0.9,0.1), legend.background = element_rect(color="black"))
+  theme(panel.grid=element_blank(), legend.position=c(0.8,0.1), legend.background = element_rect(color="black"))
+
 ggsave(plot=p, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Data qaqc.png", device=png(), width=7, height=7, units="in")
 
 
