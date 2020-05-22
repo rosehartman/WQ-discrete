@@ -33,7 +33,8 @@ Data <- DeltaDater(Start_year = 1900,
          Date = with_tz(Date, tz="America/Phoenix"),
          Julian_day = yday(Date), # Create julian day variable
          Month_fac=factor(Month), # Create month factor variable
-         Source_fac=factor(Source))%>% 
+         Source_fac=factor(Source),
+         Year_fac=ordered(Year))%>% 
   mutate(Date_num = as.numeric(Date), # Create numeric version of date for models
          Time = as_hms(Datetime))%>% # Create variable for time-of-day, not date. 
   mutate(Time_num=as.numeric(Time))%>% # Create numeric version of time for models (=seconds since midnight)
@@ -161,6 +162,11 @@ modeli2 <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2), k=c(
 modell2 <- bam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 25, 7)) + s(Time_num_s, k=5),
                data = Data, method="fREML", discrete=T, nthreads=4)
 
+modell2b <- bam(Temperature ~ te(Date_num, Longitude_s, Latitude_s, d=c(1,2), bs=c("cr", "tp"), k=c(70, 25)) + s(Time_num_s, k=5),
+                data = Data, method="fREML", discrete=T, nthreads=4)
+
+modell2c <- bam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cr"), k=c(10, 25, 7)) + s(Time_num_s, k=5),
+                data = Data, method="fREML", discrete=T, nthreads=4)
 
 modell3 <- bam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(15, 35, 7)) + s(Time_num_s, k=5),
                data = Data, method="fREML", discrete=T, nthreads=4)
@@ -169,10 +175,34 @@ modell3 <- bam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d
 modell4 <- bam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 35, 7)) + s(Time_num_s, k=5),
                data = Data, method="fREML", discrete=T, nthreads=4)
 
-### Best of the modell models by BIC, second best after modell3 by AIC
+
 modell5 <- bam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(15, 25, 7)) + s(Time_num_s, k=5),
                data = Data, method="fREML", discrete=T, nthreads=4)
-### Best of the modell models by BIC, second best after modell3 by AIC
+
+modell6 <- bam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(15, 30, 7)) + s(Time_num_s, k=5),
+               data = Data, method="fREML", discrete=T, nthreads=4)
+
+### Best of the modell models by BIC and AIC
+modell7 <- bam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(20, 25, 7)) + s(Time_num_s, k=5),
+               data = Data, method="fREML", discrete=T, nthreads=4)
+### Best of the modell models by BIC and AIC
+
+modell8 <- bam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(25, 25, 7)) + s(Time_num_s, k=5),
+               data = Data, method="fREML", discrete=T, nthreads=4)
+
+modell9 <- bam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(35, 25, 7)) + s(Time_num_s, k=5),
+               data = Data, method="fREML", discrete=T, nthreads=4)
+
+# Now this is best! k-value for Year_fac has no effect. Changing this results in the exact same model
+modellb <- bam(Temperature ~ te(Year_fac, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("fs", "tp", "cc"), k=c(35, 25, 7)) + s(Time_num_s, k=5),
+               data = Data, method="fREML", discrete=T, nthreads=4)
+
+modellc <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 7), by=Year_fac) + s(Time_num_s, k=5),
+               data = Data, method="fREML", discrete=T, nthreads=4)
+
+modelld <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 7), m=2) + 
+                 te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 7), by=Year_fac, m=1) + s(Time_num_s, k=5),
+               data = Data, method="fREML", discrete=T, nthreads=4, select=T)
 
 modelm2 <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 15, 7)) + s(Time_num_s, k=5), random=list(Source=~1),
                 data = Data, method="REML")
@@ -182,8 +212,8 @@ modelm2b <- bam(Temperature ~ t2(Year_s, Longitude_s, Latitude_s, Julian_day_s, 
                 data = Data, method="REML")
 
 modelm2b2 <- bam(Temperature ~ t2(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 25, 7)) + 
-                  s(Time_num_s, k=5) + s(Source_fac, bs="re"), 
-                data = Data, method="REML")
+                   s(Time_num_s, k=5) + s(Source_fac, bs="re"), 
+                 data = Data, method="REML")
 
 modelm2b <- gamm4(Temperature ~ t2(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 15, 7)) + s(Time_num_s, k=5), 
                   random=~(1|Source), data = Data, REML=TRUE, verbose=2)
@@ -291,6 +321,7 @@ WQ_pred<-function(model,
            Year_s=(Year-mean(Full_data$Year, na.rm=T))/sd(Full_data$Year, na.rm=T),
            Julian_day_s = (Julian_day-mean(Full_data$Julian_day, na.rm=T))/sd(Full_data$Julian_day, na.rm=T),
            Time_num_s=(Time_num-mean(Full_data$Time_num, na.rm=T))/sd(Full_data$Time_num, na.rm=T),
+           Year_fac=ordered(Year),
            Season=case_when(Julian_day<=80 | Julian_day>=356 ~ "Winter", # Create a variable for season
                             Julian_day>80 & Julian_day<=172 ~ "Spring",
                             Julian_day>173 & Julian_day<=264 ~ "Summer",
@@ -322,7 +353,7 @@ WQ_pred<-function(model,
     } else{
       .
     }}%>%
-  mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-")))) # Create Date variable from Julian Day and Year
+    mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-")))) # Create Date variable from Julian Day and Year
   
   return(newdata)
 }
@@ -386,7 +417,7 @@ raster_plot<-function(data, Years=unique(newdata$Year), labels="All"){
 
 # Surface temperature
 
-newdata <- WQ_pred(modell2, Source_gam_re=FALSE) # Run predict function above on modelm2. 
+newdata <- WQ_pred(modellb, Source_gam_re=FALSE) # Run predict function above on modelm2. 
 
 # Rasterize each season
 rastered_preds <- map(set_names(c("Winter", "Spring", "Summer", "Fall")), function(x) Rasterize_season(season=x, data=newdata, n=100))
@@ -398,7 +429,7 @@ p<-map2(rastered_preds, c("Left", "None", "None", "Right"), ~raster_plot(data=.x
 p2<-wrap_plots(p)+plot_layout(nrow=1, heights=c(1,1,1,1))
 
 # Save plots
-ggsave(plot=p2, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Rasterized predictions 5.15.20.png", device=png(), width=7, height=12, units="in")
+ggsave(plot=p2, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Rasterized predictions 5.21.20.png", device=png(), width=7, height=12, units="in")
 
 # Do the same for Bottom temperature
 
@@ -425,12 +456,12 @@ mygrid <- data.frame(
 )
 #geofacet::grid_preview(mygrid)
 
-newdata_year <- WQ_pred(modell2,
-                   Full_data=Data, 
-                   Julian_days = yday(ymd(paste("2001", 1:12, "15", sep="-"))),
-                   Years=round(min(Data$Year):max(Data$Year)),
-                   Variance="SE",
-                   Source_gam_re=FALSE) 
+newdata_year <- WQ_pred(modellc,
+                        Full_data=Data, 
+                        Julian_days = yday(ymd(paste("2001", 1:12, "15", sep="-"))),
+                        Years=round(min(Data$Year):max(Data$Year)),
+                        Variance="SE",
+                        Source_gam_re=FALSE) 
 
 Data_year<-Data%>%
   filter(hour(Time)<14 & hour(Time)>10)%>%
@@ -440,7 +471,7 @@ Data_year<-Data%>%
   ungroup()%>%
   as_tibble()
 
-newdata_sum<-newdata%>%
+newdata_sum<-newdata_year%>%
   mutate(Var=SE^2,
          Month=month(Date))%>%
   lazy_dt()%>%
@@ -471,13 +502,13 @@ mapyear<-function(month){
     theme(panel.grid=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
 }
 
-walk(1:12, function(x) ggsave(plot=mapyear(x), filename=paste0("C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Year predictions month ", x, ".png"), device=png(), width=15, height=12, units="in"))
+walk(1:12, function(x) ggsave(plot=mapyear(x), filename=paste0("C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Year predictions month ", x, "5.21.20.png"), device=png(), width=15, height=12, units="in"))
 # QAQC by residuals -------------------------------------------------------
 
 
 Data_qaqc<-Data%>%
-  mutate(Residuals = residuals(modell2),
-         Fitted=fitted(modell2))%>% # Fitted = model predictipn
+  mutate(Residuals = residuals(modellb),
+         Fitted=fitted(modellb))%>% # Fitted = model predictipn
   mutate(Flag=if_else(abs(Residuals)>sd(Residuals)*3, "Bad", "Good")) # Anything greater than 3 standard deviations of residuals is "bad"
 
 p<-ggplot(data=Data_qaqc)+
@@ -525,4 +556,14 @@ ggplot(Data_effort)+
   facet_grid(Decade~Season)+
   theme_bw()+
   theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
+
+
+# Stratified cross-validation ---------------------------------------------
+
+Data_split<-Data%>%
+  mutate(Hour=hour(Time))%>%
+  group_by(SubRegion, Year, Season, Hour)%>%
+  mutate(Group=sample(1:10, 1, replace=T))%>%
+  ungroup()
+
 
