@@ -161,37 +161,49 @@ modeli2 <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, d=c(1,2), k=c(
 
 modell2 <- bam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 25, 7)) + s(Time_num_s, k=5),
                data = Data, method="fREML", discrete=T, nthreads=4)
+#AIC: 335874.6
+#BIC: 344138
 
 modell2b <- bam(Temperature ~ te(Date_num, Longitude_s, Latitude_s, d=c(1,2), bs=c("cr", "tp"), k=c(70, 25)) + s(Time_num_s, k=5),
                 data = Data, method="fREML", discrete=T, nthreads=4)
 
 modell2c <- bam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cr"), k=c(10, 25, 7)) + s(Time_num_s, k=5),
                 data = Data, method="fREML", discrete=T, nthreads=4)
+#AIC: 336037.3
+#BIC: 344957.1
 
 modell3 <- bam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(15, 35, 7)) + s(Time_num_s, k=5),
                data = Data, method="fREML", discrete=T, nthreads=4)
-
+#AIC: 331733.5
+#BIC: 345038.7
 
 modell4 <- bam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 35, 7)) + s(Time_num_s, k=5),
                data = Data, method="fREML", discrete=T, nthreads=4)
-
+#AIC: 335430.2
+#BIC: 345330.9
 
 modell5 <- bam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(15, 25, 7)) + s(Time_num_s, k=5),
                data = Data, method="fREML", discrete=T, nthreads=4)
+#AIC: 332211.2
+#BIC: 343416.9
 
 modell6 <- bam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(15, 30, 7)) + s(Time_num_s, k=5),
                data = Data, method="fREML", discrete=T, nthreads=4)
+#AIC: 331920.7
+#BIC: 344391.6
 
-### Best of the modell models by BIC and AIC
 modell7 <- bam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(20, 25, 7)) + s(Time_num_s, k=5),
                data = Data, method="fREML", discrete=T, nthreads=4)
-### Best of the modell models by BIC and AIC
+#AIC: 326162.7
+#BIC: 340341
 
 modell8 <- bam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(25, 25, 7)) + s(Time_num_s, k=5),
                data = Data, method="fREML", discrete=T, nthreads=4)
 
 modell9 <- bam(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(35, 25, 7)) + s(Time_num_s, k=5),
                data = Data, method="fREML", discrete=T, nthreads=4)
+#AIC: 314035.6
+#BIC: 336742
 
 # Now this is best! k-value for Year_fac has no effect. Changing this results in the exact same model
 modellb <- bam(Temperature ~ te(Year_fac, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("fs", "tp", "cc"), k=c(35, 25, 7)) + s(Time_num_s, k=5),
@@ -200,9 +212,14 @@ modellb <- bam(Temperature ~ te(Year_fac, Longitude_s, Latitude_s, Julian_day_s,
 modellc <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 7), by=Year_fac) + s(Time_num_s, k=5),
                data = Data, method="fREML", discrete=T, nthreads=4)
 
+## This is by far the best model by BIC and AIC
 modelld <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 7), m=2) + 
                  te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 7), by=Year_fac, m=1) + s(Time_num_s, k=5),
                data = Data, method="fREML", discrete=T, nthreads=4, select=T)
+
+modelld2 <- bam(Temperature ~ Year_fac + t2(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs="tp", k=c(10, 5), m=2, full=T) + 
+                  te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs="tp", k=c(25, 15), by=Year_fac, m=1) + s(Time_num_s, k=5),
+                data = Data, method="fREML", discrete=T, nthreads=4, select=T)
 
 modelm2 <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 15, 7)) + s(Time_num_s, k=5), random=list(Source=~1),
                 data = Data, method="REML")
@@ -552,7 +569,7 @@ Data_effort <- Data%>%
 
 ggplot(Data_effort)+
   geom_sf(aes(fill=N))+
-  scale_fill_viridis_c(name="Number of\nsamples")+
+  scale_fill_viridis_c(name="Number of\nsamples per decade")+
   facet_grid(Decade~Season)+
   theme_bw()+
   theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
