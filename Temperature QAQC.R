@@ -217,9 +217,9 @@ modelld <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s
                  te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 7), by=Year_fac, m=1) + s(Time_num_s, k=5),
                data = Data, method="fREML", discrete=T, nthreads=4, select=T)
 
-modelld2 <- bam(Temperature ~ Year_fac + t2(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs="tp", k=c(10, 5), m=2, full=T) + 
+modelld2 <- bam(Temperature ~ Year_fac + t2(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs="tp", k=c(15, 5), m=2, full=T) + 
                   te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs="tp", k=c(25, 15), by=Year_fac, m=1) + s(Time_num_s, k=5),
-                data = Data, method="fREML", discrete=T, nthreads=4, select=T)
+                data = Data, method="fREML", discrete=F, nthreads=4, select=T)
 
 modelm2 <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 15, 7)) + s(Time_num_s, k=5), random=list(Source=~1),
                 data = Data, method="REML")
