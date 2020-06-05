@@ -10,6 +10,8 @@ require(geofacet)
 require(gamm4)
 require(dtplyr)
 
+is.even <- function(x) as.integer(x) %% 2 == 0
+
 # Load Delta Shapefile from Brian
 Delta<-st_read("Delta Subregions")%>%
   filter(!SubRegion%in%c("South Bay", "San Francisco Bay", "San Pablo Bay", "Upper Yolo Bypass", 
@@ -34,7 +36,7 @@ Data <- DeltaDater(Start_year = 1900,
          Julian_day = yday(Date), # Create julian day variable
          Month_fac=factor(Month), # Create month factor variable
          Source_fac=factor(Source),
-         Year_fac=ordered(Year))%>% 
+         Year_fac=factor(Year))%>% 
   mutate(Date_num = as.numeric(Date), # Create numeric version of date for models
          Time = as_hms(Datetime))%>% # Create variable for time-of-day, not date. 
   mutate(Time_num=as.numeric(Time))%>% # Create numeric version of time for models (=seconds since midnight)
@@ -43,11 +45,14 @@ Data <- DeltaDater(Start_year = 1900,
 # Pull station locations for major monitoring programs
 # This will be used to set a boundary for this analysis focused on well-sampled regions.
 WQ_stations<-Data%>%
+  st_drop_geometry()%>%
   filter(Source%in%c("FMWT", "STN", "SKT", "20mm", "EMP", "Suisun"))%>%
-  group_by(StationID, Source)%>%
-  summarise(N=n())%>% # Calculate how many times each station was sampled
+  group_by(StationID, Source, Latitude, Longitude)%>%
+  summarise(N=n(), .groups="drop")%>% # Calculate how many times each station was sampled
   filter(N>50 & !StationID%in%c("20mm 918", "STN 918"))%>% # Only keep stations sampled >50 times when deciding which regions to retain. 
   # "20mm 918", "STN 918" are far south of the rest of the well-sampled sites and are not sampled year round, so we're removing them to exclude that far southern region
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)%>% # Convert to sf object
+  st_transform(crs=st_crs(Delta))%>%
   st_join(Delta) # Add subregions
 
 # Remove any subregions that do not contain at least one of these >50 samples stations from the major monitoring programs
@@ -65,7 +70,8 @@ Data<-Data%>%
             mutate(IN=TRUE),
           join=st_intersects)%>%
   filter(IN)%>%
-  dplyr::select(-IN)
+  dplyr::select(-IN)%>%
+  mutate(Group=if_else(is.even(Year), 1, 2))
 
 # Old code to visualize the prior steps
 
@@ -212,6 +218,24 @@ modellb <- bam(Temperature ~ te(Year_fac, Longitude_s, Latitude_s, Julian_day_s,
 modellc <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 7), by=Year_fac) + s(Time_num_s, k=5),
                data = Data, method="fREML", discrete=T, nthreads=4)
 
+modellc2a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 15), by=Year_fac) + s(Time_num_s, k=5),
+                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
+#AIC: 126279.9
+#BIC: 158009.3
+
+modellc3a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(35, 15), by=Year_fac) + s(Time_num_s, k=5),
+                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
+#AIC: 125299.8
+#BIC: 161495.4
+
+modellc4a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + s(Time_num_s, k=5),
+                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
+#AIC: 116576.5
+#BIC: 157218.6
+
+modellc5a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 25), by=Year_fac) + s(Time_num_s, k=5),
+                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4, gc.level=2)
+
 ## This is by far the best model by BIC and AIC
 modelld <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 7), m=2) + 
                  te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 7), by=Year_fac, m=1) + s(Time_num_s, k=5),
@@ -219,7 +243,7 @@ modelld <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s
 
 modelld2 <- bam(Temperature ~ Year_fac + t2(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs="tp", k=c(15, 5), m=2, full=T) + 
                   te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs="tp", k=c(25, 15), by=Year_fac, m=1) + s(Time_num_s, k=5),
-                data = Data, method="fREML", discrete=F, nthreads=4, select=T)
+                data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=F, nthreads=4, select=T)
 
 modelm2 <- gamm(Temperature ~ te(Year_s, Longitude_s, Latitude_s, Julian_day_s, d=c(1,2,1), bs=c("cr", "tp", "cc"), k=c(10, 15, 7)) + s(Time_num_s, k=5), random=list(Source=~1),
                 data = Data, method="REML")
@@ -584,3 +608,23 @@ Data_split<-Data%>%
   ungroup()
 
 
+# Test autocorrelation ----------------------------------------------------
+
+auto<-Data%>%
+  filter(Group==1)%>%
+  mutate(Resid=resid(modellc4a))%>%
+  filter(Source!="EDSM" & !str_detect(Station, "EZ"))%>% # Remove EDSM and EZ stations because they're not fixed
+  mutate(Station=paste(Source, Station))%>%
+  group_by(Station)%>%
+  mutate(N=n())%>%
+  filter(N>10)%>%
+  summarise(ACF=list(pacf(Resid, plot=F)), N=n(), ci=qnorm((1 + 0.95)/2)/sqrt(n()), .groups="drop")%>%
+  rowwise()%>%
+  mutate(lag=list(ACF$lag), acf=list(ACF$acf))%>%
+  unnest(cols=c(lag, acf))%>%
+  arrange(-N)
+
+length(which(abs(auto$acf)>abs(auto$ci)))/nrow(auto)
+
+## Only 6% exceed the CI, very close to the 5% you would expect with our chosen confidence level of 0.95 so I'm taking this as good evidence of no autocorrelation
+  
