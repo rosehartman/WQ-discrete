@@ -235,6 +235,8 @@ modellc4a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day
 
 modellc5a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 25), by=Year_fac) + s(Time_num_s, k=5),
                  data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4, gc.level=2)
+#AIC: 109347.2
+#BIC: 158281
 
 ## This is by far the best model by BIC and AIC
 modelld <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 7), m=2) + 
@@ -618,13 +620,22 @@ auto<-Data%>%
   group_by(Station)%>%
   mutate(N=n())%>%
   filter(N>10)%>%
-  summarise(ACF=list(pacf(Resid, plot=F)), N=n(), ci=qnorm((1 + 0.95)/2)/sqrt(n()), .groups="drop")%>%
+  summarise(ACF=list(pacf(Resid, plot=F)), N=n(), ci=qnorm((1 + 0.95)/2)/sqrt(n()), .groups="drop")%>% # ci formula from https://stackoverflow.com/questions/14266333/extract-confidence-interval-values-from-acf-correlogram
   rowwise()%>%
   mutate(lag=list(ACF$lag), acf=list(ACF$acf))%>%
   unnest(cols=c(lag, acf))%>%
-  arrange(-N)
+  arrange(-N)%>%
+  mutate(Station=factor(Station, levels=unique(Station)))
 
 length(which(abs(auto$acf)>abs(auto$ci)))/nrow(auto)
 
 ## Only 6% exceed the CI, very close to the 5% you would expect with our chosen confidence level of 0.95 so I'm taking this as good evidence of no autocorrelation
-  
+
+ggplot(filter(auto, lag==1))+
+  geom_point(aes(x=Station, y=abs(acf)), fill="black", shape=21)+
+  geom_point(data=filter(auto, lag==1 & abs(acf)>abs(ci)), aes(x=Station, y=abs(acf)), fill="red", shape=21)+
+  geom_point(aes(x=Station, y=abs(ci)), fill="white", shape=21)+
+  geom_segment(aes(x=Station, y=abs(acf), xend=Station, yend=abs(ci)), linetype=2)+
+  geom_segment(data=filter(auto, lag==1 & abs(acf)>abs(ci)), aes(x=Station, y=abs(acf), xend=Station, yend=abs(ci)), color="red")+
+  theme_bw()+
+  theme(panel.grid=element_blank(), axis.text.x=element_text(angle=45, hjust=1))
