@@ -245,9 +245,6 @@ modellc6a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day
 #AIC: 116029.4
 #BIC: 159493.6
 
-modellc7a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + s(Time_num_s, k=5),
-                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
-
 ## This is by far the best model by BIC and AIC
 modelld <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 7), m=2) + 
                  te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 7), by=Year_fac, m=1) + s(Time_num_s, k=5),
@@ -740,14 +737,39 @@ ggplot(Data_effort)+
 
 
 # Stratified cross-validation ---------------------------------------------
-
+set.seed(100)
 Data_split<-Data%>%
-  mutate(Hour=hour(Time))%>%
-  group_by(SubRegion, Year, Season, Hour)%>%
-  mutate(Group=sample(1:10, 1, replace=T))%>%
+  mutate(Resid=Residuals,
+         Fitted=modellc4a_predictions$fit)%>%
+  group_by(SubRegion, Year, Season, Group)%>%
+  mutate(Fold=sample(1:10, 1, replace=T))%>%
   ungroup()
 
+set.seed(NULL)
+CVa_fit=list()
+for(i in 1:10){
+  out<-bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + s(Time_num_s, k=5),
+                     data = filter(Data_split, Group==1 & Fold!=i)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
+  CVa_fit[i]<-predict(out, newdata=filter(Data_split, Group==1 & Fold==i), type="response", se.fit=TRUE, discrete=T, n.threads=4)
+  save(out, file=paste0("CV_model_a", i, ".Rds"))
+  rm(out)
+  gc()
+}
+modellc4a_1<-bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + s(Time_num_s, k=5),
+    data = filter(Data_split, Group==1 & Fold!=1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
+#~2 hours
 
+pred_CVa1<-predict(modellc4a_1, newdata=filter(Data_split, Group==1 & Fold==1), type="response", se.fit=TRUE, discrete=T, n.threads=4)
+CVa1<-Data_split%>%
+  filter(Group==1 & Fold==1)%>%
+  mutate(Fitted_CV=pred_CVa1$fit,
+         Resid_CV=Fitted-Temperature)
+
+ggplot(CVa1)+
+  geom_point(aes(x=Temperature, y=Fitted, color=Resid))+
+  facet_wrap(~Year)+
+  scale_color_viridis_c()+
+  theme_bw()
 # Test autocorrelation ----------------------------------------------------
 
 auto<-Data%>%
