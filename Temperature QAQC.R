@@ -228,6 +228,7 @@ modellc3a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day
 #AIC: 125299.8
 #BIC: 161495.4
 
+# Now the best model
 modellc4a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + s(Time_num_s, k=5),
                  data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
 #AIC: 116576.5
@@ -237,6 +238,15 @@ modellc5a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day
                  data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4, gc.level=2)
 #AIC: 109347.2
 #BIC: 158281
+
+modellc6a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(30, 20), by=Year_fac) + s(Time_num_s, k=5),
+                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4, gc.level=2)
+
+#AIC: 116029.4
+#BIC: 159493.6
+
+modellc7a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + s(Time_num_s, k=5),
+                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
 
 ## This is by far the best model by BIC and AIC
 modelld <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 7), m=2) + 
@@ -364,7 +374,7 @@ WQ_pred<-function(model,
            Year_s=(Year-mean(Full_data$Year, na.rm=T))/sd(Full_data$Year, na.rm=T),
            Julian_day_s = (Julian_day-mean(Full_data$Julian_day, na.rm=T))/sd(Full_data$Julian_day, na.rm=T),
            Time_num_s=(Time_num-mean(Full_data$Time_num, na.rm=T))/sd(Full_data$Time_num, na.rm=T),
-           Year_fac=ordered(Year),
+           Year_fac=factor(Year),
            Season=case_when(Julian_day<=80 | Julian_day>=356 ~ "Winter", # Create a variable for season
                             Julian_day>80 & Julian_day<=172 ~ "Spring",
                             Julian_day>173 & Julian_day<=264 ~ "Summer",
@@ -462,6 +472,21 @@ raster_plot<-function(data, Years=unique(newdata$Year), labels="All"){
 
 newdata <- WQ_pred(modellb, Source_gam_re=FALSE) # Run predict function above on modelm2. 
 
+Data_effort <- Data%>%
+  st_drop_geometry()%>%
+  group_by(SubRegion, Month, Year)%>%
+  summarise(N=n())%>%
+  ungroup()
+
+newdata<-newdata_year%>%
+  mutate(Prediction=modellc4a_predictions$fit,
+         Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
+         Month=month(Date))%>%
+  select(-N)%>%
+  filter(Year%in%round(seq(min(Data$Year)+2, max(Data$Year)-2, length.out=9)) & Month%in%c(1,4,7,10))%>%
+  left_join(Data_effort, by=c("SubRegion", "Month", "Year"))%>% 
+  filter(!is.na(N))
+
 # Rasterize each season
 rastered_preds <- map(set_names(c("Winter", "Spring", "Summer", "Fall")), function(x) Rasterize_season(season=x, data=newdata, n=100))
 
@@ -472,7 +497,7 @@ p<-map2(rastered_preds, c("Left", "None", "None", "Right"), ~raster_plot(data=.x
 p2<-wrap_plots(p)+plot_layout(nrow=1, heights=c(1,1,1,1))
 
 # Save plots
-ggsave(plot=p2, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Rasterized predictions 5.21.20.png", device=png(), width=7, height=12, units="in")
+ggsave(plot=p2, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Rasterized predictions 6.12.20.png", device=png(), width=7, height=12, units="in")
 
 # Do the same for Bottom temperature
 
@@ -481,9 +506,9 @@ newdata_bottom <- WQ_pred(modelm2_bottom$gam,
 
 rastered_preds_bottom <- map(set_names(c("Winter", "Spring", "Summer", "Fall")), function(x) Rasterize_season(season=x, data=newdata_bottom, n=100))
 
-p_bottom<-map2(rastered_preds_bottom, c("Left", "None", "None", "Right"), ~raster_plot(data=.x, Years=unique(newdata_bottom$Year), labels=.y))
+p<-map2(rastered_preds, c("Left", "None", "None", "Right"), ~raster_plot(data=.x, Years=unique(newdata$Year), labels=.y))
 
-p2_bottom<-wrap_plots(p_bottom)+plot_layout(nrow=1, heights=c(1,1,1,1))
+p2<-wrap_plots(p)+plot_layout(nrow=1, heights=c(1,1,1,1))
 
 ggsave(plot=p2_bottom, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Rasterized predictions_bottom.png", device=png(), width=7, height=12, units="in")
 
@@ -504,7 +529,19 @@ newdata_year <- WQ_pred(modellc,
                         Julian_days = yday(ymd(paste("2001", 1:12, "15", sep="-"))),
                         Years=round(min(Data$Year):max(Data$Year)),
                         Variance="SE",
-                        Source_gam_re=FALSE) 
+                        Source_gam_re=FALSE)
+
+Data_effort <- Data%>%
+  st_drop_geometry()%>%
+  group_by(SubRegion, Month, Year)%>%
+  summarise(N=n())%>%
+  ungroup()
+
+newdata_year2<-newdata_year%>%
+  select(-N)%>%
+  mutate(Month=month(Date))%>%
+  left_join(Data_effort, by=c("SubRegion", "Month", "Year"))%>% 
+  filter(!is.na(N))
 
 Data_year<-Data%>%
   filter(hour(Time)<14 & hour(Time)>10)%>%
@@ -514,7 +551,7 @@ Data_year<-Data%>%
   ungroup()%>%
   as_tibble()
 
-newdata_sum<-newdata_year%>%
+newdata_sum<-newdata_year2%>%
   mutate(Var=SE^2,
          Month=month(Date))%>%
   lazy_dt()%>%
@@ -545,7 +582,108 @@ mapyear<-function(month){
     theme(panel.grid=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
 }
 
-walk(1:12, function(x) ggsave(plot=mapyear(x), filename=paste0("C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Year predictions month ", x, "5.21.20.png"), device=png(), width=15, height=12, units="in"))
+walk(1:12, function(x) ggsave(plot=mapyear(x), filename=paste0("C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Year predictions month ", x, " 6.11.20.png"), device=png(), width=15, height=12, units="in"))
+
+
+# Model error by region ---------------------------------------------------
+
+Residuals <- modellc4a$residuals
+
+Data_resid<-Data%>%
+  mutate(Residuals = Residuals)
+
+Resid_sum<-Data_resid%>%
+  lazy_dt()%>%
+  group_by(Year, Month, SubRegion)%>%
+  summarise(Resid=mean(Residuals), SD=sd(Residuals))%>%
+  ungroup()%>%
+  as_tibble()
+
+Resid_sum_year<-Data_resid%>%
+  lazy_dt()%>%
+  group_by(Year, SubRegion)%>%
+  summarise(Resid=mean(Residuals), SD=sd(Residuals))%>%
+  ungroup()%>%
+  as_tibble()
+
+Resid_sum_month<-Data_resid%>%
+  lazy_dt()%>%
+  group_by(Year, Month)%>%
+  summarise(Resid=mean(Residuals), SD=sd(Residuals))%>%
+  ungroup()%>%
+  as_tibble()
+
+Resid_sum_region<-Data_resid%>%
+  lazy_dt()%>%
+  group_by(SubRegion, Month)%>%
+  summarise(Resid=mean(Residuals), SD=sd(Residuals))%>%
+  ungroup()%>%
+  as_tibble()
+
+mapresid<-function(month){
+  ggplot(filter(Resid_sum, Month==month))+
+    geom_pointrange(aes(x=Year, ymin=Resid-SD, ymax=Resid+SD, y=Resid), fill="firebrick3", alpha=0.5)+
+    #geom_line(aes(x=Year, y=Resid), color="firebrick3")+
+    geom_hline(yintercept=0, )+
+    facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
+    theme_bw()+
+    theme(panel.grid=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
+}
+
+
+heatresid<-function(month){
+  ggplot(filter(Resid_sum, Month==month))+
+    geom_tile(aes(x=Year, y=SubRegion, fill=Resid))+
+    scale_fill_viridis_c()+
+    scale_x_continuous(breaks=unique(Resid_sum$Year))+
+    theme_bw()+
+    theme(axis.text.x=element_text(angle=45, hjust=1))
+}
+
+p_resid<-ggplot(Resid_sum)+
+  geom_tile(aes(x=Year, y=Month, fill=Resid))+
+  scale_fill_gradient2()+
+  scale_x_continuous(breaks=unique(Resid_sum$Year), labels = if_else((unique(Resid_sum$Year)/2)%% 2 == 0, as.character(unique(Resid_sum$Year)), ""))+
+  scale_y_continuous(breaks=unique(Resid_sum$Month), labels = if_else(unique(Resid_sum$Month)%% 2 == 0, as.character(unique(Resid_sum$Month)), ""))+
+  facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank(), panel.background = element_rect(fill="black"))
+
+ggsave(plot=p_resid, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Residuals 6.12.20.png", device=png(), width=20, height=12, units="in")
+
+# Sampling effort
+p_effort<-ggplot(Data_effort)+
+  geom_tile(aes(x=Year, y=Month, fill=N))+
+  scale_fill_viridis_c()+
+  scale_x_continuous(breaks=unique(Data_effort$Year), labels = if_else((unique(Data_effort$Year)/2)%% 2 == 0, as.character(unique(Data_effort$Year)), ""))+
+  scale_y_continuous(breaks=unique(Data_effort$Month), labels = if_else(unique(Data_effort$Month)%% 2 == 0, as.character(unique(Data_effort$Month)), ""))+
+  facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank())
+
+ggsave(plot=p_effort, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Effort 6.12.20.png", device=png(), width=20, height=12, units="in")
+
+
+ggplot(Resid_sum_year)+
+  geom_tile(aes(x=Year, y=SubRegion, fill=Resid))+
+  scale_fill_viridis_c()+
+  scale_x_continuous(breaks=unique(Resid_sum_year$Year))+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle=45, hjust=1))
+
+ggplot(Resid_sum_month)+
+  geom_tile(aes(x=Year, y=Month, fill=Resid))+
+  scale_fill_viridis_c()+
+  scale_x_continuous(breaks=unique(Resid_sum_month$Year))+
+  scale_y_continuous(breaks=unique(Resid_sum_month$Month))+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle=45, hjust=1))
+
+ggplot(Resid_sum_region)+
+  geom_tile(aes(x=Month, y=SubRegion, fill=Resid))+
+  scale_fill_viridis_c()+
+  scale_x_continuous(breaks=unique(Resid_sum_month$Month))+
+  theme_bw()
 # QAQC by residuals -------------------------------------------------------
 
 
@@ -613,8 +751,7 @@ Data_split<-Data%>%
 # Test autocorrelation ----------------------------------------------------
 
 auto<-Data%>%
-  filter(Group==1)%>%
-  mutate(Resid=resid(modellc4a))%>%
+  mutate(Resid=Residuals)%>%
   filter(Source!="EDSM" & !str_detect(Station, "EZ"))%>% # Remove EDSM and EZ stations because they're not fixed
   mutate(Station=paste(Source, Station))%>%
   group_by(Station)%>%
