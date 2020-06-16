@@ -740,21 +740,33 @@ ggplot(Data_effort)+
 set.seed(100)
 Data_split<-Data%>%
   mutate(Resid=Residuals,
-         Fitted=modellc4a_predictions$fit)%>%
+         Fitted=Fitted)%>%
   group_by(SubRegion, Year, Season, Group)%>%
   mutate(Fold=sample(1:10, 1, replace=T))%>%
   ungroup()
 
 set.seed(NULL)
-CVa_fit=list()
+CVa_fit_a=list()
 for(i in 1:10){
   out<-bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + s(Time_num_s, k=5),
                      data = filter(Data_split, Group==1 & Fold!=i)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
-  CVa_fit[i]<-predict(out, newdata=filter(Data_split, Group==1 & Fold==i), type="response", se.fit=TRUE, discrete=T, n.threads=4)
+  CVa_fit_a[[i]]<-predict(out, newdata=filter(Data_split, Group==1 & Fold==i), type="response", se.fit=TRUE, discrete=T, n.threads=4)
   save(out, file=paste0("CV_model_a", i, ".Rds"))
   rm(out)
   gc()
 }
+
+CVa_fit_b=list()
+for(i in 1:10){
+  out<-bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + s(Time_num_s, k=5),
+           data = filter(Data_split, Group==2 & Fold!=i)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
+  save(out, file=paste0("CV_model_b", i, ".Rds"))
+  CVa_fit_b[[i]]<-predict(out, newdata=filter(Data_split, Group==2 & Fold==i), type="response", se.fit=TRUE, discrete=T, n.threads=4)
+  rm(out)
+  gc()
+  message(paste0("Finished run ", i, "/10"))  
+}
+
 modellc4a_1<-bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + s(Time_num_s, k=5),
     data = filter(Data_split, Group==1 & Fold!=1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
 #~2 hours
