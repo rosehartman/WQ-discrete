@@ -9,6 +9,7 @@ require(patchwork)
 require(geofacet)
 require(gamm4)
 require(dtplyr)
+require(scales)
 
 is.even <- function(x) as.integer(x) %% 2 == 0
 
@@ -582,6 +583,94 @@ mapyear<-function(month){
 walk(1:12, function(x) ggsave(plot=mapyear(x), filename=paste0("C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Year predictions month ", x, " 6.11.20.png"), device=png(), width=15, height=12, units="in"))
 
 
+# Climate change trend ----------------------------------------------------
+
+CC_models<-newdata_sum%>%
+  nest_by(Month, SubRegion)%>%
+  mutate(model=list(lm(Temperature~Year, data=data)))%>%
+  summarise(N=nrow(data), broom::tidy(model), .groups="drop")%>%
+  filter(term=="Year")
+map_CC<-function(month){
+  ggplot(filter(newdata_sum, Month==month))+
+    geom_point(aes(x=Year, y=Temperature))+
+    geom_smooth(aes(x=Year, y=Temperature), method="lm", formula=y ~ x)+
+    {if(nrow(filter(CC_models, p.value<0.05 & Month==month))>0){
+      geom_text(data=filter(CC_models, p.value<0.05 & Month==month), aes(x=2018, y=max(filter(newdata_sum, Month==month)$Temperature)-1, label=if_else(p.value<0.01, "**", "*")), color="firebrick3", size=6)
+    }}+
+    facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
+    theme_bw()+
+    theme(panel.grid=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
+}
+
+CC_brm<-brm(Temperature~Year_s+(Year_s|Month*SubRegion),
+            data=Data, family=gaussian,
+            prior=prior(normal(0,5), class="Intercept")+
+              prior(normal(0,5), class="b")+
+              prior(cauchy(0,5), class="sigma")+
+              prior(cauchy(0,5), class="sd"),
+            iter=5e3, warmup=1250, cores=1, chains=1)
+
+Post_CC<-CC_brm %>%
+  recover_types()%>%
+  spread_draws(`r_Month:SubRegion`[MonthSubRegion,term])%>%
+  ungroup() %>%
+  filter(term=="Year_s")%>%
+  select(-term, -.draw, -.chain)%>%
+  separate(MonthSubRegion, into=c("Month", "SubRegion"), sep="_")%>%
+  mutate(Month=as.integer(Month))%>%
+  left_join(CC_brm %>%
+              recover_types()%>%
+              spread_draws(b_Year_s, r_Month[Month,term], r_SubRegion[SubRegion,term], )%>%
+              ungroup()%>%
+              filter(term=="Year_s")%>%
+              select(-term, -.draw, -.chain), by=c("Month", "SubRegion", ".iteration"))
+
+Post_CC_sum<-Post_CC%>%
+  mutate(Slope=b_Year_s+r_Month+r_SubRegion+`r_Month:SubRegion`)%>%
+  group_by(Month, SubRegion)%>%
+  mean_qi(Slope, .width = c(0.99, 0.999))%>%
+  ungroup()%>%
+  mutate(SubRegion=str_replace_all(SubRegion, fixed("."), " "))
+
+ggplot(Post_CC_sum, aes(y = Slope, x = Month, ymin = .lower, ymax = .upper)) +
+  geom_pointinterval()+
+  facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
+  geom_hline(yintercept = 0)+
+  theme_bw()+
+  theme(panel.grid=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
+
+Post_CC_sum_month<-Post_CC%>%
+  select(-SubRegion, -r_SubRegion, -`r_Month:SubRegion`)%>%
+  distinct()%>%
+  mutate(Slope=b_Year_s+r_Month)%>%
+  group_by(Month)%>%
+  mean_qi(Slope, .width = c(0.99, 0.999))%>%
+  ungroup()
+
+ggplot(Post_CC_sum_month, aes(y = Slope, x = Month, ymin = .lower, ymax = .upper)) +
+  geom_pointinterval()+
+  geom_hline(yintercept = 0)+
+  theme_bw()+
+  theme(panel.grid=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
+
+Data_CC<-Data%>%
+  filter(Source!="EDSM" & !str_detect(Station, "EZ") & !(Source=="SKT" & Station=="799" & Latitude>38.2))%>%
+  mutate(Station=paste(Source, Station))%>%
+  lazy_dt()%>%
+  group_by(Month, SubRegion, Year, Year_s, Station)%>%
+  summarise(Temperature=mean(Temperature))%>%
+  as_tibble()%>%
+  ungroup()%>%
+  mutate(Date=parse_date_time(paste(Year, Month, "01", sep="-"), "%Y-%m-%d"))
+
+CC_brm_ar<-brm(Temperature~Year_s+(Year_s|Month*SubRegion) + ar(time = Date, gr=Station),
+            data=Data_CC, family=gaussian,
+            prior=prior(normal(0,5), class="Intercept")+
+              prior(normal(0,5), class="b")+
+              prior(cauchy(0,5), class="sigma")+
+              prior(cauchy(0,5), class="sd"),
+            iter=5e3, warmup=1250, cores=1, chains=1)
+
 # Model error by region ---------------------------------------------------
 
 Residuals <- modellc4a$residuals
@@ -639,7 +728,8 @@ heatresid<-function(month){
 
 p_resid<-ggplot(Resid_sum)+
   geom_tile(aes(x=Year, y=Month, fill=Resid))+
-  scale_fill_gradient2()+
+  scale_fill_gradient2(high = muted("red"),
+                       low = muted("blue"))+
   scale_x_continuous(breaks=unique(Resid_sum$Year), labels = if_else((unique(Resid_sum$Year)/2)%% 2 == 0, as.character(unique(Resid_sum$Year)), ""))+
   scale_y_continuous(breaks=unique(Resid_sum$Month), labels = if_else(unique(Resid_sum$Month)%% 2 == 0, as.character(unique(Resid_sum$Month)), ""))+
   facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
@@ -747,6 +837,7 @@ Data_split<-Data%>%
 
 set.seed(NULL)
 CVa_fit_a=list()
+#~2 hours per model run
 for(i in 1:10){
   out<-bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + s(Time_num_s, k=5),
                      data = filter(Data_split, Group==1 & Fold!=i)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
@@ -767,21 +858,61 @@ for(i in 1:10){
   message(paste0("Finished run ", i, "/10"))  
 }
 
-modellc4a_1<-bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + s(Time_num_s, k=5),
-    data = filter(Data_split, Group==1 & Fold!=1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
-#~2 hours
+CV_bind<-function(group, fold){
+  if(group==1){
+    fit<-CVa_fit_a[[fold]]$fit
+  }
+  
+  if(group==2){
+    fit<-CVa_fit_b[[fold]]$fit
+  }
+  
+  Out<-Data_split%>%
+    filter(Group==group & Fold==fold)%>%
+    mutate(Fitted_CV=fit)
+}
 
-pred_CVa1<-predict(modellc4a_1, newdata=filter(Data_split, Group==1 & Fold==1), type="response", se.fit=TRUE, discrete=T, n.threads=4)
-CVa1<-Data_split%>%
-  filter(Group==1 & Fold==1)%>%
-  mutate(Fitted_CV=pred_CVa1$fit,
-         Resid_CV=Fitted-Temperature)
+Data_split_CV<-map2_dfr(rep(c(1,2), each=10), rep(1:10,2), ~CV_bind(group=.x, fold=.y))%>%
+  mutate(Resid_CV=Fitted_CV-Temperature,
+         Fitted_resid=Fitted_CV-Fitted)
 
-ggplot(CVa1)+
-  geom_point(aes(x=Temperature, y=Fitted, color=Resid))+
+ggplot(Data_split_CV)+
+  geom_point(aes(x=Temperature, y=Fitted_CV, color=Resid_CV))+
   facet_wrap(~Year)+
   scale_color_viridis_c()+
   theme_bw()
+
+Resid_CV_sum<-Data_split_CV%>%
+  filter(Year>=1974)%>%
+  lazy_dt()%>%
+  group_by(Year, Month, SubRegion)%>%
+  summarise(SD=sd(Resid_CV), Resid_CV=mean(Resid_CV), Fitted_resid=mean(Fitted_resid))%>%
+  ungroup()%>%
+  as_tibble()
+
+p_resid_CV<-ggplot(Resid_CV_sum)+
+  geom_tile(aes(x=Year, y=Month, fill=Resid_CV))+
+  scale_fill_gradient2(high = muted("red"),
+                       low = muted("blue"))+
+  scale_x_continuous(breaks=unique(Resid_CV_sum$Year), labels = if_else((unique(Resid_CV_sum$Year)/2)%% 2 == 0, as.character(unique(Resid_CV_sum$Year)), ""))+
+  scale_y_continuous(breaks=unique(Resid_CV_sum$Month), labels = if_else(unique(Resid_CV_sum$Month)%% 2 == 0, as.character(unique(Resid_CV_sum$Month)), ""))+
+  facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank(), panel.background = element_rect(fill="black"))
+
+ggsave(plot=p_resid_CV, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/CV Residuals 6.16.20.png", device=png(), width=20, height=12, units="in")
+
+p_resid_CV2<-ggplot(Resid_CV_sum)+
+  geom_tile(aes(x=Year, y=Month, fill=Fitted_resid))+
+  scale_fill_gradient2(high = muted("red"),
+                       low = muted("blue"))+
+  scale_x_continuous(breaks=unique(Resid_CV_sum$Year), labels = if_else((unique(Resid_CV_sum$Year)/2)%% 2 == 0, as.character(unique(Resid_CV_sum$Year)), ""))+
+  scale_y_continuous(breaks=unique(Resid_CV_sum$Month), labels = if_else(unique(Resid_CV_sum$Month)%% 2 == 0, as.character(unique(Resid_CV_sum$Month)), ""))+
+  facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank(), panel.background = element_rect(fill="black"))
+ggsave(plot=p_resid_CV2, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/CV Residuals2 6.16.20.png", device=png(), width=20, height=12, units="in")
+
 # Test autocorrelation ----------------------------------------------------
 
 auto<-Data%>%
