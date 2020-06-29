@@ -1,0 +1,191 @@
+#
+# This is a Shiny web application. You can run the application by clicking
+# the 'Run App' button above.
+#
+# Find out more about building applications with Shiny here:
+#
+#    http://shiny.rstudio.com/
+#
+
+library(shiny)
+library(shinyWidgets)
+library(dplyr)
+library(ggplot2)
+library(sf)
+library(stars)
+library(lubridate)
+load("Rasterized modellc4 predictions.Rds")
+Dates<-st_get_dimension_values(rastered_preds, "Date")
+
+# Define UI for application that draws a histogram
+ui <- fluidPage(
+    
+    # Application title
+    titlePanel("Delta Temperature"),
+    
+    # Sidebar with a slider input for number of bins 
+    fluidRow(
+        column(3,
+               h1("Filters"),
+               dateRangeInput("Date_range", label = "Date range", 
+                              start = min(Dates), end = max(Dates), startview = "year"),
+               pickerInput("Months", "Months:", choices=c("January" = 1, "February" = 2, "March" = 3, "April" = 4, 
+                                                          "May" = 5, "June" = 6, "July" = 7, "August" = 8, 
+                                                          "September" = 9, "October" = 10, "November" = 11, 
+                                                          "December" = 12), 
+                           selected = 1:12, multiple = T, options=list(`actions-box`=TRUE, `selected-text-format` = "count > 3")),
+               h1("Plot options"),
+               radioGroupButtons("Facet",
+                                 "Facet plot by:",
+                                 choices = c("None", "Month", "Year", "Month x Year", "Year x Month"), selected="None", individual = TRUE, 
+                                 checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue"))),
+               conditionalPanel(condition="input.Facet!='Year x Month' && input.Facet!='Month x Year'", 
+                                uiOutput("scale_options"))
+        ),
+        column(9,
+               
+               conditionalPanel(condition="input.Facet!='Year' && input.Facet!='Year x Month' && input.Facet!='Month x Year'",
+                                uiOutput("select_Year")),
+               conditionalPanel(condition="input.Facet!='Month' && input.Facet!='Year x Month' && input.Facet!='Month x Year'",
+                                uiOutput("select_Month")),
+               plotOutput("TempPlot")
+        )
+    ),
+    tags$head(tags$style("#TempPlot{height:80vh !important;}"))
+)
+
+# Define server logic required to draw a histogram
+server <- function(input, output, session) {
+    
+    TempData<-reactive({
+        Data<-rastered_preds%>%
+            filter(Date>min(input$Date_range))%>%
+            filter(Date<max(input$Date_range))%>%
+            filter(month(Date)%in%input$Months)
+        return(Data)
+    }
+    )
+    
+    Data_dates<-reactive({
+        req(TempData())
+        st_get_dimension_values(TempData(), "Date")
+    })
+    
+    output$select_Year <- renderUI({
+        sliderInput("Year",
+                    "Select year:", min=min(year(Data_dates())), max=max(year(Data_dates())), value =  max(year(Data_dates())), step=1, round=T, sep="", 
+                    animate=animationOptions(interval=1000), width="100%")
+    })
+    
+    output$select_Month <- renderUI({
+        sliderInput("Month",
+                    "Select month:", min=min(month(Data_dates())), max=max(month(Data_dates())), value =  max(month(Data_dates())), step=1, round=T, sep="", 
+                    animate=animationOptions(interval=1000, loop=T), width="100%")
+    })
+    
+    output$scale_options <- renderUI({
+        if(is.null(input$Facet)){
+            Facet<-"None"
+        }else{
+            Facet<-input$Facet
+        }
+        
+        if(Facet=="None"){
+            scale_choices<-c("No", "Yes", "by month", "by year")
+        } else{
+            scale_choices<-c("No", "Yes")
+        }
+        
+        radioGroupButtons("Scale",
+                          "Fix scale:",
+                          choices = scale_choices, selected="No", individual = TRUE, 
+                          checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue")))
+    })
+    
+    Scale <- reactive({
+        req(TempData(), input$Scale, input$Facet)
+        if(input$Facet=="None"){
+            if(input$Scale=="No"){
+                out<-c(NA, NA)
+            } else{
+                if(input$Scale=="Yes"){
+                    out<-TempData()%>%
+                        pull(Prediction)%>%
+                        range(na.rm=T)
+                } else{
+                    if(input$Scale=="by month"){
+                        out<-filter(TempData(), month(Date)==input$Month)%>%
+                            pull(Prediction)%>%
+                            range(na.rm=T)
+                    } else{
+                        out<-filter(TempData(), year(Date)==input$Year)%>%
+                            pull(Prediction)%>%
+                            range(na.rm=T)
+                    }
+                }
+            }
+            
+        } else{
+            if(input$Scale=="No"){
+                out<-c(NA, NA)
+            } else{
+                out<-TempData()%>%
+                    pull(Prediction)%>%
+                    range(na.rm=T)
+            }
+            
+        }
+    })
+    
+    PlotData<-reactive({
+        req(TempData(), input$Facet)
+        Data<-TempData()%>%
+            {if(input$Facet!='Month' & input$Facet!='Year x Month' & input$Facet!='Month x Year'){
+                filter(., month(Date)==input$Month)
+            } else{
+                .
+            }}%>%
+            {if(input$Facet!='Year' & input$Facet!='Year x Month' & input$Facet!='Month x Year'){
+                filter(., year(Date)==input$Year)
+            } else{
+                .
+            }}
+        return(Data)
+    }
+    )
+    
+    Plot<-reactive({
+        ggplot()+
+            geom_stars(data=PlotData())+
+            scale_fill_viridis_c(limits=Scale(), expand=expansion(0,0), name="Temperature", na.value="white", breaks=seq(6,30,by=0.5), labels= function(x) ifelse(x==as.integer(x), as.character(x), ""),
+                                 guide = guide_colorbar(direction="horizontal", title.position = "top", ticks.linewidth = 2,
+                                                        title.hjust=0.5, label.position="bottom"))+
+            coord_sf()+
+            {if(input$Facet=="Month"){
+                facet_wrap(~month(Date))
+            }}+
+            {if(input$Facet=="Year"){
+                facet_wrap(~year(Date))
+            }}+
+            {if(input$Facet=="Year x Month"){
+                facet_grid(year(Date)~month(Date))
+            }}+
+            {if(input$Facet=="Month x Year"){
+                facet_grid(month(Date)~year(Date))
+            }}+
+            ylab("Latitude")+
+            xlab("Longitude")+
+            theme_bw()+
+            theme(axis.text.x = element_text(angle=45, hjust=1), strip.background=element_blank(),
+                  panel.grid=element_blank(), legend.background = element_rect(color="black"),
+                  legend.position="top", legend.key.width = unit(150, "native"), legend.justification="center",
+                  text=element_text(size=18))
+    })
+    
+    output$TempPlot <- renderPlot({
+        Plot()
+    })
+}
+
+# Run the application 
+shinyApp(ui = ui, server = server)

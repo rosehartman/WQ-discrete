@@ -207,6 +207,7 @@ modellc4_predictions<-predict(modellc4, newdata=newdata_year, type="response", s
 
 # Predictions stored as "modellc4_predictions.Rds"
 
+load("newdata_year.Rds")
 load("modellc4_predictions.Rds")
 
 newdata<-newdata_year%>%
@@ -286,9 +287,9 @@ walk(1:12, function(x) ggsave(plot=mapyear(x), filename=paste0("C:/Users/sbashev
 # Function to rasterize season by season. Creates a 4D raster Latitude x Longitude x Year x Season (But Season only has 1 value for the season passed to the function)
 Rasterize_season<-function(season, data, n, out_crs=4326){
   
-  Years <- data%>%
-    filter(Season==season)%>%
-    pull(Year)%>%
+  Years <- data %>%
+    #filter(Season == season) %>%
+    pull(Year) %>%
     unique()
   
   #First rasterize year by year
@@ -302,9 +303,28 @@ Rasterize_season<-function(season, data, n, out_crs=4326){
   out <- exec(c, !!!preds, along=list(Year=Years, Season=season))
 }
 
-raster_plot<-function(data, Years=unique(newdata$Year), labels="All"){
+# Function to rasterize all seasons. Creates a 4D raster Latitude x Longitude x Year x Season (including all 4 seasons). 
+# Unfortunately, this requires equal dimension values across all seasons. Since some seasons are missing earlier years, this doesn't work well. 
+Rasterize_all <- function(data, out_crs=4326, n=100){
+  
+  preds<-map(unique(data$Date), function(x) st_rasterize(data%>%
+                                                                   filter(Date==x)%>%
+                                                                   dplyr::select(Prediction), 
+                                                                 template=st_as_stars(st_bbox(Delta), dx=diff(st_bbox(Delta)[c(1, 3)])/n, dy=diff(st_bbox(Delta)[c(2, 4)])/n, values = NA_real_))%>%
+               st_warp(crs=out_crs))
+  
+  # Then bind all years together into 1 raster
+  out <- exec(c, !!!preds, along=list(Date=unique(data$Date)))
+  
+}
+
+# Create full rasterization of all predictions for interactive visualizations
+rastered_preds<-Rasterize_all(newdata_rast)
+#save(rastered_preds, file="Rasterized modellc4 predictions.Rds")
+
+
+raster_plot<-function(data, Years=unique(newdata_rast$Year), labels="All"){
   ggplot()+
-    geom_blank(data=tibble(Year=Years, Season=st_get_dimension_values(data, "Season")))+
     geom_stars(data=data)+
     facet_grid(Year~Season)+
     scale_fill_viridis_c(name="Temperature", na.value="white", breaks=seq(6,26,by=1), labels= function(x) ifelse((x/2)==as.integer(x/2), as.character(x), ""),
@@ -330,18 +350,17 @@ raster_plot<-function(data, Years=unique(newdata$Year), labels="All"){
 Data_effort <- Data%>%
   st_drop_geometry()%>%
   group_by(SubRegion, Month, Year)%>%
-  summarise(N=n())%>%
-  ungroup()
+  summarise(N=n(), .groups="drop")
 
 newdata_rast <- newdata%>%
   mutate(Month=month(Date))%>%
   select(-N)%>%
   filter(Year%in%round(seq(min(Data$Year)+2, max(Data$Year)-2, length.out=9)) & Month%in%c(1,4,7,10))%>%
   left_join(Data_effort, by=c("SubRegion", "Month", "Year"))%>% 
-  filter(!is.na(N))
+  mutate(Prediction=if_else(is.na(N), NA_real_, Prediction))
 
 # Rasterize each season
-rastered_preds <- map(set_names(c("Winter", "Spring", "Summer", "Fall")), function(x) Rasterize_season(season=x, data=newdata, n=100))
+rastered_preds <- map(set_names(c("Winter", "Spring", "Summer", "Fall")), function(x) Rasterize_season(season=x, data=newdata_rast, n=100))
 
 # Plot each season
 p<-map2(rastered_preds, c("Left", "None", "None", "Right"), ~raster_plot(data=.x, labels=.y))
@@ -523,7 +542,15 @@ ggplot(filter(auto, lag==1))+
 
 # Using a continuous method
 require(gstat)
-Vario_data <- data.frame(Residuals=modellc4_residuals, Longitude=Data$Longitude, Latitude=Data$Latitude)
+require(sp)
+require(spacetime)
+Vario_data <- data.frame(Residuals=modellc4_residuals/sd(Data$Temperature), Longitude=Data$Longitude, Latitude=Data$Latitude)
 coordinates(Vario_data)<-c("Longitude", "Latitude")
 vario<-variogram(Residuals~1, Vario_data)
 plot(vario)
+
+sp <- SpatialPoints(coords=data.frame(Longitude=Data$Longitude, Latitude=Data$Latitude))
+sp2<-STIDF(sp, time=Data$Date, data=data.frame(Residuals=modellc4_residuals/sd(Data$Temperature)))
+vario2<-variogramST(Residuals~1, data=sp2, tunit="days", cores=3)
+vario3<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=3)
+save(vario, vario2, vario3, file="Variograms.Rds")

@@ -432,9 +432,9 @@ Rasterize_season<-function(season, data, n, out_crs=4326){
 
 # Function to rasterize all seasons. Creates a 4D raster Latitude x Longitude x Year x Season (including all 4 seasons). 
 # Unfortunately, this requires equal dimension values across all seasons. Since some seasons are missing earlier years, this doesn't work well. 
-Rasterize_all <- function(data, out_crs=4326){
+Rasterize_all <- function(data, out_crs=4326, n=100){
   
-  preds<-map(set_names(unique(data$Season)), function(x) Rasterize_season(season=x, data=data, out_crs=out_crs))
+  preds<-map(set_names(unique(data$Season)), function(x) Rasterize_season(season=x, data=data, out_crs=out_crs, n=n))
   
   out <- exec(c, !!!preds, along="Season")
   
