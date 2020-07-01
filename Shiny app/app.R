@@ -15,7 +15,7 @@ library(sf)
 library(stars)
 library(lubridate)
 load("Rasterized modellc4 predictions.Rds")
-Dates<-st_get_dimension_values(rastered_preds, "Date")
+Dates<-st_get_dimension_values(rastered_predsSE, "Date")
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -35,6 +35,10 @@ ui <- fluidPage(
                                                           "December" = 12), 
                            selected = 1:12, multiple = T, options=list(`actions-box`=TRUE, `selected-text-format` = "count > 3")),
                h1("Plot options"),
+               radioGroupButtons("variable",
+                                 "Plot:",
+                                 choices = c("Predicted temperature"="Prediction", "Standard Error"="SE"), selected="Prediction", individual = TRUE, 
+                                 checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue"))),
                radioGroupButtons("Facet",
                                  "Facet plot by:",
                                  choices = c("None", "Month", "Year", "Month x Year", "Year x Month"), selected="None", individual = TRUE, 
@@ -43,7 +47,6 @@ ui <- fluidPage(
                                 uiOutput("scale_options"))
         ),
         column(9,
-               
                conditionalPanel(condition="input.Facet!='Year' && input.Facet!='Year x Month' && input.Facet!='Month x Year'",
                                 uiOutput("select_Year")),
                conditionalPanel(condition="input.Facet!='Month' && input.Facet!='Year x Month' && input.Facet!='Month x Year'",
@@ -58,7 +61,7 @@ ui <- fluidPage(
 server <- function(input, output, session) {
     
     TempData<-reactive({
-        Data<-rastered_preds%>%
+        Data<-rastered_predsSE%>%
             filter(Date>min(input$Date_range))%>%
             filter(Date<max(input$Date_range))%>%
             filter(month(Date)%in%input$Months)
@@ -73,13 +76,13 @@ server <- function(input, output, session) {
     
     output$select_Year <- renderUI({
         sliderInput("Year",
-                    "Select year:", min=min(year(Data_dates())), max=max(year(Data_dates())), value =  max(year(Data_dates())), step=1, round=T, sep="", 
+                    "Select year:", min=min(year(Data_dates())), max=max(year(Data_dates())), value =  min(c(2019, max(year(Data_dates())))), step=1, round=T, sep="", 
                     animate=animationOptions(interval=1000), width="100%")
     })
     
     output$select_Month <- renderUI({
         sliderInput("Month",
-                    "Select month:", min=min(month(Data_dates())), max=max(month(Data_dates())), value =  max(month(Data_dates())), step=1, round=T, sep="", 
+                    "Select month:", min=min(month(Data_dates())), max=max(month(Data_dates())), value =  min(month(Data_dates())), step=1, round=T, sep="", 
                     animate=animationOptions(interval=1000, loop=T), width="100%")
     })
     
@@ -110,16 +113,16 @@ server <- function(input, output, session) {
             } else{
                 if(input$Scale=="Yes"){
                     out<-TempData()%>%
-                        pull(Prediction)%>%
+                        pull(all_of(input$variable))%>%
                         range(na.rm=T)
                 } else{
                     if(input$Scale=="by month"){
                         out<-filter(TempData(), month(Date)==input$Month)%>%
-                            pull(Prediction)%>%
+                            pull(all_of(input$variable))%>%
                             range(na.rm=T)
                     } else{
                         out<-filter(TempData(), year(Date)==input$Year)%>%
-                            pull(Prediction)%>%
+                            pull(all_of(input$variable))%>%
                             range(na.rm=T)
                     }
                 }
@@ -155,31 +158,47 @@ server <- function(input, output, session) {
     )
     
     Plot<-reactive({
+        req(input$variable)
+        if(input$variable=="Prediction"){
+            Breaks<-seq(6,30,by=0.5)
+            Labels<- function(x) ifelse(x==as.integer(x), as.character(x), "")
+            
+        }else{
+            Breaks<-seq(0,5,by=0.05)
+            Labels<- function(x) ifelse(near(x*10, as.integer(x*10)), as.character(x), "")
+        }
         ggplot()+
-            geom_stars(data=PlotData())+
-            scale_fill_viridis_c(limits=Scale(), expand=expansion(0,0), name="Temperature", na.value="white", breaks=seq(6,30,by=0.5), labels= function(x) ifelse(x==as.integer(x), as.character(x), ""),
+            geom_stars(data=PlotData()%>%select(all_of(input$variable)))+
+            scale_fill_viridis_c(limits=Scale(), expand=expansion(0,0), name=if_else(input$variable=="Prediction", "Temperature (°C)", "Standard error"), na.value="white", breaks=Breaks, labels= Labels,
                                  guide = guide_colorbar(direction="horizontal", title.position = "top", ticks.linewidth = 2,
                                                         title.hjust=0.5, label.position="bottom"))+
+            {if(input$Facet=="None"){
+                #ggtitle(par("din")[1])
+                annotate("label", x=-122, y=38.45, label=paste(month(input$Month, label=T), input$Year), size=10)
+            }}+
+            {if(input$Facet=="Month"){
+                annotate("label", x=-122, y=38.45, label=input$Year, size=10)
+            }}+
             coord_sf()+
             {if(input$Facet=="Month"){
-                facet_wrap(~month(Date))
+                facet_wrap(~month(Date, label=T))
             }}+
             {if(input$Facet=="Year"){
                 facet_wrap(~year(Date))
             }}+
             {if(input$Facet=="Year x Month"){
-                facet_grid(year(Date)~month(Date))
+                facet_grid(year(Date)~month(Date, label=T))
             }}+
             {if(input$Facet=="Month x Year"){
-                facet_grid(month(Date)~year(Date))
+                facet_grid(month(Date, label=T)~year(Date))
             }}+
             ylab("Latitude")+
             xlab("Longitude")+
             theme_bw()+
             theme(axis.text.x = element_text(angle=45, hjust=1), strip.background=element_blank(),
-                  panel.grid=element_blank(), legend.background = element_rect(color="black"),
+                  panel.grid=element_blank(), #legend.background = element_rect(color="black"),
                   legend.position="top", legend.key.width = unit(150, "native"), legend.justification="center",
-                  text=element_text(size=18))
+                  text=element_text(size=18), plot.title = element_text(hjust=0.5))
     })
     
     output$TempPlot <- renderPlot({

@@ -305,25 +305,41 @@ Rasterize_season<-function(season, data, n, out_crs=4326){
 
 # Function to rasterize all seasons. Creates a 4D raster Latitude x Longitude x Year x Season (including all 4 seasons). 
 # Unfortunately, this requires equal dimension values across all seasons. Since some seasons are missing earlier years, this doesn't work well. 
-Rasterize_all <- function(data, out_crs=4326, n=100){
-  
+Rasterize_all <- function(data, var, out_crs=4326, n=100){
+  var<-rlang::enquo(var)
+  rlang::as_name(var)
   preds<-map(unique(data$Date), function(x) st_rasterize(data%>%
                                                                    filter(Date==x)%>%
-                                                                   dplyr::select(Prediction), 
+                                                                   dplyr::select(!!var), 
                                                                  template=st_as_stars(st_bbox(Delta), dx=diff(st_bbox(Delta)[c(1, 3)])/n, dy=diff(st_bbox(Delta)[c(2, 4)])/n, values = NA_real_))%>%
                st_warp(crs=out_crs))
   
   # Then bind all years together into 1 raster
   out <- exec(c, !!!preds, along=list(Date=unique(data$Date)))
-  
+  return(out)
 }
 
+Data_effort <- Data%>%
+  st_drop_geometry()%>%
+  group_by(SubRegion, Month, Year)%>%
+  summarise(N=n(), .groups="drop")
+
+newdata_rast <- newdata%>%
+  mutate(Month=month(Date))%>%
+  select(-N)%>%
+  left_join(Data_effort, by=c("SubRegion", "Month", "Year"))%>% 
+  mutate(across(c(Prediction, SE, L95, U95), ~if_else(is.na(N), NA_real_, .)))
+
 # Create full rasterization of all predictions for interactive visualizations
-rastered_preds<-Rasterize_all(newdata_rast)
-#save(rastered_preds, file="Rasterized modellc4 predictions.Rds")
+rastered_preds<-Rasterize_all(newdata_rast, Prediction)
+# Same for SE
+rastered_SE<-Rasterize_all(newdata_rast, SE)
+# Bind SE and predictions together
+rastered_predsSE<-c(rastered_preds, rastered_SE)
+save(rastered_predsSE, file="Rasterized modellc4 predictions.Rds")
 
 
-raster_plot<-function(data, Years=unique(newdata_rast$Year), labels="All"){
+raster_plot<-function(data, Years=unique(newdata_rast_season$Year), labels="All"){
   ggplot()+
     geom_stars(data=data)+
     facet_grid(Year~Season)+
@@ -347,23 +363,18 @@ raster_plot<-function(data, Years=unique(newdata_rast$Year), labels="All"){
 
 # Surface temperature
 
-Data_effort <- Data%>%
-  st_drop_geometry()%>%
-  group_by(SubRegion, Month, Year)%>%
-  summarise(N=n(), .groups="drop")
-
-newdata_rast <- newdata%>%
+newdata_rast_season <- newdata%>%
   mutate(Month=month(Date))%>%
   select(-N)%>%
   filter(Year%in%round(seq(min(Data$Year)+2, max(Data$Year)-2, length.out=9)) & Month%in%c(1,4,7,10))%>%
   left_join(Data_effort, by=c("SubRegion", "Month", "Year"))%>% 
-  mutate(Prediction=if_else(is.na(N), NA_real_, Prediction))
+  mutate(across(c(Prediction, SE, L95, U95), ~if_else(is.na(N), NA_real_, .)))
 
 # Rasterize each season
-rastered_preds <- map(set_names(c("Winter", "Spring", "Summer", "Fall")), function(x) Rasterize_season(season=x, data=newdata_rast, n=100))
+rastered_preds_season <- map(set_names(c("Winter", "Spring", "Summer", "Fall")), function(x) Rasterize_season(season=x, data=newdata_rast_season, n=100))
 
 # Plot each season
-p<-map2(rastered_preds, c("Left", "None", "None", "Right"), ~raster_plot(data=.x, labels=.y))
+p<-map2(rastered_preds_season, c("Left", "None", "None", "Right"), ~raster_plot(data=.x, labels=.y))
 
 # Use Patchwork to bind plots together. Won't look very good until the plot is saved
 p2<-wrap_plots(p)+plot_layout(nrow=1, heights=c(1,1,1,1))
