@@ -386,7 +386,7 @@ ggsave(plot=p2, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete w
 
 # Residuals <- modellc4$residuals
 # Stored as modellc4_residuals.Rds
-load("modellc4_residuals.Rds")
+load("Temperature smoothing model/modellc4_residuals.Rds")
 
 Data_resid<-Data%>%
   mutate(Residuals = modellc4_residuals)
@@ -401,7 +401,9 @@ Resid_sum<-Data_resid%>%
 p_resid<-ggplot(Resid_sum)+
   geom_tile(aes(x=Year, y=Month, fill=Resid))+
   scale_fill_gradient2(high = muted("red"),
-                       low = muted("blue"))+
+                       low = muted("blue"),
+                       breaks=seq(-3,5.5, by=0.5),
+                       guide=guide_colorbar(barheight=40))+
   scale_x_continuous(breaks=unique(Resid_sum$Year), labels = if_else((unique(Resid_sum$Year)/2)%% 2 == 0, as.character(unique(Resid_sum$Year)), ""))+
   scale_y_continuous(breaks=unique(Resid_sum$Month), labels = if_else(unique(Resid_sum$Month)%% 2 == 0, as.character(unique(Resid_sum$Month)), ""))+
   facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
@@ -415,7 +417,8 @@ ggsave(plot=p_resid, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discr
 
 p_effort<-ggplot(Data_effort)+
   geom_tile(aes(x=Year, y=Month, fill=N))+
-  scale_fill_viridis_c()+
+  scale_fill_viridis_c(breaks=seq(0,140, by=10),
+                       guide=guide_colorbar(barheight=40))+
   scale_x_continuous(breaks=unique(Data_effort$Year), labels = if_else((unique(Data_effort$Year)/2)%% 2 == 0, as.character(unique(Data_effort$Year)), ""))+
   scale_y_continuous(breaks=unique(Data_effort$Month), labels = if_else(unique(Data_effort$Month)%% 2 == 0, as.character(unique(Data_effort$Month)), ""))+
   facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
@@ -495,13 +498,15 @@ Resid_CV_sum<-Data_split_CV%>%
 p_resid_CV<-ggplot(Resid_CV_sum)+
   geom_tile(aes(x=Year, y=Month, fill=Resid_CV))+
   scale_fill_gradient2(high = muted("red"),
-                       low = muted("blue"))+
+                       low = muted("blue"),
+                       breaks=-9:7,
+                       guide=guide_colorbar(barheight=40))+
   scale_x_continuous(breaks=unique(Resid_CV_sum$Year), labels = if_else((unique(Resid_CV_sum$Year)/2)%% 2 == 0, as.character(unique(Resid_CV_sum$Year)), ""))+
   scale_y_continuous(breaks=unique(Resid_CV_sum$Month), labels = if_else(unique(Resid_CV_sum$Month)%% 2 == 0, as.character(unique(Resid_CV_sum$Month)), ""))+
   facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
   theme_bw()+
   theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank(), panel.background = element_rect(fill="black"))
-
+p_resid_CV
 ggsave(plot=p_resid_CV, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/CV Residuals 6.16.20.png", device=png(), width=20, height=12, units="in")
 
 
@@ -565,3 +570,173 @@ sp2<-STIDF(sp, time=Data$Date, data=data.frame(Residuals=modellc4_residuals/sd(D
 vario2<-variogramST(Residuals~1, data=sp2, tunit="days", cores=3)
 vario3<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=3)
 save(vario, vario2, vario3, file="Variograms.Rds")
+
+# Climate change trend ----------------------------------------------------
+
+CC_models<-newdata_sum%>%
+  nest_by(Month, SubRegion)%>%
+  mutate(model=list(lm(Temperature~Year, data=data)))%>%
+  summarise(N=nrow(data), broom::tidy(model), .groups="drop")%>%
+  filter(term=="Year")
+map_CC<-function(month){
+  ggplot(filter(newdata_sum, Month==month))+
+    geom_point(aes(x=Year, y=Temperature))+
+    geom_smooth(aes(x=Year, y=Temperature), method="lm", formula=y ~ x)+
+    {if(nrow(filter(CC_models, p.value<0.05 & Month==month))>0){
+      geom_text(data=filter(CC_models, p.value<0.05 & Month==month), aes(x=2018, y=max(filter(newdata_sum, Month==month)$Temperature)-1, label=if_else(p.value<0.01, "**", "*")), color="firebrick3", size=6)
+    }}+
+    facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
+    theme_bw()+
+    theme(panel.grid=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
+}
+
+CC_brm<-brm(Temperature~Year_s+(Year_s|Month*SubRegion),
+            data=Data, family=gaussian,
+            prior=prior(normal(0,5), class="Intercept")+
+              prior(normal(0,5), class="b")+
+              prior(cauchy(0,5), class="sigma")+
+              prior(cauchy(0,5), class="sd"),
+            iter=5e3, warmup=1250, cores=1, chains=1)
+CC_brm<-add_criterion(CC_brm, criterion=c("waic", "loo"))
+
+CC_brm2<-brm(Temperature~Year_s + s(Time_num_s, k=5) + (Year_s|Month*SubRegion),
+            data=Data, family=gaussian,
+            prior=prior(normal(0,5), class="Intercept")+
+              prior(normal(0,5), class="b")+
+              prior(cauchy(0,5), class="sigma")+
+              prior(cauchy(0,5), class="sd"),
+            iter=5e3, warmup=1250, cores=1, chains=1)
+CC_brm2<-add_criterion(CC_brm2, criterion=c("waic", "loo"))
+#Much better model with time incorporated
+
+#Without EDSM data to try and reduce autocorrelation
+
+CC_brm3<-brm(Temperature~Year_s + s(Time_num_s, k=5) + (Year_s|Month*SubRegion),
+             data=filter(Data, Source!="EDSM"), family=gaussian,
+             prior=prior(normal(0,5), class="Intercept")+
+               prior(normal(0,5), class="b")+
+               prior(cauchy(0,5), class="sigma")+
+               prior(cauchy(0,5), class="sd"),
+             iter=5e3, warmup=1250, cores=1, chains=1)
+
+CC_brm_EMP<-brm(Temperature~Year_s + s(Time_num_s, k=5) + (Year_s|Month*SubRegion),
+             data=filter(Data, Source=="EMP"), family=gaussian,
+             prior=prior(normal(0,5), class="Intercept")+
+               prior(normal(0,5), class="b")+
+               prior(cauchy(0,5), class="sigma")+
+               prior(cauchy(0,5), class="sd"),
+             iter=5e3, warmup=1250, cores=1, chains=1)
+
+CC_brm4<-brm(Temperature~Year_s + s(Time_num_s, k=5) + (Year_s|Month*SubRegion*Source),
+             data=Data, family=gaussian,
+             prior=prior(normal(0,5), class="Intercept")+
+               prior(normal(0,5), class="b")+
+               prior(cauchy(0,5), class="sigma")+
+               prior(cauchy(0,5), class="sd"),
+             iter=5e3, warmup=1250, cores=1, chains=1)
+
+CC_predictor<-function(model){
+  Post_CC<-model %>%
+    recover_types()%>%
+    spread_draws(`r_Month:SubRegion`[MonthSubRegion,term])%>%
+    ungroup() %>%
+    filter(term=="Year_s")%>%
+    select(-term, -.draw, -.chain)%>%
+    separate(MonthSubRegion, into=c("Month", "SubRegion"), sep="_")%>%
+    mutate(Month=as.integer(Month))%>%
+    left_join(model %>%
+                recover_types()%>%
+                spread_draws(b_Year_s, r_Month[Month,term], r_SubRegion[SubRegion,term], )%>%
+                ungroup()%>%
+                filter(term=="Year_s")%>%
+                select(-term, -.draw, -.chain), by=c("Month", "SubRegion", ".iteration"))
+  return(Post_CC)
+}
+
+Post_CC<-CC_predictor(CC_brm2)
+
+Post_CC_sum<-Post_CC%>%
+  mutate(Slope=b_Year_s+r_Month+r_SubRegion+`r_Month:SubRegion`)%>%
+  group_by(Month, SubRegion)%>%
+  mean_qi(Slope, .width = c(0.99, 0.999))%>%
+  ungroup()%>%
+  mutate(SubRegion=str_replace_all(SubRegion, fixed("."), " "))
+
+p_regmonth<-ggplot(Post_CC_sum, aes(y = Slope/sd(Data$Year), x = Month, ymin = .lower/sd(Data$Year), ymax = .upper/sd(Data$Year))) +
+  geom_pointinterval()+
+  facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
+  geom_hline(yintercept = 0)+
+  ylab("Slope (°C / year)")+
+  scale_x_continuous(breaks=seq(1,12, by=2))+
+  theme_bw()+
+  theme(panel.grid=element_blank())
+
+ggsave(p_regmonth, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/CC regmonth.png",
+       device="png", width=15, height=12, units="in")
+
+Post_CC_sum_month<-Post_CC%>%
+  select(-SubRegion, -r_SubRegion, -`r_Month:SubRegion`)%>%
+  distinct()%>%
+  mutate(Slope=b_Year_s+r_Month)%>%
+  group_by(Month)%>%
+  mean_qi(Slope, .width = c(0.99, 0.999))%>%
+  ungroup()
+
+ggplot(Post_CC_sum_month, aes(y = Slope/sd(Data$Year), x = Month, ymin = .lower/sd(Data$Year), ymax = .upper/sd(Data$Year))) +
+  geom_pointinterval()+
+  geom_hline(yintercept = 0)+
+  scale_x_continuous(breaks=seq(1,12, by=2))+
+  ylab("Slope (°C/year)")+
+  theme_bw()+
+  theme(panel.grid=element_blank())
+
+p_month<-ggplot(Post_CC_sum_month, aes(y = Slope/sd(Data$Year), x = Month, ymin = .lower/sd(Data$Year), ymax = .upper/sd(Data$Year))) +
+  geom_pointinterval()+
+  geom_pointinterval(data=Post_CC_sum_month3, aes(x=Month+0.2), color="dodgerblue3")+
+  geom_hline(yintercept = 0)+
+  ylab("Slope (°C / year)")+
+  scale_x_continuous(breaks=seq(1,12, by=2))+
+  theme_bw()+
+  theme(panel.grid=element_blank())
+
+ggsave(p_month, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/CC month.png",
+       device="png", width=4, height=4, units="in")
+
+Data_CC<-Data%>%
+  filter(Source!="EDSM" & !str_detect(Station, "EZ") & !(Source=="SKT" & Station=="799" & Latitude>38.2))%>%
+  mutate(Station=paste(Source, Station))%>%
+  lazy_dt()%>%
+  group_by(Month, SubRegion, Year, Year_s, Station)%>%
+  summarise(Temperature=mean(Temperature))%>%
+  as_tibble()%>%
+  ungroup()%>%
+  mutate(Date=parse_date_time(paste(Year, Month, "01", sep="-"), "%Y-%m-%d"))
+
+CC_brm_ar<-brm(Temperature~Year_s+(Year_s|Month*SubRegion) + ar(time = Date, gr=Station),
+               data=Data_CC, family=gaussian,
+               prior=prior(normal(0,5), class="Intercept")+
+                 prior(normal(0,5), class="b")+
+                 prior(cauchy(0,5), class="sigma")+
+                 prior(cauchy(0,5), class="sd"),
+               iter=5e3, warmup=1250, cores=1, chains=1)
+
+# Autocorrelation
+require(gstat)
+require(sp)
+require(spacetime)
+
+sp <- SpatialPoints(coords=data.frame(Longitude=Data$Longitude, Latitude=Data$Latitude))
+sp2<-STIDF(sp, time=Data$Date, data=data.frame(Residuals=residuals(CC_brm2, type="pearson")[,1]))
+CC_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=3)
+
+save(CC_vario, CC_brm, CC_brm2, CC_brm3, CC_brm_EMP, file="CC models.Rds")
+
+ggplot(CC_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
+  geom_line()+
+  geom_point()
+
+
+# Next smoothing model ----------------------------------------------------
+
+# 1) Remove years before 1972? or 1974?
+# 2) Standardize variables at the end of all data filtering
