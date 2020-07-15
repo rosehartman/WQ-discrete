@@ -43,8 +43,8 @@ Data <- DeltaDater(Start_year = 1900,
          Year_fac=factor(Year))%>% 
   mutate(Date_num = as.numeric(Date), # Create numeric version of date for models
          Time = as_hms(Datetime))%>% # Create variable for time-of-day, not date. 
-  mutate(Time_num=as.numeric(Time))%>% # Create numeric version of time for models (=seconds since midnight)
-  mutate_at(vars(Date_num, Longitude, Latitude, Time_num, Year, Julian_day), list(s=~(.-mean(., na.rm=T))/sd(., na.rm=T))) # Create centered and standardized versions of covariates
+  mutate(Time_num=as.numeric(Time)) # Create numeric version of time for models (=seconds since midnight)
+  
 
 # Pull station locations for major monitoring programs
 # This will be used to set a boundary for this analysis focused on well-sampled regions.
@@ -75,7 +75,10 @@ Data<-Data%>%
           join=st_intersects)%>%
   filter(IN)%>%
   dplyr::select(-IN)%>%
-  mutate(Group=if_else(is.even(Year), 1, 2))
+  mutate(Group=if_else(is.even(Year), 1, 2))%>%
+  mutate_at(vars(Date_num, Longitude, Latitude, Time_num, Year, Julian_day), list(s=~(.-mean(., na.rm=T))/sd(., na.rm=T))) # Create centered and standardized versions of covariates
+
+saveRDS(Data, file="Temperature smoothing model/Prediction data.Rds")
 
 # Model selection ---------------------------------------------------------
 
@@ -136,7 +139,7 @@ WQ_pred<-function(Full_data=Data,
                   n=100, 
                   Years=round(seq(min(Full_data$Year)+2, max(Full_data$Year)-2, length.out=9)),
                   Julian_days=yday(ymd(paste("2001", c(1,4,7,10), "15", sep="-"))), #Jan, Apr, Jul, and Oct 15 for a non-leap year
-                  Time_num=12*60*60, # 12PM x 60 seconds x 60 minutes
+                  Time_num=12*60*60 # 12PM x 60 seconds x 60 minutes
 ){
   
   # Create point locations on a grid for predictions
@@ -203,6 +206,8 @@ newdata_year <- WQ_pred(Full_data=Data,
 # Perform in the cloud
 # newdata for predictions stored as "newdata_year.Rds" More simplified version actually used in the cloud is "newdata.Rds"
 
+
+
 modellc4_predictions<-predict(modellc4, newdata=newdata_year, type="response", se.fit=TRUE, discrete=T, n.threads=16) # Create predictions
 
 # Predictions stored as "modellc4_predictions.Rds"
@@ -231,8 +236,7 @@ mygrid <- data.frame(
 Data_effort <- Data%>%
   st_drop_geometry()%>%
   group_by(SubRegion, Month, Year)%>%
-  summarise(N=n())%>%
-  ungroup()
+  summarise(N=n(), .groups="drop")
 
 newdata_year2<-newdata%>%
   select(-N)%>%
@@ -627,7 +631,7 @@ CC_brm_EMP<-brm(Temperature~Year_s + s(Time_num_s, k=5) + (Year_s|Month*SubRegio
                prior(cauchy(0,5), class="sd"),
              iter=5e3, warmup=1250, cores=1, chains=1)
 
-CC_brm4<-brm(Temperature~Year_s + s(Time_num_s, k=5) + (Year_s|Month*SubRegion*Source),
+CC_brm4<-brm(Temperature~Year_s + s(Time_num_s, k=5) + (Year_s|Month*SubRegion) + (1|Source),
              data=Data, family=gaussian,
              prior=prior(normal(0,5), class="Intercept")+
                prior(normal(0,5), class="b")+
@@ -720,6 +724,14 @@ CC_brm_ar<-brm(Temperature~Year_s+(Year_s|Month*SubRegion) + ar(time = Date, gr=
                  prior(cauchy(0,5), class="sd"),
                iter=5e3, warmup=1250, cores=1, chains=1)
 
+# Trying with a gam
+
+CC_gam <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
+                te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
+                s(Time_num_s, k=5),
+                data = Data, method="fREML", discrete=T, nthreads=4)
+#Try fitting this on top of the prior gam?
+
 # Autocorrelation
 require(gstat)
 require(sp)
@@ -729,14 +741,23 @@ sp <- SpatialPoints(coords=data.frame(Longitude=Data$Longitude, Latitude=Data$La
 sp2<-STIDF(sp, time=Data$Date, data=data.frame(Residuals=residuals(CC_brm2, type="pearson")[,1]))
 CC_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=3)
 
-save(CC_vario, CC_brm, CC_brm2, CC_brm3, CC_brm_EMP, file="CC models.Rds")
+sp_EMP <- SpatialPoints(coords=data.frame(Longitude=filter(Data, Source=="EMP")$Longitude, Latitude=filter(Data, Source=="EMP")$Latitude))
+sp2_EMP<-STIDF(sp_EMP, time=filter(Data, Source=="EMP")$Date, data=data.frame(Residuals=residuals(CC_brm_EMP, type="pearson")[,1]))
+CC_vario_EMP<-variogramST(Residuals~1, data=sp2_EMP, tunit="weeks", cores=3, tlags=1:10*4)
+
+save(CC_vario, CC_vario_EMP, CC_brm, CC_brm2, CC_brm3, CC_brm_EMP, file="CC models.Rds")
 
 ggplot(CC_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
   geom_line()+
   geom_point()
 
 
-# Next smoothing model ----------------------------------------------------
+# Next steps ----------------------------------------------------
 
-# 1) Remove years before 1972? or 1974?
-# 2) Standardize variables at the end of all data filtering
+# 1) Standardize variables at the end of all data filtering (Done in saved data files "Discrete Temp Data.Rds" and "Prediction data.Rds")
+# 2) Re-run smoothing model on this updated data
+# 3) Also run climate change GAM as:
+modellc4 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
+                  te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
+                  s(Time_num_s, k=5),
+                data = Data, method="fREML", discrete=T, nthreads=8)
