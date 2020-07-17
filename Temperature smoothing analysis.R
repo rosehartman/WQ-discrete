@@ -745,7 +745,7 @@ sp_EMP <- SpatialPoints(coords=data.frame(Longitude=filter(Data, Source=="EMP")$
 sp2_EMP<-STIDF(sp_EMP, time=filter(Data, Source=="EMP")$Date, data=data.frame(Residuals=residuals(CC_brm_EMP, type="pearson")[,1]))
 CC_vario_EMP<-variogramST(Residuals~1, data=sp2_EMP, tunit="weeks", cores=3, tlags=1:10*4)
 
-save(CC_vario, CC_vario_EMP, CC_brm, CC_brm2, CC_brm3, CC_brm_EMP, file="CC models.Rds")
+save(CC_vario, CC_vario_EMP, CC_brm, CC_brm2, CC_brm3, CC_brm4, CC_brm_EMP, file="CC models.Rds")
 
 ggplot(CC_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
   geom_line()+

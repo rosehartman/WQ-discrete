@@ -13,6 +13,7 @@ require(googleCloudStorageR)
 vm <- gce_vm(template = "rstudio", zone="us-west1-a",
              name = "rstudio-server",
              username = "", password = "",  predefined_type = "e2-highmem-8",
+             dynamic_image = "gcr.io/gcer-public/persistent-rstudio",
              disk_size_gb=100)
 gce_set_metadata(list(GCS_SESSION_BUCKET = "discretewq"), vm)
 
