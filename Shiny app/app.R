@@ -47,12 +47,18 @@ ui <- fluidPage(
                                 uiOutput("scale_options"))
         ),
         column(9,
-               conditionalPanel(condition="input.Facet!='Year' && input.Facet!='Year x Month' && input.Facet!='Month x Year'",
-                                uiOutput("select_Year")),
-               conditionalPanel(condition="input.Facet!='Month' && input.Facet!='Year x Month' && input.Facet!='Month x Year'",
-                                uiOutput("select_Month")),
-               plotOutput("TempPlot")
-        )
+               tabsetPanel(type="tabs",
+                           id="Tab",
+                           tabPanel("Rasters",
+                                    conditionalPanel(condition="input.Facet!='Year' && input.Facet!='Year x Month' && input.Facet!='Month x Year'",
+                                                     uiOutput("select_Year")),
+                                    conditionalPanel(condition="input.Facet!='Month' && input.Facet!='Year x Month' && input.Facet!='Month x Year'",
+                                                     uiOutput("select_Month")),
+                                    plotOutput("TempPlot")
+                           ),
+                           tabPanel("Time series",
+                                    )
+               ))
     ),
     tags$head(tags$style("#TempPlot{height:80vh !important;}"))
 )

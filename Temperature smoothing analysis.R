@@ -78,7 +78,7 @@ Data<-Data%>%
   mutate(Group=if_else(is.even(Year), 1, 2))%>%
   mutate_at(vars(Date_num, Longitude, Latitude, Time_num, Year, Julian_day), list(s=~(.-mean(., na.rm=T))/sd(., na.rm=T))) # Create centered and standardized versions of covariates
 
-saveRDS(Data, file="Temperature smoothing model/Prediction data.Rds")
+saveRDS(Data, file="Temperature smoothing model/Discrete Temp Data.Rds")
 
 # Model selection ---------------------------------------------------------
 
@@ -203,6 +203,9 @@ newdata_year <- WQ_pred(Full_data=Data,
                         Julian_days = yday(ymd(paste("2001", 1:12, "15", sep="-"))),
                         Years=round(min(Data$Year):max(Data$Year)))
 
+# Need to do this
+#saveRDS(newdata_year, file="Temperature smoothing model/Prediction Data.Rds")
+
 # Perform in the cloud
 # newdata for predictions stored as "newdata_year.Rds" More simplified version actually used in the cloud is "newdata.Rds"
 
@@ -212,8 +215,8 @@ modellc4_predictions<-predict(modellc4, newdata=newdata_year, type="response", s
 
 # Predictions stored as "modellc4_predictions.Rds"
 
-load("newdata_year.Rds")
-load("modellc4_predictions.Rds")
+load("Temperature smoothing model/newdata_year.Rds")
+load("Temperature smoothing model/modellc4_predictions.Rds")
 
 newdata<-newdata_year%>%
   mutate(Prediction=modellc4_predictions$fit)%>%
