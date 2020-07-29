@@ -17,11 +17,38 @@ vm <- gce_vm(template = "rstudio", zone="us-west1-a",
              disk_size_gb=100)
 gce_set_metadata(list(GCS_SESSION_BUCKET = "discretewq"), vm)
 
-# Create project named "WQ-discrete-cloud"
-# Saved objects should be automatically backed up to the bucket
-
+# To save all files from VM, run in cloud: googleCloudStorageR::gcs_save_all(bucket="discretewq")
 # Load files from local machine with something like:
 # gcs_load("model.Rds")
 
 # Also can save outputs with something like:
 # gcs_upload(model, object_function = function(input, output) save(input, file=output), name="model.Rds")
+
+
+# To add a project
+# 1) Create Rstudio project in the VM
+# 2) Create file within the project folder named "_gcssave.yaml" with the following 2 lines:
+
+# bucket: discretewq
+# loaddir:
+  
+# 3) Create .Rprofile file within project folder with the following 15 lines:
+
+#   .First <- function(){
+#     cat("\n# Welcome Sam! Today is ", date(), "\n")
+#     
+#     ## will look for download if GCS_SESSION_BUCKET env arg set
+#     googleCloudStorageR::gcs_first()
+#   }
+# 
+# 
+# .Last <- function(){
+#   # will only upload if a _gcssave.yaml in directory with bucketname
+#   googleCloudStorageR::gcs_last()
+#   message("\nGoodbye Sam at ", date(), "\n")
+# }
+# 
+# message("n*** Successfully loaded .Rprofile ***n")
+
+# 4) exit project and stop VM
+# 5) At next startup of VM or new VM, just create a project with same name and files will be added. 
