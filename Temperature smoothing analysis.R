@@ -44,7 +44,7 @@ Data <- DeltaDater(Start_year = 1900,
   mutate(Date_num = as.numeric(Date), # Create numeric version of date for models
          Time = as_hms(Datetime))%>% # Create variable for time-of-day, not date. 
   mutate(Time_num=as.numeric(Time)) # Create numeric version of time for models (=seconds since midnight)
-  
+
 
 # Pull station locations for major monitoring programs
 # This will be used to set a boundary for this analysis focused on well-sampled regions.
@@ -149,6 +149,8 @@ WQ_pred<-function(Full_data=Data,
               dplyr::select(Shape_Area)%>%
               st_transform(crs=st_crs(Delta_subregions)))%>%
     filter(!is.na(Shape_Area))%>%
+    select(-Shape_Area)%>%
+    distinct()%>%
     st_join(Stations%>% # Applying the same approach we did to the full data: remove any pounts outside the convex hull formed by major survey stations sampled >50 times
               st_union()%>%
               st_convex_hull()%>%
@@ -203,20 +205,16 @@ newdata_year <- WQ_pred(Full_data=Data,
                         Julian_days = yday(ymd(paste("2001", 1:12, "15", sep="-"))),
                         Years=round(min(Data$Year):max(Data$Year)))
 
-# Need to do this
-#saveRDS(newdata_year, file="Temperature smoothing model/Prediction Data.Rds")
+saveRDS(newdata_year, file="Temperature smoothing model/Prediction Data.Rds")
 
 # Perform in the cloud
-# newdata for predictions stored as "newdata_year.Rds" More simplified version actually used in the cloud is "newdata.Rds"
-
-
 
 modellc4_predictions<-predict(modellc4, newdata=newdata_year, type="response", se.fit=TRUE, discrete=T, n.threads=16) # Create predictions
 
 # Predictions stored as "modellc4_predictions.Rds"
 
-load("Temperature smoothing model/newdata_year.Rds")
-load("Temperature smoothing model/modellc4_predictions.Rds")
+newdata_year<-readRDS("Temperature smoothing model/Prediction Data.Rds")
+modellc4_predictions<-readRDS("Temperature smoothing model/modellc4_predictions.Rds")
 
 newdata<-newdata_year%>%
   mutate(Prediction=modellc4_predictions$fit)%>%
@@ -286,7 +284,7 @@ mapyear<-function(month){
     theme(panel.grid=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
 }
 
-walk(1:12, function(x) ggsave(plot=mapyear(x), filename=paste0("C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Year predictions month ", x, " 6.11.20.png"), device=png(), width=15, height=12, units="in"))
+walk(1:12, function(x) ggsave(plot=mapyear(x), filename=paste0("C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Year predictions month ", x, " 8.7.20.png"), device=png(), width=15, height=12, units="in"))
 
 
 # Rasterized predictions --------------------------------------------------
@@ -316,9 +314,9 @@ Rasterize_all <- function(data, var, out_crs=4326, n=100){
   var<-rlang::enquo(var)
   rlang::as_name(var)
   preds<-map(unique(data$Date), function(x) st_rasterize(data%>%
-                                                                   filter(Date==x)%>%
-                                                                   dplyr::select(!!var), 
-                                                                 template=st_as_stars(st_bbox(Delta), dx=diff(st_bbox(Delta)[c(1, 3)])/n, dy=diff(st_bbox(Delta)[c(2, 4)])/n, values = NA_real_))%>%
+                                                           filter(Date==x)%>%
+                                                           dplyr::select(!!var), 
+                                                         template=st_as_stars(st_bbox(Delta), dx=diff(st_bbox(Delta)[c(1, 3)])/n, dy=diff(st_bbox(Delta)[c(2, 4)])/n, values = NA_real_))%>%
                st_warp(crs=out_crs))
   
   # Then bind all years together into 1 raster
@@ -343,7 +341,8 @@ rastered_preds<-Rasterize_all(newdata_rast, Prediction)
 rastered_SE<-Rasterize_all(newdata_rast, SE)
 # Bind SE and predictions together
 rastered_predsSE<-c(rastered_preds, rastered_SE)
-save(rastered_predsSE, file="Rasterized modellc4 predictions.Rds")
+
+#saveRDS(rastered_predsSE, file="Shiny app/Rasterized modellc4 predictions.Rds")
 
 
 raster_plot<-function(data, Years=unique(newdata_rast_season$Year), labels="All"){
@@ -387,11 +386,17 @@ p<-map2(rastered_preds_season, c("Left", "None", "None", "Right"), ~raster_plot(
 p2<-wrap_plots(p)+plot_layout(nrow=1, heights=c(1,1,1,1))
 
 # Save plots
-ggsave(plot=p2, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Rasterized predictions 6.12.20.png", device=png(), width=7, height=12, units="in")
+ggsave(plot=p2, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Rasterized predictions 8.7.20.png", device=png(), width=7, height=12, units="in")
 
 # Model error by region ---------------------------------------------------
 
-# Residuals <- modellc4$residuals
+#modellc4<-readRDS("Temperature smoothing model/modellc4.Rds")
+#modellc4_residuals <- modellc4$residuals
+#saveRDS(modellc4_residuals, file="Temperature smoothing model/modellc4_residuals.Rds")
+
+#modellc4_fitted <- modellc4$fitted.values
+#saveRDS(modellc4_fitted, file="Temperature smoothing model/modellc4_fitted.Rds")
+
 # Stored as modellc4_residuals.Rds
 load("Temperature smoothing model/modellc4_residuals.Rds")
 
@@ -417,7 +422,7 @@ p_resid<-ggplot(Resid_sum)+
   theme_bw()+
   theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank(), panel.background = element_rect(fill="black"))
 
-ggsave(plot=p_resid, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Residuals 6.12.20.png", device=png(), width=20, height=12, units="in")
+ggsave(plot=p_resid, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Residuals 8.7.20.png", device=png(), width=20, height=12, units="in")
 
 
 # Plot sampling effort ----------------------------------------------------
@@ -439,47 +444,50 @@ ggsave(plot=p_effort, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Disc
 set.seed(100)
 Data_split<-Data%>%
   mutate(Resid=modellc4_residuals,
-         Fitted=Fitted)%>%
+         Fitted=modellc4_fitted)%>%
   group_by(SubRegion, Year, Season, Group)%>%
   mutate(Fold=sample(1:10, 1, replace=T))%>%
   ungroup()
+set.seed(NULL)
+
+#saveRDS(Data_split, file="Temperature smoothing model/Split data for cross validation.Rds")
 
 # Saved as "Split data for cross validation.Rds"
 
-set.seed(NULL)
-CVa_fit_a=list()
+
+CV_fit_1=list()
 #~2 hours per model run
 for(i in 1:10){
   out<-bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + s(Time_num_s, k=5),
            data = filter(Data_split, Group==1 & Fold!=i)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
-  CVa_fit_a[[i]]<-predict(out, newdata=filter(Data_split, Group==1 & Fold==i), type="response", se.fit=TRUE, discrete=T, n.threads=4)
-  save(out, file=paste0("CV_model_a", i, ".Rds"))
+  saveRDS(out, file=paste0("Temperature smoothing model/CV_model_1_", i, ".Rds"))
+  CV_fit_1[[i]]<-predict(out, newdata=filter(Data_split, Group==1 & Fold==i), type="response", se.fit=TRUE, discrete=T, n.threads=4)
   rm(out)
   gc()
 }
 
-# Prediction results saved as "Group 1 CV predictions.Rds"
+saveRDS(CV_fit_1, file="Temperature smoothing model/Group 1 CV predictions.Rds")
 
-CVa_fit_b=list()
+CV_fit_2=list()
 for(i in 1:10){
   out<-bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + s(Time_num_s, k=5),
            data = filter(Data_split, Group==2 & Fold!=i)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
-  save(out, file=paste0("CV_model_b", i, ".Rds"))
-  CVa_fit_b[[i]]<-predict(out, newdata=filter(Data_split, Group==2 & Fold==i), type="response", se.fit=TRUE, discrete=T, n.threads=4)
+  saveRDS(out, file=paste0("Temperature smoothing model/CV_model_2_", i, ".Rds"))
+  CV_fit_2[[i]]<-predict(out, newdata=filter(Data_split, Group==2 & Fold==i), type="response", se.fit=TRUE, discrete=T, n.threads=4)
   rm(out)
   gc()
   message(paste0("Finished run ", i, "/10"))  
 }
 
-# Prediction results saved as "Group 2 CV predictions.Rds"
+saveRDS(CV_fit_2, file="Temperature smoothing model/Group 2 CV predictions.Rds")
 
 CV_bind<-function(group, fold){
   if(group==1){
-    fit<-CVa_fit_a[[fold]]$fit
+    fit<-CV_fit_1[[fold]]$fit
   }
   
   if(group==2){
-    fit<-CVa_fit_b[[fold]]$fit
+    fit<-CV_fit_2[[fold]]$fit
   }
   
   Out<-Data_split%>%
@@ -514,7 +522,7 @@ p_resid_CV<-ggplot(Resid_CV_sum)+
   theme_bw()+
   theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank(), panel.background = element_rect(fill="black"))
 p_resid_CV
-ggsave(plot=p_resid_CV, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/CV Residuals 6.16.20.png", device=png(), width=20, height=12, units="in")
+ggsave(plot=p_resid_CV, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/CV Residuals 8.11.20.png", device=png(), width=20, height=12, units="in")
 
 
 # Next plot deviation of predicted values from fitted values from full model
@@ -574,9 +582,12 @@ plot(vario)
 
 sp <- SpatialPoints(coords=data.frame(Longitude=Data$Longitude, Latitude=Data$Latitude))
 sp2<-STIDF(sp, time=Data$Date, data=data.frame(Residuals=modellc4_residuals/sd(Data$Temperature)))
-vario2<-variogramST(Residuals~1, data=sp2, tunit="days", cores=3)
-vario3<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=3)
-save(vario, vario2, vario3, file="Variograms.Rds")
+vario2<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=3)
+save(vario, vario2, file="Variograms.Rds")
+
+ggplot(vario2, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
+  geom_line()+
+  geom_point()
 
 # Climate change trend ----------------------------------------------------
 
@@ -607,12 +618,12 @@ CC_brm<-brm(Temperature~Year_s+(Year_s|Month*SubRegion),
 CC_brm<-add_criterion(CC_brm, criterion=c("waic", "loo"))
 
 CC_brm2<-brm(Temperature~Year_s + s(Time_num_s, k=5) + (Year_s|Month*SubRegion),
-            data=Data, family=gaussian,
-            prior=prior(normal(0,5), class="Intercept")+
-              prior(normal(0,5), class="b")+
-              prior(cauchy(0,5), class="sigma")+
-              prior(cauchy(0,5), class="sd"),
-            iter=5e3, warmup=1250, cores=1, chains=1)
+             data=Data, family=gaussian,
+             prior=prior(normal(0,5), class="Intercept")+
+               prior(normal(0,5), class="b")+
+               prior(cauchy(0,5), class="sigma")+
+               prior(cauchy(0,5), class="sd"),
+             iter=5e3, warmup=1250, cores=1, chains=1)
 CC_brm2<-add_criterion(CC_brm2, criterion=c("waic", "loo"))
 #Much better model with time incorporated
 
@@ -627,12 +638,12 @@ CC_brm3<-brm(Temperature~Year_s + s(Time_num_s, k=5) + (Year_s|Month*SubRegion),
              iter=5e3, warmup=1250, cores=1, chains=1)
 
 CC_brm_EMP<-brm(Temperature~Year_s + s(Time_num_s, k=5) + (Year_s|Month*SubRegion),
-             data=filter(Data, Source=="EMP"), family=gaussian,
-             prior=prior(normal(0,5), class="Intercept")+
-               prior(normal(0,5), class="b")+
-               prior(cauchy(0,5), class="sigma")+
-               prior(cauchy(0,5), class="sd"),
-             iter=5e3, warmup=1250, cores=1, chains=1)
+                data=filter(Data, Source=="EMP"), family=gaussian,
+                prior=prior(normal(0,5), class="Intercept")+
+                  prior(normal(0,5), class="b")+
+                  prior(cauchy(0,5), class="sigma")+
+                  prior(cauchy(0,5), class="sd"),
+                iter=5e3, warmup=1250, cores=1, chains=1)
 
 CC_brm4<-brm(Temperature~Year_s + s(Time_num_s, k=5) + (Year_s|Month*SubRegion) + (1|Source),
              data=Data, family=gaussian,
@@ -729,11 +740,133 @@ CC_brm_ar<-brm(Temperature~Year_s+(Year_s|Month*SubRegion) + ar(time = Date, gr=
 
 # Trying with a gam
 
+Data_CC<-Data%>%
+  filter(Source%in%c("EMP", "STN", "FMWT", "DJFMP", "SKT", "20mm", "Suisun", "Baystudy", "USGS") & !str_detect(Station, "EZ") & !(Source=="SKT" & Station=="799" & Latitude>38.2))%>%
+  mutate(Station=paste(Source, Station))%>%
+  lazy_dt()%>%
+  group_by(Date, Date_num, Date_num_s, SubRegion, Julian_day_s, Julian_day, Year, Year_s, Year_fac, Station, Source, Latitude_s, Longitude_s, Latitude, Longitude)%>%
+  summarise(Temperature=mean(Temperature), Time_num=mean(Time_num), Time_num_s=mean(Time_num_s))%>%
+  as_tibble()%>%
+  ungroup()%>%
+  mutate(ID=paste(Station, Date_num))%>%
+  filter(!(ID%in%ID[which(duplicated(ID))]))
+
+saveRDS(Data_CC, "Temperature smoothing model/Discrete Temp Data CC.Rds")
+
 CC_gam <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
                 te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
                 s(Time_num_s, k=5),
-                data = Data, method="fREML", discrete=T, nthreads=4)
+              data = Data, method="fREML", discrete=T, nthreads=4)
+# Adding m=1 to first smoother and m=2 to second smoother resulted in exact same concurvity
+
+CC_gam2 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
+                 te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
+                 s(Time_num_s, k=5),
+               data = filter(Data, Source!="EDSM"), method="fREML", discrete=T, nthreads=4)
+
+CC_gam3 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, Year_fac, d=c(2,1,1), bs=c("tp", "cc", "re"), k=c(15, 10)) + 
+                 te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
+                 s(Time_num_s, k=5),
+               data = Data, method="fREML", discrete=T, nthreads=4)
+# Weird results, probably too much collinearity
+
+CC_gam4 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
+                  te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
+                  s(Time_num_s, k=5), correlation = corCAR1(form=~Date|Station),
+                data = Data_CC, method="REML")
+
+CC_gam5a <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
+                  te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
+                  s(Time_num_s, k=5),
+                data = Data_CC, method="REML")
+
+# Find the optimal correlation structure
+sp <- SpatialPoints(coords=data.frame(Longitude=Data_CC$Longitude, Latitude=Data_CC$Latitude))
+sp2<-STIDF(sp, time=Data_CC$Date, data=data.frame(Residuals=residuals(CC_gam5a$lme, type="normalized")))
+CC_gam5a_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=3)
+
+ggplot(CC_gam5a_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
+  geom_line()+
+  geom_point()
+
+CC_gam5 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
+                  te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
+                  s(Time_num_s, k=5), correlation = corExp(form=~Date_num_s|Station:Year_fac),
+                data = Data_CC, method="REML")
+
+auto<-Data_CC%>%
+  mutate(Resid_raw=residuals(CC_gam4$gam),
+         Resid_norm=residuals(CC_gam4$lme,type="normalized"))%>%
+  filter(Source!="EDSM" & !str_detect(Station, "EZ"))%>% # Remove EDSM and EZ stations because they're not fixed
+  mutate(Station=paste(Source, Station))%>%
+  group_by(Station)%>%
+  mutate(N=n())%>%
+  filter(N>10)%>%
+  summarise(ACF_raw=list(pacf(Resid_raw, plot=F)), ACF_norm=list(pacf(Resid_norm, plot=F)), N=n(), ci=qnorm((1 + 0.95)/2)/sqrt(n()), .groups="drop")%>% # ci formula from https://stackoverflow.com/questions/14266333/extract-confidence-interval-values-from-acf-correlogram
+  rowwise()%>%
+  mutate(lag_raw=list(ACF_raw$lag), acf_raw=list(ACF_raw$acf),
+         lag_norm=list(ACF_norm$lag), acf_norm=list(ACF_norm$acf))%>%
+  unnest(cols=c(lag_raw, acf_raw, lag_norm, acf_norm))%>%
+  arrange(-N)%>%
+  mutate(Station=factor(Station, levels=unique(Station)))%>%
+  select(-ACF_raw, -ACF_norm)%>%
+  mutate(across(c(acf_norm, lag_norm, lag_raw, acf_raw), ~as.vector(.x)))
+
+ggplot(filter(auto2, lag_norm%in%1:4))+
+  geom_point(aes(x=Station, y=abs(acf_norm)), fill="black", shape=21)+
+  geom_point(data=filter(auto, lag_norm%in%1:4 & abs(acf_norm)>abs(ci)), aes(x=Station, y=abs(acf_norm)), fill="red", shape=21)+
+  geom_point(aes(x=Station, y=abs(ci)), fill="white", shape=21)+
+  geom_segment(aes(x=Station, y=abs(acf_norm), xend=Station, yend=abs(ci)), linetype=2)+
+  geom_segment(data=filter(auto, lag_norm%in%1:4 & abs(acf_norm)>abs(ci)), aes(x=Station, y=abs(acf_norm), xend=Station, yend=abs(ci)), color="red")+
+  facet_wrap(~lag_norm)+
+  theme_bw()+
+  theme(panel.grid=element_blank(), axis.text.x=element_text(angle=45, hjust=1))
+
 #Try fitting this on top of the prior gam?
+
+#Fit model
+# then predict over a range of locations and months using type="terms" or type="iterms" to get value of the Year slope for each location and month
+
+newdata<-readRDS("Temperature smoothing model/Prediction Data.Rds")
+CC_newdata<-newdata%>%
+  st_drop_geometry()%>%
+  as_tibble()%>%
+  select(-Year_fac, -Year, -Year_s, -N,)%>%
+  distinct()%>%
+  mutate(Year=2000,
+         Year_s=(Year-mean(Data$Year))/sd(Data$Year),
+         Year_fac="2000")
+
+saveRDS(CC_newdata, "Temperature smoothing model/Climate Change Prediction Data.Rds")
+# For filtering the newdata after predictions
+
+CC_effort<-newdata%>%
+  st_drop_geometry()%>%
+  as_tibble()%>%
+  mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
+         Month=month(Date))%>%
+  select(SubRegion, Year, Month)%>%
+  distinct()%>%
+  group_by(Month, SubRegion)%>%
+  summarise(N=n(), .groups="drop")
+
+test<-predict(CC_gam, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
+
+newdata_CC_pred<-CC_newdata%>%
+  mutate(Slope=test$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
+         Slope=(Slope/Year_s)/sd(Data$Year),
+         Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
+         Month=month(Date, label = T))
+
+p_CC_gam<-ggplot(newdata_CC_pred, aes(x=Longitude, y=Latitude, color=Slope))+
+  geom_point()+
+  facet_wrap(~Month)+
+  scale_color_gradient2(high = muted("red"), low = muted("blue"), breaks=(-6:7)/100, guide=guide_colorbar(barheight=20))+
+  theme_bw()+
+  theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
+
+ggsave(p_CC_gam, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/CC gam.png",
+       device="png", width=7, height=5, units="in")
 
 # Autocorrelation
 require(gstat)

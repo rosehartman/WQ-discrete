@@ -14,7 +14,7 @@ library(ggplot2)
 library(sf)
 library(stars)
 library(lubridate)
-load("Rasterized modellc4 predictions.Rds")
+rastered_predsSE<-readRDS("Rasterized modellc4 predictions.Rds")
 Dates<-st_get_dimension_values(rastered_predsSE, "Date")
 
 # Define UI for application that draws a histogram

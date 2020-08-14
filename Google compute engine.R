@@ -12,7 +12,7 @@ require(googleCloudStorageR)
 
 vm <- gce_vm(template = "rstudio", zone="us-west1-a",
              name = "rstudio-server",
-             username = "", password = "",  predefined_type = "e2-highmem-8",
+             username = "", password = "",  predefined_type = "e2-highmem-16",
              dynamic_image = "gcr.io/gcer-public/persistent-rstudio",
              disk_size_gb=100)
 gce_set_metadata(list(GCS_SESSION_BUCKET = "discretewq"), vm)
@@ -52,3 +52,12 @@ gce_set_metadata(list(GCS_SESSION_BUCKET = "discretewq"), vm)
 
 # 4) exit project and stop VM
 # 5) At next startup of VM or new VM, just create a project with same name and files will be added. 
+
+
+# Download results --------------------------------------------------------
+
+gcs_get_object("modellc4_predictions.Rds", saveToDisk="Temperature smoothing model/modellc4_predictions.Rds", overwrite = T)
+#gcs_get_object("modellc4.Rds", saveToDisk="Temperature smoothing model/modellc4.Rds")
+
+#gcs_get_object("CC_gam1_predictions.Rds", saveToDisk="Temperature smoothing model/CC_gam1_predictions.Rds")
+#gcs_get_object("CC_gam1.Rds", saveToDisk="Temperature smoothing model/CC_gam1.Rds")
