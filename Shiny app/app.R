@@ -15,7 +15,7 @@ library(sf)
 library(stars)
 library(lubridate)
 library(shinythemes)
-require(ggiraph)
+require(leaflet)
 rastered_predsSE<-readRDS("Rasterized modellc4 predictions.Rds")
 Dates<-st_get_dimension_values(rastered_predsSE, "Date")
 
@@ -60,7 +60,7 @@ ui <- fluidPage(
                                        plotOutput("TempPlot")
                               ),
                               tabPanel("Time series",
-                                       girafeOutput("Pointplot", height="100vh", width="120vh")
+                                       leafletOutput("Pointplot", width = "100%", height = "100%")
                               )
                   ))
     ),
@@ -224,36 +224,39 @@ server <- function(input, output, session) {
         Plot()
     })
     
-
-# Timeseries plots --------------------------------------------------------
-
+    
+    # Timeseries plots --------------------------------------------------------
+    
     Point_plot<-reactive({
-        Data<-select(TempData(), Prediction)%>%
+        Data<-select(TempData(), all_of(input$variable))%>%
             aggregate(by=c(as.Date("1960-01-01"), Sys.Date()), function(x) length(which(!is.na(x))))%>%
             filter(time==as.Date("1960-01-01"))%>%
-            mutate(Prediction=na_if(Prediction, 0))%>%
-            as_tibble()%>%
-            select(Longitude=x, Latitude=y, N=Prediction)%>%
-            mutate(ID=as.character(1:n()))%>%
-            filter(!is.na(N))
-        p<-ggplot()+
-            geom_sf(data=spacetools::Delta)+
-            geom_point_interactive(data=Data, aes(x=Longitude, y=Latitude, color=N, tooltip=N, data_id=ID), alpha=0.5, size=0.5)+
-            scale_color_viridis_c(name="N", na.value="white")+
-            ylab("Latitude")+
-            xlab("Longitude")+
-            theme_bw()+
-            theme(panel.grid=element_blank(), text=element_text(size=18))
+            mutate(across(all_of(input$variable), ~na_if(.x, 0)))%>%
+            st_as_sf()%>%
+            rename(N=`1960-01-01`)%>%
+            mutate(ID=as.character(1:n()),)
+        pal<-colorNumeric("viridis", domain=range(Data$N, na.rm=T), na.color="#00000000")
+        pal_rev<-colorNumeric("viridis", domain=range(Data$N, na.rm=T), reverse=T, na.color="#00000000")
+        p<-leaflet(Data)%>%
+            addProviderTiles("Esri.WorldGrayCanvas")%>%
+            addFeatures(fillColor=~pal(N), color="black", fillOpacity = 0.7, label=~N, layerId = ~ID, weight=3)%>%
+            addLegend("topright", pal = pal_rev, values = ~N, opacity=1, 
+                      labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)))
         return(p)
     })
     
-    output$Pointplot <- renderGirafe({
-        girafe(ggobj=Point_plot())
+    observeEvent(input$Pointplot_marker_click, { 
+        p <- input$Pointplot_marker_click
+        print(p)
     })
     
-Points<-reactive({
+    output$Pointplot <- renderLeaflet({
+        Point_plot()
+    })
     
-})    
+    Points<-reactive({
+        
+    })    
     
     timeseries_data<-reactive({
         TempData()%>%
