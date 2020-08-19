@@ -16,8 +16,22 @@ library(stars)
 library(lubridate)
 library(shinythemes)
 require(leaflet)
+require(mapedit)
+require(leafem)
+require(leaflet.extras)
 rastered_predsSE<-readRDS("Rasterized modellc4 predictions.Rds")
 Dates<-st_get_dimension_values(rastered_predsSE, "Date")
+
+all_points_static<-select(rastered_predsSE, Prediction)%>%
+    aggregate(by=c(as.Date("1960-01-01"), Sys.Date()), function(x) length(which(!is.na(x))))%>%
+    filter(time==as.Date("1960-01-01"))%>%
+    mutate(across(Prediction, ~na_if(.x, 0)))%>%
+    st_as_sf()%>%
+    rename(N=`1960-01-01`)%>%
+    mutate(ID=as.character(1:n()),)
+pal_static<-colorNumeric("viridis", domain=range(all_points_static$N, na.rm=T), na.color="#00000000")
+
+pal_rev_static<-colorNumeric("viridis", domain=range(all_points_static$N, na.rm=T), reverse=T, na.color="#00000000")
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -60,7 +74,7 @@ ui <- fluidPage(
                                        plotOutput("TempPlot")
                               ),
                               tabPanel("Time series",
-                                       leafletOutput("Pointplot", width = "100%", height = "100%")
+                                       editModUI("Pointplot", height = "80vh", width="100%")
                               )
                   ))
     ),
@@ -227,32 +241,55 @@ server <- function(input, output, session) {
     
     # Timeseries plots --------------------------------------------------------
     
-    Point_plot<-reactive({
-        Data<-select(TempData(), all_of(input$variable))%>%
+    all_points<-reactive({
+        select(TempData(), all_of(input$variable))%>%
             aggregate(by=c(as.Date("1960-01-01"), Sys.Date()), function(x) length(which(!is.na(x))))%>%
             filter(time==as.Date("1960-01-01"))%>%
             mutate(across(all_of(input$variable), ~na_if(.x, 0)))%>%
             st_as_sf()%>%
             rename(N=`1960-01-01`)%>%
             mutate(ID=as.character(1:n()),)
-        pal<-colorNumeric("viridis", domain=range(Data$N, na.rm=T), na.color="#00000000")
-        pal_rev<-colorNumeric("viridis", domain=range(Data$N, na.rm=T), reverse=T, na.color="#00000000")
-        p<-leaflet(Data)%>%
+    })
+    
+    pal<-reactive({
+        colorNumeric("viridis", domain=range(all_points()$N, na.rm=T), na.color="#00000000")
+    })
+    
+    pal_rev<-reactive({
+        colorNumeric("viridis", domain=range(all_points()$N, na.rm=T), reverse=T, na.color="#00000000")
+    })
+    
+    #set the namespace for the map
+    ns <- shiny::NS("Pointplot")
+    
+    Point_plot<-leaflet()%>%
             addProviderTiles("Esri.WorldGrayCanvas")%>%
-            addFeatures(fillColor=~pal(N), color="black", fillOpacity = 0.7, label=~N, layerId = ~ID, weight=3)%>%
-            addLegend("topright", pal = pal_rev, values = ~N, opacity=1, 
+        addFeatures(data=all_points_static, fillColor=~pal_static(N), color="black", fillOpacity = 0.7, label=~N, layerId = ~ID, weight=3)%>%
+        addLegend(data=all_points_static, position="topright", pal = pal_rev_static, values = ~N, opacity=1, 
+                  labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)))
+    
+    #call the editMod function from 'mapedit' to use in the leaflet map.
+    
+    edits <- callModule(editMod, "Pointplot", leafmap = Point_plot, editorOptions=list(polylineOptions=F, markerOptions=F, circleMarkerOptions=F, circleOptions= drawCircleOptions()))
+    
+    observeEvent(TempData(), {  
+        proxy.points <- leafletProxy(ns("map"))
+        
+        proxy.points %>%
+            clearShapes()%>%
+            addFeatures(data=all_points(), fillColor=~pal()(N), color="black", fillOpacity = 0.7, label=~N, layerId = ~ID, weight=3)%>%
+            addLegend(data=all_points(), position="topright", pal = pal_rev(), values = ~N, opacity=1, 
                       labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)))
-        return(p)
     })
     
-    observeEvent(input$Pointplot_marker_click, { 
-        p <- input$Pointplot_marker_click
-        print(p)
+    observeEvent(edits(), { 
+        print(edits())
     })
     
-    output$Pointplot <- renderLeaflet({
-        Point_plot()
-    })
+    
+    #output$Pointplot <- renderLeaflet({
+    #    Point_plot()
+    #})
     
     Points<-reactive({
         
