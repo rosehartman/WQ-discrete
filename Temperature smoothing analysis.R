@@ -740,16 +740,23 @@ CC_brm_ar<-brm(Temperature~Year_s+(Year_s|Month*SubRegion) + ar(time = Date, gr=
 
 # Trying with a gam
 
+# Remove non-fixed stations, reduce temporal frequency to no more than 1 sample per week
 Data_CC<-Data%>%
   filter(Source%in%c("EMP", "STN", "FMWT", "DJFMP", "SKT", "20mm", "Suisun", "Baystudy", "USGS") & !str_detect(Station, "EZ") & !(Source=="SKT" & Station=="799" & Latitude>38.2))%>%
-  mutate(Station=paste(Source, Station))%>%
+  mutate(Station=paste(Source, Station),
+         Week=week(Date),
+         Noon_diff=abs(hms(hours=12)-as_hms(Datetime)))%>%
+  group_by(Station, Week, Year)%>%
+  filter(Date==min(Date) & Noon_diff==min(Noon_diff))%>%
+  ungroup()%>%
   lazy_dt()%>%
-  group_by(Date, Date_num, Date_num_s, SubRegion, Julian_day_s, Julian_day, Year, Year_s, Year_fac, Station, Source, Latitude_s, Longitude_s, Latitude, Longitude)%>%
+  group_by(Date, Date_num, Date_num_s, Week, SubRegion, Julian_day_s, Julian_day, Year, Year_s, Year_fac, Station, Source, Latitude_s, Longitude_s, Latitude, Longitude)%>%
   summarise(Temperature=mean(Temperature), Time_num=mean(Time_num), Time_num_s=mean(Time_num_s))%>%
   as_tibble()%>%
   ungroup()%>%
   mutate(ID=paste(Station, Date_num))%>%
-  filter(!(ID%in%ID[which(duplicated(ID))]))
+  filter(!(ID%in%ID[which(duplicated(ID))]))%>%
+  mutate(YearStation=paste(Year, Station))
 
 saveRDS(Data_CC, "Temperature smoothing model/Discrete Temp Data CC.Rds")
 
@@ -791,8 +798,26 @@ ggplot(CC_gam5a_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
 
 CC_gam5 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
-                  s(Time_num_s, k=5), correlation = corExp(form=~Date_num_s|Station:Year_fac),
+                  s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num_s|Station),
                 data = Data_CC, method="REML")
+acf(residuals(CC_gam5$gam),main="raw residual ACF")
+resid_norm_CC_gam5<-residuals(CC_gam5$lme,type="normalized")
+acf(resid_norm_CC_gam5,main="standardized residual ACF")
+
+sp <- SpatialPoints(coords=data.frame(Longitude=Data_CC$Longitude, Latitude=Data_CC$Latitude))
+sp2<-STIDF(sp, time=Data_CC$Date, data=data.frame(Residuals=resid_norm_CC_gam5))
+CC_gam5_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=3)
+
+CC_gam6 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
+                  te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
+                  s(Time_num_s, k=5), correlation = corExp(form=~Date_num_s|Station),
+                data = Data_CC, method="REML")
+
+
+
+ggplot(CC_gam5_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
+  geom_line()+
+  geom_point()
 
 auto<-Data_CC%>%
   mutate(Resid_raw=residuals(CC_gam4$gam),
