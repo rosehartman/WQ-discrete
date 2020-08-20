@@ -810,8 +810,14 @@ CC_gam5_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=3)
 
 CC_gam6 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
-                  s(Time_num_s, k=5), correlation = corExp(form=~Date_num_s|Station),
+                  s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num_s|YearStation),
                 data = Data_CC, method="REML")
+
+CC_gam7 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
+                  te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
+                  s(Time_num_s, k=5), correlation = corExp(form=~Date_num_s|YearStation),
+                data = Data_CC, method="REML")
+
 
 
 
@@ -820,8 +826,8 @@ ggplot(CC_gam5_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
   geom_point()
 
 auto<-Data_CC%>%
-  mutate(Resid_raw=residuals(CC_gam4$gam),
-         Resid_norm=residuals(CC_gam4$lme,type="normalized"))%>%
+  mutate(Resid_raw=residuals(CC_gam6$gam),
+         Resid_norm=residuals(CC_gam6$lme,type="normalized"))%>%
   filter(Source!="EDSM" & !str_detect(Station, "EZ"))%>% # Remove EDSM and EZ stations because they're not fixed
   mutate(Station=paste(Source, Station))%>%
   group_by(Station)%>%
@@ -837,7 +843,7 @@ auto<-Data_CC%>%
   select(-ACF_raw, -ACF_norm)%>%
   mutate(across(c(acf_norm, lag_norm, lag_raw, acf_raw), ~as.vector(.x)))
 
-ggplot(filter(auto2, lag_norm%in%1:4))+
+ggplot(filter(auto, lag_norm%in%1:4))+
   geom_point(aes(x=Station, y=abs(acf_norm)), fill="black", shape=21)+
   geom_point(data=filter(auto, lag_norm%in%1:4 & abs(acf_norm)>abs(ci)), aes(x=Station, y=abs(acf_norm)), fill="red", shape=21)+
   geom_point(aes(x=Station, y=abs(ci)), fill="white", shape=21)+

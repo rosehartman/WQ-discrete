@@ -1,11 +1,6 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
-#
+# TODO
+# 1) Add option to use EDSM subregions instead of choosing your own region. Replace leaflet map with a map of the subregions and geofacet the time series plot
+# 2) Allow users to facet plot by different selected regions. 
 
 library(shiny)
 library(shinyWidgets)
@@ -56,10 +51,7 @@ ui <- fluidPage(
                                        "Plot:",
                                        choices = c("Predicted temperature"="Prediction", "Standard Error"="SE"), selected="Prediction", individual = TRUE, 
                                        checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue"))),
-                     conditionalPanel(condition="input.Tab=='Rasters'", 
-                                      pickerInput("Facet",
-                                                  "Facet plot by:",
-                                                  choices = c("None", "Month", "Year", "Month x Year", "Year x Month"), selected="None")),
+                     uiOutput("facet_options"),
                      conditionalPanel(condition="input.Tab=='Rasters' && input.Facet!='Year x Month' && input.Facet!='Month x Year'", 
                                       uiOutput("scale_options"))
         ),
@@ -74,12 +66,14 @@ ui <- fluidPage(
                                        plotOutput("TempPlot")
                               ),
                               tabPanel("Time series",
-                                       editModUI("Pointplot", height = "80vh", width="100%")
+                                       fluidRow(editModUI("Pointplot", height = "80vh", width="100%")),
+                                       fluidRow(plotOutput("Time_plot"))
                               )
                   ))
     ),
     tags$head(tags$style("#TempPlot{height:80vh !important;}")),
-    tags$head(tags$style("#Pointplot{height:80vh !important;}"))
+    tags$head(tags$style("#Pointplot{height:80vh !important;}")),
+    tags$head(tags$style("#Time_plot{height:80vh !important;}"))
 )
 
 # Define server logic required to draw a histogram
@@ -112,6 +106,19 @@ server <- function(input, output, session) {
                     "Select month:", min=min(month(Data_dates())), max=max(month(Data_dates())), value =  min(month(Data_dates())), step=1, round=T, sep="", 
                     animate=animationOptions(interval=1000, loop=T), width="100%")
     })
+    
+    output$facet_options<-renderUI({
+        if(input$Tab=='Rasters'){
+            Choices<-c("None", "Month", "Year", "Month x Year", "Year x Month")
+        }else{
+            Choices<-c("None", "Month")
+        }
+        pickerInput("Facet",
+                    "Facet plot by:",
+                    choices = Choices, selected="None")
+    })
+    
+    
     
     output$scale_options <- renderUI({
         if(is.null(input$Facet)){
@@ -249,6 +256,16 @@ server <- function(input, output, session) {
             st_as_sf()%>%
             rename(N=`1960-01-01`)%>%
             mutate(ID=as.character(1:n()),)
+            
+    })
+    
+    all_points_plot<-reactive({
+        all_points()%>%
+            {if(is.null(Points())){
+                mutate(., opac=0.2)
+            }else{
+                mutate(., opac=if_else(ID%in%Points()$ID, 0.9, 0.2))
+            }}
     })
     
     pal<-reactive({
@@ -264,43 +281,79 @@ server <- function(input, output, session) {
     
     Point_plot<-leaflet()%>%
             addProviderTiles("Esri.WorldGrayCanvas")%>%
-        addFeatures(data=all_points_static, fillColor=~pal_static(N), color="black", fillOpacity = 0.7, label=~N, layerId = ~ID, weight=3)%>%
-        addLegend(data=all_points_static, position="topright", pal = pal_rev_static, values = ~N, opacity=1, 
+        addFeatures(data=all_points_static, fillColor=~pal_static(N), color="black", fillOpacity = 0.2, label=~N, layerId = ~ID, weight=0.4)%>%
+        addLegend(data=all_points_static, position="topright", pal = pal_rev_static, values = ~N, opacity=0.5, 
                   labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)))
     
     #call the editMod function from 'mapedit' to use in the leaflet map.
     
-    edits <- callModule(editMod, "Pointplot", leafmap = Point_plot, editorOptions=list(polylineOptions=F, markerOptions=F, circleMarkerOptions=F, circleOptions= drawCircleOptions()))
+    edits <- callModule(editMod, "Pointplot", leafmap = Point_plot, 
+                        editorOptions=list(polylineOptions=F, circleMarkerOptions=F, circleOptions= drawCircleOptions()))
     
-    observeEvent(TempData(), {  
+    observeEvent(all_points_plot(), {  
         proxy.points <- leafletProxy(ns("map"))
         
         proxy.points %>%
             clearShapes()%>%
-            addFeatures(data=all_points(), fillColor=~pal()(N), color="black", fillOpacity = 0.7, label=~N, layerId = ~ID, weight=3)%>%
-            addLegend(data=all_points(), position="topright", pal = pal_rev(), values = ~N, opacity=1, 
+            clearControls()%>%
+            addFeatures(data=all_points_plot(), fillColor=~pal()(N), color="black", fillOpacity = ~opac, label=~N, layerId = ~ID, weight=~opac*2)%>%
+            addLegend(data=all_points_plot(), position="topright", pal = pal_rev(), values = ~N, opacity=1, 
                       labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)))
     })
     
-    observeEvent(edits(), { 
-        print(edits())
-    })
-    
-    
-    #output$Pointplot <- renderLeaflet({
-    #    Point_plot()
-    #})
-    
     Points<-reactive({
+        req(edits())
+        if(is.null(edits()$all)){
+            return(NULL)
+        }
+        Area<-edits()$all%>%
+            st_union()
         
+        Points<-all_points()%>%
+            st_filter(Area)%>%
+            st_drop_geometry()%>%
+            pull(ID)%>%
+            unique()
+        
+        if(length(Points)>0){
+            out<-filter(all_points(), ID%in%Points)%>%
+                st_transform(crs=32610)%>%
+                st_centroid()%>%
+                st_transform(crs=4326)
+        }else(
+            out<-NULL
+        )
+        return(out)
     })    
     
     timeseries_data<-reactive({
+        req(Points())
         TempData()%>%
             select(all_of(input$variable))%>%
             st_extract(Points())%>%
             st_as_sf(as_points=T, long=T)%>%
-            as_tibble()
+            as_tibble()%>%
+            group_by(Date)%>%
+            summarise(out=mean(.data[[input$variable]], na.rm=T), .groups="drop")%>%
+            mutate(Month=month(Date),
+                   Year=year(Date))
+    })
+    
+    time_series_plot<-reactive({
+        req(timeseries_data())
+        ggplot(timeseries_data(), aes(x=Date, y=out))+
+            geom_line()+
+            {if(input$Facet=="Month"){
+                facet_wrap(~month(Date, label=T))
+            }}+
+            ylab(if_else(input$variable=="Prediction", "Temperature (°C)", "Standard error"))+
+            theme_bw()+
+            theme(strip.background=element_blank(), text=element_text(size=18))
+            
+    })
+    
+    output$Time_plot<-renderPlot({
+        time_series_plot()
     })
 }
 
