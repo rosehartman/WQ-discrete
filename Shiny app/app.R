@@ -1,11 +1,12 @@
 # TODO
-# 1) Add option to use EDSM subregions instead of choosing your own region. Replace leaflet map with a map of the subregions and geofacet the time series plot
-# 2) Allow users to facet plot by different selected regions. 
+# 1) Use geofacet
+# 2) Facet by month and region
 
 library(shiny)
 library(shinyWidgets)
 library(dplyr)
 library(ggplot2)
+require(tidyr)
 library(sf)
 library(stars)
 library(lubridate)
@@ -14,6 +15,7 @@ require(leaflet)
 require(mapedit)
 require(leafem)
 require(leaflet.extras)
+
 rastered_predsSE<-readRDS("Rasterized modellc4 predictions.Rds")
 Dates<-st_get_dimension_values(rastered_predsSE, "Date")
 
@@ -23,10 +25,28 @@ all_points_static<-select(rastered_predsSE, Prediction)%>%
     mutate(across(Prediction, ~na_if(.x, 0)))%>%
     st_as_sf()%>%
     rename(N=`1960-01-01`)%>%
-    mutate(ID=as.character(1:n()),)
-pal_static<-colorNumeric("viridis", domain=range(all_points_static$N, na.rm=T), na.color="#00000000")
+    mutate(ID=as.character(1:n()),)%>%
+    st_transform(crs=4326)
 
-pal_rev_static<-colorNumeric("viridis", domain=range(all_points_static$N, na.rm=T), reverse=T, na.color="#00000000")
+pal_N_static<-colorNumeric("viridis", domain=range(all_points_static$N, na.rm=T), na.color="#00000000")
+
+pal_N_rev_static<-colorNumeric("viridis", domain=range(all_points_static$N, na.rm=T), reverse=T, na.color="#00000000")
+
+Delta_regions_static<-readRDS("Delta subregions.Rds")
+Delta_regions_N<-all_points_static%>%
+    st_transform(crs=26910)%>%
+    st_centroid()%>%
+    st_join(Delta_regions_static)%>%
+    group_by(SubRegion)%>%
+    summarise(N=sum(N), .groups="drop")%>%
+    st_drop_geometry()
+
+Delta_regions_static<-Delta_regions_static%>%
+    left_join(Delta_regions_N, by="SubRegion")
+
+pal_N2_static<-colorNumeric("viridis", domain=range(Delta_regions_static$N, na.rm=T), na.color="#00000000")
+
+pal_N2_rev_static<-colorNumeric("viridis", domain=range(Delta_regions_static$N, na.rm=T), reverse=T, na.color="#00000000")
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -53,7 +73,12 @@ ui <- fluidPage(
                                        checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue"))),
                      uiOutput("facet_options"),
                      conditionalPanel(condition="input.Tab=='Rasters' && input.Facet!='Year x Month' && input.Facet!='Month x Year'", 
-                                      uiOutput("scale_options"))
+                                      uiOutput("scale_options")),
+                     conditionalPanel(condition="input.Tab=='Time series'", 
+                                      h5("Select preset regions or draw your own?"),
+                                      switchInput("Regions", value = TRUE , offLabel="Preset", onLabel="Draw", onStatus = "success", offStatus = "primary"),
+                                      conditionalPanel(condition="input.Regions",
+                                                       prettySwitch("Regions_all","Select all regions?", status = "success", fill = TRUE)))
         ),
         mainPanel(width=9,
                   tabsetPanel(type="tabs",
@@ -66,13 +91,15 @@ ui <- fluidPage(
                                        plotOutput("TempPlot")
                               ),
                               tabPanel("Time series",
-                                       fluidRow(editModUI("Pointplot", height = "80vh", width="100%")),
+                                       fluidRow(conditionalPanel(condition="input.Regions", editModUI("Pointplot", height = "80vh", width="100%")),
+                                                conditionalPanel(condition="!input.Regions", editModUI("Regionplot", height = "80vh", width="100%"))),
                                        fluidRow(plotOutput("Time_plot"))
                               )
                   ))
     ),
     tags$head(tags$style("#TempPlot{height:80vh !important;}")),
     tags$head(tags$style("#Pointplot{height:80vh !important;}")),
+    tags$head(tags$style("#Regionplot{height:80vh !important;}")),
     tags$head(tags$style("#Time_plot{height:80vh !important;}"))
 )
 
@@ -111,7 +138,7 @@ server <- function(input, output, session) {
         if(input$Tab=='Rasters'){
             Choices<-c("None", "Month", "Year", "Month x Year", "Year x Month")
         }else{
-            Choices<-c("None", "Month")
+            Choices<-c("None", "Month", "Region")
         }
         pickerInput("Facet",
                     "Facet plot by:",
@@ -248,6 +275,8 @@ server <- function(input, output, session) {
     
     # Timeseries plots --------------------------------------------------------
     
+    # Draw your own regions/areas of interest -------------------------------------------------
+    
     all_points<-reactive({
         select(TempData(), all_of(input$variable))%>%
             aggregate(by=c(as.Date("1960-01-01"), Sys.Date()), function(x) length(which(!is.na(x))))%>%
@@ -255,8 +284,9 @@ server <- function(input, output, session) {
             mutate(across(all_of(input$variable), ~na_if(.x, 0)))%>%
             st_as_sf()%>%
             rename(N=`1960-01-01`)%>%
-            mutate(ID=as.character(1:n()),)
-            
+            mutate(ID=as.character(1:n()),)%>%
+            st_transform(crs=4326)
+        
     })
     
     all_points_plot<-reactive({
@@ -268,27 +298,29 @@ server <- function(input, output, session) {
             }}
     })
     
-    pal<-reactive({
+    pal_N<-reactive({
         colorNumeric("viridis", domain=range(all_points()$N, na.rm=T), na.color="#00000000")
     })
     
-    pal_rev<-reactive({
+    pal_N_rev<-reactive({
         colorNumeric("viridis", domain=range(all_points()$N, na.rm=T), reverse=T, na.color="#00000000")
     })
+    
+    
     
     #set the namespace for the map
     ns <- shiny::NS("Pointplot")
     
     Point_plot<-leaflet()%>%
-            addProviderTiles("Esri.WorldGrayCanvas")%>%
-        addFeatures(data=all_points_static, fillColor=~pal_static(N), color="black", fillOpacity = 0.2, label=~N, layerId = ~ID, weight=0.4)%>%
-        addLegend(data=all_points_static, position="topright", pal = pal_rev_static, values = ~N, opacity=0.5, 
+        addProviderTiles("Esri.WorldGrayCanvas")%>%
+        addFeatures(data=all_points_static, fillColor=~pal_N_static(N), color="black", fillOpacity = 0.2, label=~N, layerId = ~ID, weight=0.4)%>%
+        addLegend(data=all_points_static, position="topright", pal = pal_N_rev_static, values = ~N, opacity=0.5, 
                   labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)))
     
     #call the editMod function from 'mapedit' to use in the leaflet map.
     
     edits <- callModule(editMod, "Pointplot", leafmap = Point_plot, 
-                        editorOptions=list(polylineOptions=F, circleMarkerOptions=F, circleOptions= drawCircleOptions()))
+                        editorOptions=list(polylineOptions=F, circleMarkerOptions=F))
     
     observeEvent(all_points_plot(), {  
         proxy.points <- leafletProxy(ns("map"))
@@ -296,47 +328,166 @@ server <- function(input, output, session) {
         proxy.points %>%
             clearShapes()%>%
             clearControls()%>%
-            addFeatures(data=all_points_plot(), fillColor=~pal()(N), color="black", fillOpacity = ~opac, label=~N, layerId = ~ID, weight=~opac*2)%>%
-            addLegend(data=all_points_plot(), position="topright", pal = pal_rev(), values = ~N, opacity=1, 
+            addFeatures(data=all_points_plot(), fillColor=~pal_N()(N), color="black", fillOpacity = ~opac, label=~N, layerId = ~ID, weight=~opac*2)%>%
+            addLegend(data=all_points_plot(), position="topright", pal = pal_N_rev(), values = ~N, opacity=1, 
                       labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)))
     })
     
+    
+    
+    
+    # Use preset regions ------------------------------------------------------
+    
+    ns2 <- shiny::NS("Regionplot")
+    
+    Delta_regions<-reactive({
+        Delta_regions_N<-all_points()%>%
+            st_transform(crs=26910)%>%
+            st_centroid()%>%
+            st_join(Delta_regions_static%>%select(-N))%>%
+            group_by(SubRegion)%>%
+            summarise(N=sum(N), .groups="drop")%>%
+            st_drop_geometry()
+        
+        Delta_regions<-Delta_regions_static%>%
+            select(-N)%>%
+            left_join(Delta_regions_N, by="SubRegion")
+        
+        return(Delta_regions)
+    })
+    
+    Delta_regions_plot<-reactive({
+        Delta_regions()%>%
+            st_transform(crs=4326)%>%
+            {if(is.null(Points())){
+                mutate(., opac=0.2)
+            }else{
+                mutate(., opac=if_else(SubRegion%in%Points()$Region, 0.9, 0.2))
+            }}
+    })
+    
+    pal_N2<-reactive({
+        colorNumeric("viridis", domain=range(Delta_regions()$N, na.rm=T), na.color="#00000000")
+    })
+    
+    pal_N2_rev<-reactive({
+        colorNumeric("viridis", domain=range(Delta_regions()$N, na.rm=T), reverse=T, na.color="#00000000")
+    })
+    
+    Region_plot<-leaflet()%>%
+        addProviderTiles("Esri.WorldGrayCanvas")%>%
+        addFeatures(data=st_transform(Delta_regions_static, 4326), fillColor=~pal_N2_static(N), color="black", fillOpacity = 0.2, label=~SubRegion, layerId = ~SubRegion, weight=0.4)%>%
+        addLegend(data=st_transform(Delta_regions_static, 4326), position="topright", pal = pal_N2_rev_static, values = ~N, opacity=0.5, 
+                  labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)))
+    
+    #call the editMod function from 'mapedit' to use in the leaflet map.
+    
+    edits_regions <- callModule(editMod, "Regionplot", leafmap = Region_plot, 
+                                editorOptions=list(polylineOptions=F, circleMarkerOptions=F))
+    
+    observeEvent(Delta_regions_plot(), {  
+        proxy.points <- leafletProxy(ns2("map"))
+        
+        proxy.points %>%
+            clearShapes()%>%
+            clearControls()%>%
+            addFeatures(data=Delta_regions_plot(), fillColor=~pal_N2()(N), color="black", fillOpacity = ~opac, label=~SubRegion, layerId = ~SubRegion, weight=~opac*2)%>%
+            addLegend(data=Delta_regions_plot(), position="topright", pal = pal_N2_rev(), values = ~N, opacity=1, 
+                      labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)))
+    })
+    
+
+# Extract and plot timeseries data ----------------------------------------
+
     Points<-reactive({
-        req(edits())
-        if(is.null(edits()$all)){
-            return(NULL)
+        req(!(is.null(edits()) & is.null(edits_regions())))
+        if(input$Regions){
+            if(is.null(edits()$all)){
+                return(NULL)
+            }
+            Area<-edits()$all%>%
+                {if(input$Facet!="Region"){
+                    st_union(.)
+                } else{
+                    .
+                }}
+            
+            Points<-all_points()%>%
+                st_filter(Area)%>%
+                st_drop_geometry()%>%
+                pull(ID)%>%
+                unique()
+            
+            if(length(Points)>0){
+                if(input$Facet=="Region"){
+                    out<-filter(all_points(), ID%in%Points)%>%
+                        st_join(Area)%>%
+                        rename(Region=X_leaflet_id)
+                } else{
+                    out<-filter(all_points(), ID%in%Points)%>%
+                        st_transform(crs=26910)%>%
+                        st_centroid()%>%
+                        st_transform(crs=4326)
+                }
+            }else(
+                out<-NULL
+            )
+        }else{
+            if(is.null(edits_regions()$all)){
+                return(NULL)
+            }
+            
+            Area<-edits_regions()$all%>%
+                st_transform(crs=26910)%>%
+                st_union()
+            
+            Regions<-Delta_regions()%>%
+                st_filter(Area)%>%
+                st_drop_geometry()%>%
+                pull(SubRegion)%>%
+                unique()
+            
+            if(length(Regions)>0){
+                out<-filter(Delta_regions(), SubRegion%in%Regions)%>%
+                    rename(Region=SubRegion)%>%
+                    st_transform(crs=4326)
+            }else(
+                out<-NULL
+            )
         }
-        Area<-edits()$all%>%
-            st_union()
         
-        Points<-all_points()%>%
-            st_filter(Area)%>%
-            st_drop_geometry()%>%
-            pull(ID)%>%
-            unique()
-        
-        if(length(Points)>0){
-            out<-filter(all_points(), ID%in%Points)%>%
-                st_transform(crs=32610)%>%
-                st_centroid()%>%
-                st_transform(crs=4326)
-        }else(
-            out<-NULL
-        )
         return(out)
-    })    
+    })  
     
     timeseries_data<-reactive({
         req(Points())
-        TempData()%>%
-            select(all_of(input$variable))%>%
-            st_extract(Points())%>%
-            st_as_sf(as_points=T, long=T)%>%
-            as_tibble()%>%
-            group_by(Date)%>%
-            summarise(out=mean(.data[[input$variable]], na.rm=T), .groups="drop")%>%
-            mutate(Month=month(Date),
-                   Year=year(Date))
+        if(input$Facet=="Region"){
+            TempData()%>%
+                select(all_of(input$variable))%>%
+                aggregate(by=Points(), mean, na.rm=T)%>%
+                st_as_sf(long=F)%>%
+                st_drop_geometry()%>%
+                mutate(Region=Points()$Region)%>%
+                pivot_longer(cols=c(-Region), names_to="Date", values_to="out")%>%
+                mutate(Date=parse_date_time(Date, "%Y-%m-%d"))
+        } else{
+            TempData()%>%
+                select(all_of(input$variable))%>%
+                {if(unique(st_geometry_type(Points()))=="POLYGON"){
+                    aggregate(., by=Points(), mean, na.rm=T)%>%
+                    st_as_sf(as_points=T, long=T)
+                } else{
+                    st_extract(., Points())%>%
+                    st_as_sf(as_points=T, long=T)
+                }}%>%
+                as_tibble()%>%
+                mutate(across(all_of(input$variable), ~if_else(is.nan(.x), NA_real_, .x)))%>%
+                group_by(Date)%>%
+                summarise(out=mean(.data[[input$variable]], na.rm=T), .groups="drop")%>%
+                mutate(Month=month(Date),
+                       Year=year(Date))
+        }
+        
     })
     
     time_series_plot<-reactive({
@@ -346,10 +497,13 @@ server <- function(input, output, session) {
             {if(input$Facet=="Month"){
                 facet_wrap(~month(Date, label=T))
             }}+
+            {if(input$Facet=="Region"){
+                facet_wrap(~Region)
+            }}+
             ylab(if_else(input$variable=="Prediction", "Temperature (°C)", "Standard error"))+
             theme_bw()+
             theme(strip.background=element_blank(), text=element_text(size=18))
-            
+        
     })
     
     output$Time_plot<-renderPlot({
