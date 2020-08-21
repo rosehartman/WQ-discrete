@@ -1,6 +1,7 @@
 # TODO
-# 1) Use geofacet
-# 2) Facet by month and region
+# 1) Somehow identify user-drawn regions when facetting by region
+# 2) Add month slider to time-series plots when month is not selected as the facetting variable
+# 3) Add SE to time-series plots
 
 library(shiny)
 library(shinyWidgets)
@@ -15,6 +16,7 @@ require(leaflet)
 require(mapedit)
 require(leafem)
 require(leaflet.extras)
+require(geofacet)
 
 rastered_predsSE<-readRDS("Rasterized modellc4 predictions.Rds")
 Dates<-st_get_dimension_values(rastered_predsSE, "Date")
@@ -48,6 +50,14 @@ pal_N2_static<-colorNumeric("viridis", domain=range(Delta_regions_static$N, na.r
 
 pal_N2_rev_static<-colorNumeric("viridis", domain=range(Delta_regions_static$N, na.rm=T), reverse=T, na.color="#00000000")
 
+mygrid <- data.frame(
+    name = c("Cache Slough and Lindsey Slough", "Lower Sacramento River Ship Channel", "Liberty Island", "Suisun Marsh", "Middle Sacramento River", "Lower Cache Slough", "Steamboat and Miner Slough", "Upper Mokelumne River", "Lower Mokelumne River", "Georgiana Slough", "Sacramento River near Ryde", "Sacramento River near Rio Vista", "Grizzly Bay", "West Suisun Bay", "Mid Suisun Bay", "Honker Bay", "Confluence", "Lower Sacramento River", "San Joaquin River at Twitchell Island", "San Joaquin River at Prisoners Pt", "Disappointment Slough", "Lower San Joaquin River", "Franks Tract", "Holland Cut", "San Joaquin River near Stockton", "Mildred Island", "Middle River", "Old River", "Upper San Joaquin River", "Grant Line Canal and Old River", "Victoria Canal"),
+    row = c(2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 7, 7, 8, 8, 8),
+    col = c(4, 6, 5, 2, 8, 6, 7, 9, 9, 8, 7, 6, 2, 1, 2, 3, 4, 5, 6, 8, 9, 5, 6, 7, 9, 8, 8, 7, 9, 8, 7),
+    code = c(" 1", " 2", " 3", " 8", " 4", " 5", " 6", " 7", " 9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "30", "29", "31"),
+    stringsAsFactors = FALSE
+)
+
 # Define UI for application that draws a histogram
 ui <- fluidPage(
     theme = shinytheme("cerulean"),
@@ -77,7 +87,7 @@ ui <- fluidPage(
                      conditionalPanel(condition="input.Tab=='Time series'", 
                                       h5("Select preset regions or draw your own?"),
                                       switchInput("Regions", value = TRUE , offLabel="Preset", onLabel="Draw", onStatus = "success", offStatus = "primary"),
-                                      conditionalPanel(condition="input.Regions",
+                                      conditionalPanel(condition="!input.Regions",
                                                        prettySwitch("Regions_all","Select all regions?", status = "success", fill = TRUE)))
         ),
         mainPanel(width=9,
@@ -93,6 +103,12 @@ ui <- fluidPage(
                               tabPanel("Time series",
                                        fluidRow(conditionalPanel(condition="input.Regions", editModUI("Pointplot", height = "80vh", width="100%")),
                                                 conditionalPanel(condition="!input.Regions", editModUI("Regionplot", height = "80vh", width="100%"))),
+                                       fluidRow(conditionalPanel(condition="input.Facet!='Month'",
+                                                                 column(2, h5("Plot all months?"), materialSwitch(
+                                                                     inputId = "Month2_slider",
+                                                                     value = FALSE, inline=F,
+                                                                     status = "primary")), 
+                                                                 column(10,conditionalPanel(condition="!input.Month2_slider",uiOutput("select_Month2"))))),
                                        fluidRow(plotOutput("Time_plot"))
                               )
                   ))
@@ -130,6 +146,13 @@ server <- function(input, output, session) {
     output$select_Month <- renderUI({
         req(!is.null(input$Months))
         sliderInput("Month",
+                    "Select month:", min=min(month(Data_dates())), max=max(month(Data_dates())), value =  min(month(Data_dates())), step=1, round=T, sep="", 
+                    animate=animationOptions(interval=1000, loop=T), width="100%")
+    })
+    
+    output$select_Month2 <- renderUI({
+        req(!is.null(input$Months))
+        sliderInput("Month2",
                     "Select month:", min=min(month(Data_dates())), max=max(month(Data_dates())), value =  min(month(Data_dates())), step=1, round=T, sep="", 
                     animate=animationOptions(interval=1000, loop=T), width="100%")
     })
@@ -396,9 +419,9 @@ server <- function(input, output, session) {
                       labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)))
     })
     
-
-# Extract and plot timeseries data ----------------------------------------
-
+    
+    # Extract and plot timeseries data ----------------------------------------
+    
     Points<-reactive({
         req(!(is.null(edits()) & is.null(edits_regions())))
         if(input$Regions){
@@ -424,15 +447,19 @@ server <- function(input, output, session) {
                         st_join(Area)%>%
                         rename(Region=X_leaflet_id)
                 } else{
-                    out<-filter(all_points(), ID%in%Points)%>%
-                        st_transform(crs=26910)%>%
-                        st_centroid()%>%
-                        st_transform(crs=4326)
+                    out<-filter(all_points(), ID%in%Points)
                 }
             }else(
                 out<-NULL
             )
         }else{
+            if(input$Regions_all){
+                out<-Delta_regions()%>%
+                    rename(Region=SubRegion)%>%
+                    st_transform(crs=4326)
+                return(out)
+            }
+            
             if(is.null(edits_regions()$all)){
                 return(NULL)
             }
@@ -462,45 +489,75 @@ server <- function(input, output, session) {
     timeseries_data<-reactive({
         req(Points())
         if(input$Facet=="Region"){
+            Points<-Points()%>%
+                group_by(Region)%>%
+                summarise(geometry=st_union(geometry), .groups="drop")
             TempData()%>%
-                select(all_of(input$variable))%>%
-                aggregate(by=Points(), mean, na.rm=T)%>%
+                select(Prediction)%>%
+                aggregate(by=Points, mean, na.rm=T)%>%
                 st_as_sf(long=F)%>%
                 st_drop_geometry()%>%
-                mutate(Region=Points()$Region)%>%
-                pivot_longer(cols=c(-Region), names_to="Date", values_to="out")%>%
-                mutate(Date=parse_date_time(Date, "%Y-%m-%d"))
+                mutate(Region=Points$Region)%>%
+                pivot_longer(cols=c(-Region), names_to="Date", values_to="Prediction")%>%
+                left_join(TempData()%>%
+                              select(SE)%>%
+                              mutate(SE=SE^2)%>%
+                              aggregate(by=Points, function(x) sqrt(sum(x, na.rm=T)/(length(x)^2)))%>%
+                              st_as_sf(long=F)%>%
+                              st_drop_geometry()%>%
+                              mutate(Region=Points$Region)%>%
+                              pivot_longer(cols=c(-Region), names_to="Date", values_to="SE"), by=c("Region", "Date"))%>%
+                mutate(Prediction=if_else(is.nan(Prediction), NA_real_, Prediction),
+                       SE=na_if(SE, 0)
+                       )%>%
+                mutate(Date=parse_date_time(Date, "%Y-%m-%d"))%>%
+                complete(Date=parse_date_time(Data_dates(), "%Y-%m-%d"), Region=unique(Points()$Region))%>%
+                mutate(Month=month(Date),
+                       Year=year(Date))
         } else{
             TempData()%>%
-                select(all_of(input$variable))%>%
-                {if(unique(st_geometry_type(Points()))=="POLYGON"){
-                    aggregate(., by=Points(), mean, na.rm=T)%>%
-                    st_as_sf(as_points=T, long=T)
-                } else{
-                    st_extract(., Points())%>%
-                    st_as_sf(as_points=T, long=T)
-                }}%>%
+                aggregate(by=st_union(Points()), mean, na.rm=T)%>%
+                st_as_sf(as_points=T, long=T)%>%
+                st_drop_geometry()%>%
                 as_tibble()%>%
-                mutate(across(all_of(input$variable), ~if_else(is.nan(.x), NA_real_, .x)))%>%
+                mutate(across(c(Prediction, SE), ~if_else(is.nan(.x), NA_real_, .x)))%>%
+                mutate(Var=SE^2)%>%
                 group_by(Date)%>%
-                summarise(out=mean(.data[[input$variable]], na.rm=T), .groups="drop")%>%
+                summarise(Prediction=mean(Prediction, na.rm=T),
+                          SE=sqrt(sum(Var, na.rm=T)/(n()^2)), 
+                          .groups="drop")%>%
+                complete(Date=parse_date_time(Data_dates(), "%Y-%m-%d"))%>%
                 mutate(Month=month(Date),
                        Year=year(Date))
         }
-        
+    })
+    
+    timeseries_data_month<-reactive({
+        req(input$Facet)
+        if(input$Facet!="Month" & !input$Month2_slider){
+            timeseries_data()%>%
+                filter(Month%in%input$Month2)
+        }else{
+            timeseries_data()
+        }
     })
     
     time_series_plot<-reactive({
-        req(timeseries_data())
-        ggplot(timeseries_data(), aes(x=Date, y=out))+
-            geom_line()+
+        req(timeseries_data_month())
+        ggplot(timeseries_data_month(), aes(x=Date, y=Prediction, ymin=Prediction-SE, ymax=Prediction+SE))+
+            geom_line(color="firebrick3")+
+            geom_ribbon(alpha=0.4, fill="firebrick3")+
             {if(input$Facet=="Month"){
                 facet_wrap(~month(Date, label=T))
             }}+
             {if(input$Facet=="Region"){
-                facet_wrap(~Region)
+                if(input$Regions_all){
+                    facet_geo(~Region, grid=mygrid, labeller=label_wrap_gen())
+                } else{
+                    facet_wrap(~Region)
+                }
             }}+
-            ylab(if_else(input$variable=="Prediction", "Temperature (°C)", "Standard error"))+
+            ylab("Temperature ± SE (°C)")+
             theme_bw()+
             theme(strip.background=element_blank(), text=element_text(size=18))
         
