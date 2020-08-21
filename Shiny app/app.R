@@ -31,7 +31,14 @@ pal_N_static<-colorNumeric("viridis", domain=range(all_points_static$N, na.rm=T)
 
 pal_N_rev_static<-colorNumeric("viridis", domain=range(all_points_static$N, na.rm=T), reverse=T, na.color="#00000000")
 
-Delta_regions_static<-readRDS("Delta subregions.Rds")
+Point_plot<-leaflet()%>%
+    addProviderTiles("Esri.WorldGrayCanvas")%>%
+    addFeatures(data=all_points_static, fillColor=~pal_N_static(N), color="black", fillOpacity = 0.2, label=~N, layerId = ~ID, weight=0.4)%>%
+    addLegend(data=all_points_static, position="topright", pal = pal_N_rev_static, values = ~N, opacity=0.5, 
+              labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)), title="Number of time</br>points with</br>model-predicted data")
+
+Delta_regions_static<-readRDS("Delta subregions.Rds")%>%
+    mutate(SubRegion=as.character(SubRegion))
 Delta_regions_N<-all_points_static%>%
     st_transform(crs=26910)%>%
     st_centroid()%>%
@@ -46,6 +53,26 @@ Delta_regions_static<-Delta_regions_static%>%
 pal_N2_static<-colorNumeric("viridis", domain=range(Delta_regions_static$N, na.rm=T), na.color="#00000000")
 
 pal_N2_rev_static<-colorNumeric("viridis", domain=range(Delta_regions_static$N, na.rm=T), reverse=T, na.color="#00000000")
+
+Region_plot<-leaflet()%>%
+    addProviderTiles("Esri.WorldGrayCanvas")%>%
+    addFeatures(data=st_transform(Delta_regions_static, 4326), fillColor=~pal_N2_static(N), 
+                color="black", fillOpacity = 0.2, label=~SubRegion, 
+                layerId = ~SubRegion, weight=0.4)%>%
+    addLegend(data=st_transform(Delta_regions_static, 4326), position="topright", pal = pal_N2_rev_static, values = ~N, opacity=0.5, 
+              labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)), title="Number of raster cells</br>and time points with</br>model-predicted data")
+
+pal_N3_static<-colorNumeric("viridis", domain=range(Delta_regions_static$N_data, na.rm=T), na.color="#00000000")
+
+pal_N3_rev_static<-colorNumeric("viridis", domain=range(Delta_regions_static$N_data, na.rm=T), reverse=T, na.color="#00000000")
+
+Region_plot2<-leaflet()%>%
+    addProviderTiles("Esri.WorldGrayCanvas")%>%
+    addFeatures(data=st_transform(Delta_regions_static, 4326), fillColor=~pal_N3_static(N_data), 
+                color="black", fillOpacity = 0.2, label= lapply(paste0("<h5 align='center'>", Delta_regions_static$SubRegion, "</h5>", "<h6 align='center' style='color:red'>N: ", Delta_regions_static$N_data, "</h6>"), htmltools::HTML),
+                layerId = ~SubRegion, weight=0.4)%>%
+    addLegend(data=st_transform(Delta_regions_static, 4326), position="topright", pal = pal_N3_rev_static, values = ~N_data, opacity=0.5, 
+              labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)), title="Total number of data points</br>(actual temperature records)")
 
 mygrid <- data.frame(
     name = c("Cache Slough and Lindsey Slough", "Lower Sacramento River Ship Channel", "Liberty Island", "Suisun Marsh", "Middle Sacramento River", "Lower Cache Slough", "Steamboat and Miner Slough", "Upper Mokelumne River", "Lower Mokelumne River", "Georgiana Slough", "Sacramento River near Ryde", "Sacramento River near Rio Vista", "Grizzly Bay", "West Suisun Bay", "Mid Suisun Bay", "Honker Bay", "Confluence", "Lower Sacramento River", "San Joaquin River at Twitchell Island", "San Joaquin River at Prisoners Pt", "Disappointment Slough", "Lower San Joaquin River", "Franks Tract", "Holland Cut", "San Joaquin River near Stockton", "Mildred Island", "Middle River", "Old River", "Upper San Joaquin River", "Grant Line Canal and Old River", "Victoria Canal"),
@@ -67,6 +94,8 @@ ui <- fluidPage(
     sidebarLayout(
         # Sidebar with a slider input for number of bins 
         sidebarPanel(width=3,
+                     #Instructions
+                     actionBttn("Instructions", "Instructions", style="simple", color="primary", icon=icon("question-circle")),
                      h1("Filters"),
                      dateRangeInput("Date_range", label = "Date range", 
                                     start = min(Dates), end = max(Dates), startview = "year"),
@@ -78,33 +107,37 @@ ui <- fluidPage(
                      h1("Plot options"),
                      conditionalPanel(condition="input.Tab=='Rasters' || input.Tab=='Time series'", 
                                       radioGroupButtons("variable",
-                                       "Plot:",
-                                       choices = c("Predicted temperature"="Prediction", "Standard Error"="SE"), selected="Prediction", individual = TRUE, 
-                                       checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue")))),
+                                                        "Plot:",
+                                                        choices = c("Predicted temperature"="Prediction", "Standard Error"="SE"), selected="Prediction", individual = TRUE, 
+                                                        checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue")))),
                      conditionalPanel(condition="input.Tab=='Rasters' || input.Tab=='Time series'", 
                                       uiOutput("facet_options")),
                      conditionalPanel(condition="input.Tab=='Rasters' && input.Facet!='Year x Month' && input.Facet!='Month x Year'", 
                                       uiOutput("scale_options")),
                      conditionalPanel(condition="input.Tab=='Time series'", 
-                                      h5("Select preset regions or draw your own?"),
+                                      h5("Draw your own regions or select preset regions?"),
                                       switchInput("Regions", value = TRUE , offLabel="Preset", onLabel="Draw", onStatus = "success", offStatus = "primary"),
                                       conditionalPanel(condition="!input.Regions",
                                                        prettySwitch("Regions_all","Select all regions?", status = "success", fill = TRUE))),
-                     conditionalPanel(condition="input.Tab=='Model uncertainty'",
+                     conditionalPanel(condition="input.Tab=='Model error'",
                                       radioGroupButtons("Uncertainty",
-                                                        "Uncertainty type",
+                                                        "Error type",
                                                         choices = c("Model residuals", "Cross-validation residuals"), selected="Model residuals", individual = TRUE, 
                                                         checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue"))),
                                       radioGroupButtons("Uncertainty_value",
                                                         "Plot mean error or standard deviation of error?",
                                                         choices = c("Mean", "SD"), selected="Mean", individual = TRUE, 
-                                                        checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue"))))
+                                                        checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue")))),
+                     actionBttn("Plot_info", label = NULL, style="material-circle", 
+                                color="primary", icon=icon("question"))
         ),
         mainPanel(width=9,
                   tabsetPanel(type="tabs",
                               id="Tab",
-                              tabPanel("Model uncertainty",
-                                       fluidRow(girafeOutput("Uncertainty_plot", height="150vh", width="130vh"))),
+                              tabPanel("Model error",
+                                       fluidRow(girafeOutput("Uncertainty_plot", height="100vh", width="130vh")),
+                                       h2("Region map", align = "center"),
+                                       fluidRow(leafletOutput("Regions_plot2", width = "100%", height = "100%"))),
                               tabPanel("Rasters",
                                        conditionalPanel(condition="input.Facet!='Year' && input.Facet!='Year x Month' && input.Facet!='Month x Year'",
                                                         uiOutput("select_Year")),
@@ -121,18 +154,97 @@ ui <- fluidPage(
                                                                      value = FALSE, inline=F,
                                                                      status = "primary")), 
                                                                  column(10,conditionalPanel(condition="!input.Month2_slider",uiOutput("select_Month2"))))),
-                                       fluidRow(girafeOutput("Time_plot", height="100vh", width="120vh"))
+                                       fluidRow(girafeOutput("Time_plot", height="100vh", width="130vh"))
                               )
                   ))
     ),
     tags$head(tags$style("#TempPlot{height:80vh !important;}")),
     tags$head(tags$style("#Pointplot{height:80vh !important;}")),
     tags$head(tags$style("#Regionplot{height:80vh !important;}")),
-    tags$head(tags$style("#Time_plot{height:80vh !important;}"))
+    tags$head(tags$style("#Time_plot{height:80vh !important;}")),
+    tags$head(tags$style("#Regions_plot2{height:80vh !important;}"))
 )
 
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
+    
+    
+    # Informational popups ----------------------------------------------------
+    
+    #Popup for app instructions
+    observeEvent(input$Instructions, {
+        sendSweetAlert(session, title = "Instructions", 
+                       text = tags$span(tags$p("This app presents model-smoothed water temperatures across the Delta 
+                                               and Suisun regions. Data are predicted from a generalized additive model 
+                                               and represent an approximation of surface water temperatures, not the 
+                                               actual measured values. The generalized additive model was fit to an integrated
+                                               discrete water quality dataset."),
+                                        tags$p("The model was fit with the R package", tags$code("mgcv"), "with the following model structure:"), 
+                                        tags$p("The first tab 'Model error' presents the uncertainty in model predictions 
+                                               and should be explored to understand the limitations of the model."),
+                                        tags$p("Use the data filters to control the range of dates and months included in the plots."),
+                                               tags$p(align="left", tags$code("bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c('tp', 'cc'), k=c(25, 20), by=Year_fac) + s(Time_num_s, k=5),
+    data = Data, method='fREML', discrete=T)")),
+                                        "------------------------------------------",
+                                        tags$p(tags$b("Dataset, model, and app created and maintained by", 
+                                                      tags$a("Sam Bashevkin.", href = "mailto:sam.bashevkin@deltacouncil.ca.gov"), "Please email me with any questions.")),
+                                        tags$p(tags$i("The integrated dataset used to fit this model included data from the", 
+                                                      tags$a("Environmental Monitoring Program, ", href = "https://portal.edirepository.org/nis/mapbrowse?packageid=edi.458.2", target="_blank"), 
+                                                      tags$a("Summer Townet, ", href = "https://wildlife.ca.gov/Conservation/Delta/Townet-Survey", target="_blank"),
+                                                      tags$a("Fall Midwater Trawl, ", href = "https://wildlife.ca.gov/Conservation/Delta/Fall-Midwater-Trawl", target="_blank"),
+                                                      tags$a("Spring Kodiak Trawl, ", href = "https://portal.edirepository.org/nis/mapbrowse?packageid=edi.527.1", target="_blank"),
+                                                      tags$a("20-mm Survey, ", href = "https://portal.edirepository.org/nis/mapbrowse?packageid=edi.535.1", target="_blank"),
+                                                      tags$a("Bay Study, ", href = "https://wildlife.ca.gov/Conservation/Delta/Bay-Study", target="_blank"),
+                                                      tags$a("Enhanced Delta Smelt Monitoring Program, ", href = "https://portal.edirepository.org/nis/mapbrowse?packageid=edi.415.3", target="_blank"),
+                                                      tags$a("Delta Juvenile Fish Monitoring Program, ", href = "https://portal.edirepository.org/nis/mapbrowse?packageid=edi.244.4", target="_blank"),
+                                                      tags$a("UC Davis Suisun Marsh Fish Study, ", href = "https://watershed.ucdavis.edu/project/suisun-marsh-fish-study", target="_blank"),
+                                        "USBR Sacramento Deepwater Shipping Channel surveys, and the",
+                                        tags$a("USGS San Francisco Bay Water Quality Surveys.", href = "https://www.nature.com/articles/sdata201798", target="_blank")))),
+                       type = "info",
+                       btn_labels = "Ok", html = F, closeOnClickOutside = TRUE)
+    })    
+    
+    #Plot info
+    Plot_info<-reactive({
+        if(input$Tab=="Model error"){
+            out<-tags$span(h2("Visualizations of model error"),
+                           p("Model residuals represent the deviations of model predictions from true measured values.
+                              Cross-validation residuals also represent the deviations of model predictions from true measured values, but this time
+                              the models were fit to datasets missing the value to be predicted. A stratified cross-validation approach was used, in which
+                             the dataset was split into 20 parts, evenly splitting across regions, years, and seasons. Twenty separate datasets were created
+                             each missing 1 of those 20 parts and predictions were generated for the missing parts."),
+                           p("The standard deviation of error should help inform the range of error magnitudes. Small mean errors could still be problematic if individual
+                             errors can be large."),
+                           p("These plots are interactive, so hover your mouse over the graph to see the data values."),
+                           p("Scroll down to see a map of the regions used to produce the plot."))
+        } else{
+            if(input$Tab=="Rasters"){
+                out<-tags$span(h2("Raterized plots of model-predicted surface water temperatures"),
+                               p("Plots can be facetted by year, month, or both. Facetted plots will be slower to load."),
+                               p("Year and month sliders can be used to animate through time-series. This works best with fewer facets."),
+                               p(tags$b("It is highly recommended to also 'fix' the scale when scrolling or animating through time so the color scale does not
+                                 change with every new time point.")))
+            }else{
+                out<-tags$span(h2("Time series plots"),
+                               p("Select spatial regions of interest and plot a timeseries for those regions."),
+                               p("You have the choice to draw your own spatial regions, or select from a set of pre-set regions based on the EDSM sub-regions (controlled with the slider)."),
+                               p("In either case, you can draw rectangles or polygons on the map to select any spatial areas they touch. You can also drop a marker to select invididual cells or regions.
+                                 There are also buttons for editing or deleting your drawn areas. Hover over the buttons to see their use. The map will update to highlight the areas you've selected.
+                                 It may take a few seconds to load."),
+                               p("If you want to average across all the areas you select to produce one time-series, leave the facets option on 'None'. But if you want to plot each region separately, switch it to 'Region'. 
+                                 You can also choose to facet plots by month."),
+                               p("Use the month slider to control which month is represented on the plot. To plot the full time-series across all months, switch the slider labeled 'Plot all months?'"),
+                               p("These plots are interactive, so hover to reveal the data values. For the time-series plot, you need to hover over the points (i.e., vertices in the line)."))
+            }
+        }
+        return(out)
+    })
+    
+    observeEvent(input$Plot_info, {
+        sendSweetAlert(session, title = "Plot info", text = Plot_info(),
+                       type = "info",
+                       btn_labels = "Ok", html = FALSE, closeOnClickOutside = TRUE)
+    })
     
     # Uncertainty plot --------------------------------------------------------
     
@@ -205,8 +317,12 @@ server <- function(input, output, session) {
         girafe_options(p, opts_toolbar(saveaspng = FALSE), opts_selection(type="none"))
     })
     
-
-# Rasters -----------------------------------------------------------------
+    output$Regions_plot2<-renderLeaflet({
+        Region_plot2
+    })
+    
+    
+    # Rasters -----------------------------------------------------------------
     
     TempData<-reactive({
         req(input$Date_range, any(input$Months%in%1:12))
@@ -328,7 +444,7 @@ server <- function(input, output, session) {
     )
     
     Plot<-reactive({
-        req(input$variable)
+        req(input$variable, input$Facet)
         if(input$Facet%in%c("None", "Year")){
             req(input$Month)
         }
@@ -424,11 +540,7 @@ server <- function(input, output, session) {
     #set the namespace for the map
     ns <- shiny::NS("Pointplot")
     
-    Point_plot<-leaflet()%>%
-        addProviderTiles("Esri.WorldGrayCanvas")%>%
-        addFeatures(data=all_points_static, fillColor=~pal_N_static(N), color="black", fillOpacity = 0.2, label=~N, layerId = ~ID, weight=0.4)%>%
-        addLegend(data=all_points_static, position="topright", pal = pal_N_rev_static, values = ~N, opacity=0.5, 
-                  labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)))
+    
     
     #call the editMod function from 'mapedit' to use in the leaflet map.
     
@@ -493,11 +605,7 @@ server <- function(input, output, session) {
         colorNumeric("viridis", domain=range(Delta_regions()$N, na.rm=T), reverse=T, na.color="#00000000")
     })
     
-    Region_plot<-leaflet()%>%
-        addProviderTiles("Esri.WorldGrayCanvas")%>%
-        addFeatures(data=st_transform(Delta_regions_static, 4326), fillColor=~pal_N2_static(N), color="black", fillOpacity = 0.2, label=~SubRegion, layerId = ~SubRegion, weight=0.4)%>%
-        addLegend(data=st_transform(Delta_regions_static, 4326), position="topright", pal = pal_N2_rev_static, values = ~N, opacity=0.5, 
-                  labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)))
+    
     
     #call the editMod function from 'mapedit' to use in the leaflet map.
     
@@ -664,8 +772,11 @@ server <- function(input, output, session) {
         
         ggplot(Data, aes(x=Date, y=Prediction, ymin=Prediction-SE, ymax=Prediction+SE, group=Group))+
             geom_ribbon(alpha=0.4, fill="firebrick3")+
-            geom_line(color="firebrick3")+
-            geom_pointrange_interactive(aes(tooltip=tooltip, data_id=ID), color="firebrick3", alpha=0.5, size=0.3)+
+            geom_line(color="firebrick3", 
+                      size=if_else(input$Facet=="Region" & input$Regions_all, 0.3, 0.5))+
+            geom_pointrange_interactive(aes(tooltip=tooltip, data_id=ID), color="firebrick3", alpha=0.5, 
+                                        size=if_else(input$Facet=="Region" & input$Regions_all, 0.001, 0.05), 
+                                        shape=ifelse(input$Facet=="Region" & input$Regions_all, ".", 16))+
             {if(input$Facet=="Month"){
                 facet_wrap(~month(Date, label=T))
             }}+
@@ -678,18 +789,26 @@ server <- function(input, output, session) {
             }}+
             ylab("Temperature ± SE (°C)")+
             theme_bw()+
-            theme(strip.background=element_blank(), text=element_text(size=18))
+            theme(strip.background=element_blank())+
+            {if(input$Facet=="Region" & input$Regions_all){
+                theme(text=element_text(size=4), panel.spacing = unit(0.2, units="lines"),
+                      axis.ticks=element_line(size=0.1), axis.ticks.length = unit(0.2, units="lines"))
+            } else{
+                theme(text=element_text(size=18))
+            }}
         
     })
     
     output$Time_plot<-renderGirafe({
-        p<-girafe(ggobj=time_series_plot(), width_svg = 10,  options = list(
-            opts_sizing(rescale = T, width = 1)))
+        p<-girafe(ggobj=time_series_plot(), width_svg = if_else(input$Facet=="Region" & input$Regions_all, 5.5, 10),  
+                  pointsize=if_else(input$Facet=="Region" & input$Regions_all, 6, 12), 
+                  options = list(
+                      opts_sizing(rescale = T, width = 1)))
         girafe_options(p, opts_toolbar(saveaspng = FALSE), opts_selection(type="none"))
     })
     
-
-
+    
+    
 }
 
 # Run the application 
