@@ -353,7 +353,13 @@ server <- function(input, output, session) {
             clearControls()%>%
             addFeatures(data=all_points_plot(), fillColor=~pal_N()(N), color="black", fillOpacity = ~opac, label=~N, layerId = ~ID, weight=~opac*2)%>%
             addLegend(data=all_points_plot(), position="topright", pal = pal_N_rev(), values = ~N, opacity=1, 
-                      labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)))
+                      labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)))%>%
+            {if(!is.null(Points()$Region)){
+                addFeatures(., Points()%>%group_by(Region)%>%summarise(geometry=st_union(geometry), .groups="drop"), 
+                            label=~Region, color=NULL, fillColor=NULL, weight=0, fillOpacity=0, labelOptions=labelOptions(permanent = TRUE))
+            }else{
+                .
+            }}
     })
     
     
