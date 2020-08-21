@@ -398,7 +398,7 @@ ggsave(plot=p2, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete w
 #saveRDS(modellc4_fitted, file="Temperature smoothing model/modellc4_fitted.Rds")
 
 # Stored as modellc4_residuals.Rds
-load("Temperature smoothing model/modellc4_residuals.Rds")
+modellc4_residuals<-readRDS("Temperature smoothing model/modellc4_residuals.Rds")
 
 Data_resid<-Data%>%
   mutate(Residuals = modellc4_residuals)
@@ -409,6 +409,8 @@ Resid_sum<-Data_resid%>%
   summarise(Resid=mean(Residuals), SD=sd(Residuals))%>%
   ungroup()%>%
   as_tibble()
+
+#saveRDS(Resid_sum, file="Shiny app/Residuals.Rds")
 
 p_resid<-ggplot(Resid_sum)+
   geom_tile(aes(x=Year, y=Month, fill=Resid))+
@@ -508,6 +510,7 @@ Resid_CV_sum<-Data_split_CV%>%
   ungroup()%>%
   as_tibble()
 
+#saveRDS(Resid_CV_sum, file="Shiny app/Resid_CV.Rds")
 
 # First plot deviation of predicted values from true values
 p_resid_CV<-ggplot(Resid_CV_sum)+
@@ -808,6 +811,10 @@ sp <- SpatialPoints(coords=data.frame(Longitude=Data_CC$Longitude, Latitude=Data
 sp2<-STIDF(sp, time=Data_CC$Date, data=data.frame(Residuals=resid_norm_CC_gam5))
 CC_gam5_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=3)
 
+ggplot(CC_gam5_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
+  geom_line()+
+  geom_point()
+
 CC_gam6 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
                   s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num_s|YearStation),
@@ -817,13 +824,38 @@ CC_gam7 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1)
                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
                   s(Time_num_s, k=5), correlation = corExp(form=~Date_num_s|YearStation),
                 data = Data_CC, method="REML")
+# Won't fit
+
+#Try reducing temporal resolution to once every 2 weeks.
+Data_CC2<-Data%>%
+  filter(Source%in%c("EMP", "STN", "FMWT", "DJFMP", "SKT", "20mm", "Suisun", "Baystudy", "USGS") & !str_detect(Station, "EZ") & !(Source=="SKT" & Station=="799" & Latitude>38.2))%>%
+  mutate(Station=paste(Source, Station),
+         Week2=round(week(Date)/2),
+         Noon_diff=abs(hms(hours=12)-as_hms(Datetime)))%>%
+  group_by(Station, Week2, Year)%>%
+  filter(Date==min(Date) & Noon_diff==min(Noon_diff))%>%
+  ungroup()%>%
+  lazy_dt()%>%
+  group_by(Date, Date_num, Date_num_s, Week2, SubRegion, Julian_day_s, Julian_day, Year, Year_s, Year_fac, Station, Source, Latitude_s, Longitude_s, Latitude, Longitude)%>%
+  summarise(Temperature=mean(Temperature), Time_num=mean(Time_num), Time_num_s=mean(Time_num_s))%>%
+  as_tibble()%>%
+  ungroup()%>%
+  mutate(ID=paste(Station, Date_num))%>%
+  filter(!(ID%in%ID[which(duplicated(ID))]))%>%
+  mutate(YearStation=paste(Year, Station))
+
+CC_gam6b <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
+                  te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
+                  s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num_s|YearStation),
+                data = Data_CC2, method="REML")
+
+CC_gam7b <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
+                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
+                   s(Time_num_s, k=5), correlation = corExp(form=~Date_num_s|YearStation, nugget=T, nugget=T),
+                 data = Data_CC2, method="REML")
 
 
 
-
-ggplot(CC_gam5_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
-  geom_line()+
-  geom_point()
 
 auto<-Data_CC%>%
   mutate(Resid_raw=residuals(CC_gam6$gam),

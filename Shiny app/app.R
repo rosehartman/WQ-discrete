@@ -1,8 +1,3 @@
-# TODO
-# 1) Somehow identify user-drawn regions when facetting by region
-# 2) Add month slider to time-series plots when month is not selected as the facetting variable
-# 3) Add SE to time-series plots
-
 library(shiny)
 library(shinyWidgets)
 library(dplyr)
@@ -17,6 +12,8 @@ require(mapedit)
 require(leafem)
 require(leaflet.extras)
 require(geofacet)
+require(ggiraph)
+require(scales)
 
 rastered_predsSE<-readRDS("Rasterized modellc4 predictions.Rds")
 Dates<-st_get_dimension_values(rastered_predsSE, "Date")
@@ -58,6 +55,8 @@ mygrid <- data.frame(
     stringsAsFactors = FALSE
 )
 
+Resid_sum<-readRDS("Residuals.Rds")
+Resid_CV<-readRDS("Resid_CV.Rds")
 # Define UI for application that draws a histogram
 ui <- fluidPage(
     theme = shinytheme("cerulean"),
@@ -77,22 +76,35 @@ ui <- fluidPage(
                                                                 "December" = 12), 
                                  selected = 1:12, multiple = T, options=list(`actions-box`=TRUE, `selected-text-format` = "count > 3")),
                      h1("Plot options"),
-                     radioGroupButtons("variable",
+                     conditionalPanel(condition="input.Tab=='Rasters' || input.Tab=='Time series'", 
+                                      radioGroupButtons("variable",
                                        "Plot:",
                                        choices = c("Predicted temperature"="Prediction", "Standard Error"="SE"), selected="Prediction", individual = TRUE, 
-                                       checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue"))),
-                     uiOutput("facet_options"),
+                                       checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue")))),
+                     conditionalPanel(condition="input.Tab=='Rasters' || input.Tab=='Time series'", 
+                                      uiOutput("facet_options")),
                      conditionalPanel(condition="input.Tab=='Rasters' && input.Facet!='Year x Month' && input.Facet!='Month x Year'", 
                                       uiOutput("scale_options")),
                      conditionalPanel(condition="input.Tab=='Time series'", 
                                       h5("Select preset regions or draw your own?"),
                                       switchInput("Regions", value = TRUE , offLabel="Preset", onLabel="Draw", onStatus = "success", offStatus = "primary"),
                                       conditionalPanel(condition="!input.Regions",
-                                                       prettySwitch("Regions_all","Select all regions?", status = "success", fill = TRUE)))
+                                                       prettySwitch("Regions_all","Select all regions?", status = "success", fill = TRUE))),
+                     conditionalPanel(condition="input.Tab=='Model uncertainty'",
+                                      radioGroupButtons("Uncertainty",
+                                                        "Uncertainty type",
+                                                        choices = c("Model residuals", "Cross-validation residuals"), selected="Model residuals", individual = TRUE, 
+                                                        checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue"))),
+                                      radioGroupButtons("Uncertainty_value",
+                                                        "Plot mean error or standard deviation of error?",
+                                                        choices = c("Mean", "SD"), selected="Mean", individual = TRUE, 
+                                                        checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue"))))
         ),
         mainPanel(width=9,
                   tabsetPanel(type="tabs",
                               id="Tab",
+                              tabPanel("Model uncertainty",
+                                       fluidRow(girafeOutput("Uncertainty_plot", height="150vh", width="130vh"))),
                               tabPanel("Rasters",
                                        conditionalPanel(condition="input.Facet!='Year' && input.Facet!='Year x Month' && input.Facet!='Month x Year'",
                                                         uiOutput("select_Year")),
@@ -109,7 +121,7 @@ ui <- fluidPage(
                                                                      value = FALSE, inline=F,
                                                                      status = "primary")), 
                                                                  column(10,conditionalPanel(condition="!input.Month2_slider",uiOutput("select_Month2"))))),
-                                       fluidRow(plotOutput("Time_plot"))
+                                       fluidRow(girafeOutput("Time_plot", height="100vh", width="120vh"))
                               )
                   ))
     ),
@@ -122,7 +134,82 @@ ui <- fluidPage(
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
     
+    # Uncertainty plot --------------------------------------------------------
+    
+    Uncertainty_plot<-reactive({
+        req(input$Uncertainty, input$Date_range, any(input$Months%in%1:12), input$Uncertainty_value)
+        
+        str_model <- paste0("<tr><td>Resid: &nbsp</td><td>%s</td></tr>",
+                            "<tr><td>SD: &nbsp</td><td>%s</td></tr>",
+                            "<tr><td>Year: &nbsp</td><td>%s</td></tr>", 
+                            "<tr><td>Month: &nbsp</td><td>%s</td></tr>")
+        
+        
+        if(input$Uncertainty=="Model residuals"){
+            Data<-Resid_sum
+        }else{
+            Data<-Resid_CV%>%
+                rename(Resid=Resid_CV)
+        }
+        
+        Data<-Data%>%
+            filter(Year>year(min(input$Date_range)) & Year<year(max(input$Date_range)) & Month%in%input$Months)%>%
+            mutate(Month=month(Month, label=T))%>%
+            mutate(tooltip=sprintf(str_model, round(Resid, 2), round(SD, 2), Year, Month),
+                   tooltip=paste0( "<table>", tooltip, "</table>" ),
+                   ID=1:n())
+        
+        p_resid<-ggplot(Data)+
+            {if(input$Uncertainty_value=="Mean"){
+                geom_tile_interactive(aes(x=Year, y=Month, fill=Resid, color=Resid, tooltip=tooltip, data_id=ID))
+            }else{
+                geom_tile_interactive(aes(x=Year, y=Month, fill=SD, color=SD, tooltip=tooltip, data_id=ID))
+            }}+
+            {if(input$Uncertainty_value=="Mean"){
+                scale_fill_gradient2(name=paste("Mean", tolower(input$Uncertainty), "(°C)"),
+                                     high = muted("red"),
+                                     low = muted("blue"),
+                                     breaks=seq(-9,6.5, by=0.5),
+                                     guide=guide_colorbar(direction="horizontal", title.position = "top", ticks.linewidth = 1,
+                                                          title.hjust=0.5, label.position="bottom"),
+                                     aesthetics = c("color", "fill"))
+            }else{
+                scale_fill_viridis_c(name=paste("Standard deviation in", tolower(input$Uncertainty), "(°C)"),
+                                     breaks=seq(0,4.5, by=0.5),
+                                     guide=guide_colorbar(direction="horizontal", title.position = "top", ticks.linewidth = 1,
+                                                          title.hjust=0.5, label.position="bottom"),
+                                     aesthetics = c("color", "fill"))
+            }}+
+            scale_x_continuous(breaks=seq(1970, 2020, by=10))+
+            {if(setequal(1:12, input$Months)){
+                scale_y_discrete(breaks=levels(Data$Month), labels = if_else(sort(as.integer(unique(month(sample(1:12, 100, replace=T), label=T)))+1)%% 2 == 0, levels(Data$Month), ""))
+            }}+
+            facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
+            theme_bw()+
+            theme(text=element_text(size=4), axis.text.x=element_text(angle=45, hjust=1), 
+                  panel.grid=element_blank(),
+                  strip.background = element_blank(), panel.spacing = unit(0.2, units="lines"),
+                  axis.ticks=element_line(size=0.1), axis.ticks.length = unit(0.2, units="lines"),
+                  legend.position="top", legend.key.width = unit(50, "native"), legend.justification="center",
+                  legend.box.spacing = unit(0.2, "lines"),legend.box.margin=margin(b=-50))+
+            {if(input$Uncertainty_value=="Mean"){
+                theme(panel.background = element_rect(fill="black"))
+            }else{
+                theme(panel.background = element_rect(fill="white"))
+            }}
+    })
+    
+    output$Uncertainty_plot<-renderGirafe({
+        p<-girafe(ggobj=Uncertainty_plot(), width_svg = 5.5,  pointsize=6, options = list(
+            opts_sizing(rescale = T, width = 1)))
+        girafe_options(p, opts_toolbar(saveaspng = FALSE), opts_selection(type="none"))
+    })
+    
+
+# Rasters -----------------------------------------------------------------
+    
     TempData<-reactive({
+        req(input$Date_range, any(input$Months%in%1:12))
         Data<-rastered_predsSE%>%
             filter(Date>min(input$Date_range))%>%
             filter(Date<max(input$Date_range))%>%
@@ -242,6 +329,9 @@ server <- function(input, output, session) {
     
     Plot<-reactive({
         req(input$variable)
+        if(input$Facet%in%c("None", "Year")){
+            req(input$Month)
+        }
         if(is.null(input$Months)){
             p<-ggplot()+
                 geom_label(data=tibble(x=0.5, y=0.5, label="You must select at least one month."), aes(x=x, y=y, label=label))+
@@ -451,7 +541,8 @@ server <- function(input, output, session) {
                 if(input$Facet=="Region"){
                     out<-filter(all_points(), ID%in%Points)%>%
                         st_join(Area)%>%
-                        rename(Region=X_leaflet_id)
+                        rename(Region=X_leaflet_id)%>%
+                        mutate(Region=as.integer(as.factor(Region)))
                 } else{
                     out<-filter(all_points(), ID%in%Points)
                 }
@@ -515,7 +606,7 @@ server <- function(input, output, session) {
                               pivot_longer(cols=c(-Region), names_to="Date", values_to="SE"), by=c("Region", "Date"))%>%
                 mutate(Prediction=if_else(is.nan(Prediction), NA_real_, Prediction),
                        SE=na_if(SE, 0)
-                       )%>%
+                )%>%
                 mutate(Date=parse_date_time(Date, "%Y-%m-%d"))%>%
                 complete(Date=parse_date_time(Data_dates(), "%Y-%m-%d"), Region=unique(Points()$Region))%>%
                 mutate(Month=month(Date),
@@ -550,9 +641,31 @@ server <- function(input, output, session) {
     
     time_series_plot<-reactive({
         req(timeseries_data_month())
-        ggplot(timeseries_data_month(), aes(x=Date, y=Prediction, ymin=Prediction-SE, ymax=Prediction+SE))+
-            geom_line(color="firebrick3")+
+        
+        str_model <- paste0("<tr><td>Mean: &nbsp</td><td>%s</td></tr>",
+                            "<tr><td>Lower SE: &nbsp</td><td>%s</td></tr>", 
+                            "<tr><td>Upper SE: &nbsp</td><td>%s</td></tr>")
+        
+        Data<-timeseries_data_month()%>%
+            rowwise()%>%
+            mutate(tooltip=sprintf(str_model, round(Prediction, 2), round(Prediction-SE, 2), round(Prediction+SE, 2)))%>%
+            ungroup()%>%
+            mutate(ID=1:n(),
+                   tooltip=paste0( "<table>", tooltip, "</table>" ))%>%
+            {if(input$Facet=="Month"){
+                mutate(., Group=Month)
+            } else{
+                if(input$Facet=="Region"){
+                    mutate(., Group=Region)
+                }else{
+                    mutate(., Group=1)
+                }
+            }}
+        
+        ggplot(Data, aes(x=Date, y=Prediction, ymin=Prediction-SE, ymax=Prediction+SE, group=Group))+
             geom_ribbon(alpha=0.4, fill="firebrick3")+
+            geom_line(color="firebrick3")+
+            geom_pointrange_interactive(aes(tooltip=tooltip, data_id=ID), color="firebrick3", alpha=0.5, size=0.3)+
             {if(input$Facet=="Month"){
                 facet_wrap(~month(Date, label=T))
             }}+
@@ -569,9 +682,14 @@ server <- function(input, output, session) {
         
     })
     
-    output$Time_plot<-renderPlot({
-        time_series_plot()
+    output$Time_plot<-renderGirafe({
+        p<-girafe(ggobj=time_series_plot(), width_svg = 10,  options = list(
+            opts_sizing(rescale = T, width = 1)))
+        girafe_options(p, opts_toolbar(saveaspng = FALSE), opts_selection(type="none"))
     })
+    
+
+
 }
 
 # Run the application 
