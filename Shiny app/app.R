@@ -82,8 +82,7 @@ mygrid <- data.frame(
     stringsAsFactors = FALSE
 )
 
-Resid_sum<-readRDS("Residuals.Rds")
-Resid_CV<-readRDS("Resid_CV.Rds")
+Model_eval<-readRDS("Model_eval.Rds")
 # Define UI for application that draws a histogram
 ui <- fluidPage(
     theme = shinytheme("cerulean"),
@@ -119,22 +118,23 @@ ui <- fluidPage(
                                       switchInput("Regions", value = TRUE , offLabel="Preset", onLabel="Draw", onStatus = "success", offStatus = "primary"),
                                       conditionalPanel(condition="!input.Regions",
                                                        prettySwitch("Regions_all","Select all regions?", status = "success", fill = TRUE))),
-                     conditionalPanel(condition="input.Tab=='Model error'",
+                     conditionalPanel(condition="input.Tab=='Model evaluation'",
                                       radioGroupButtons("Uncertainty",
-                                                        "Error type",
-                                                        choices = c("Model residuals", "Cross-validation residuals"), selected="Model residuals", individual = TRUE, 
+                                                        "Variable to plot:",
+                                                        choices = c("Model residuals", "Cross-validation residuals", "Sample size of measured values"), selected="Model residuals", individual = TRUE, 
                                                         checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue"))),
-                                      radioGroupButtons("Uncertainty_value",
-                                                        "Plot mean error or standard deviation of error?",
-                                                        choices = c("Mean", "SD"), selected="Mean", individual = TRUE, 
-                                                        checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue")))),
+                                      conditionalPanel(condition="input.Uncertainty!='Sample size of measured values'", 
+                                                       radioGroupButtons("Uncertainty_value",
+                                                                         "Plot mean error or standard deviation of error?",
+                                                                         choices = c("Mean", "SD"), selected="Mean", individual = TRUE, 
+                                                                         checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue"))))),
                      actionBttn("Plot_info", label = NULL, style="material-circle", 
                                 color="primary", icon=icon("question"))
         ),
         mainPanel(width=9,
                   tabsetPanel(type="tabs",
                               id="Tab",
-                              tabPanel("Model error",
+                              tabPanel("Model evaluation",
                                        fluidRow(girafeOutput("Uncertainty_plot", height="100vh", width="130vh")),
                                        h2("Region map", align = "center"),
                                        fluidRow(leafletOutput("Regions_plot2", width = "100%", height = "100%"))),
@@ -180,10 +180,10 @@ server <- function(input, output, session) {
                                                actual measured values. The generalized additive model was fit to an integrated
                                                discrete water quality dataset."),
                                         tags$p("The model was fit with the R package", tags$code("mgcv"), "with the following model structure:"), 
-                                        tags$p("The first tab 'Model error' presents the uncertainty in model predictions 
+                                        tags$p("The first tab 'Model evaluation' presents the uncertainty in model predictions 
                                                and should be explored to understand the limitations of the model."),
                                         tags$p("Use the data filters to control the range of dates and months included in the plots."),
-                                               tags$p(align="left", tags$code("bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c('tp', 'cc'), k=c(25, 20), by=Year_fac) + s(Time_num_s, k=5),
+                                        tags$p(align="left", tags$code("bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c('tp', 'cc'), k=c(25, 20), by=Year_fac) + s(Time_num_s, k=5),
     data = Data, method='fREML', discrete=T)")),
                                         "------------------------------------------",
                                         tags$p(tags$b("Dataset, model, and app created and maintained by", 
@@ -198,22 +198,24 @@ server <- function(input, output, session) {
                                                       tags$a("Enhanced Delta Smelt Monitoring Program, ", href = "https://portal.edirepository.org/nis/mapbrowse?packageid=edi.415.3", target="_blank"),
                                                       tags$a("Delta Juvenile Fish Monitoring Program, ", href = "https://portal.edirepository.org/nis/mapbrowse?packageid=edi.244.4", target="_blank"),
                                                       tags$a("UC Davis Suisun Marsh Fish Study, ", href = "https://watershed.ucdavis.edu/project/suisun-marsh-fish-study", target="_blank"),
-                                        "USBR Sacramento Deepwater Shipping Channel surveys, and the",
-                                        tags$a("USGS San Francisco Bay Water Quality Surveys.", href = "https://www.nature.com/articles/sdata201798", target="_blank")))),
+                                                      "USBR Sacramento Deepwater Shipping Channel surveys, and the",
+                                                      tags$a("USGS San Francisco Bay Water Quality Surveys.", href = "https://www.nature.com/articles/sdata201798", target="_blank")))),
                        type = "info",
                        btn_labels = "Ok", html = F, closeOnClickOutside = TRUE)
     })    
     
     #Plot info
     Plot_info<-reactive({
-        if(input$Tab=="Model error"){
-            out<-tags$span(h2("Visualizations of model error"),
+        if(input$Tab=="Model evaluation"){
+            out<-tags$span(h2("Visualizations of model error and sample size"),
                            p("Model residuals represent the deviations of model predictions from true measured values.
                               Cross-validation residuals also represent the deviations of model predictions from true measured values, but this time
                               the models were fit to datasets missing the value to be predicted. A stratified cross-validation approach was used, in which
                              the dataset was split into 20 parts, evenly splitting across regions, years, and seasons. Twenty separate datasets were created
                              each missing 1 of those 20 parts and predictions were generated for the missing parts."),
-                           p("The standard deviation of error should help inform the range of error magnitudes. Small mean errors could still be problematic if individual
+                           p("The 'Sample size of measured values' options allows you to explore the number of temperature measurements in each month, year, and region.
+                             This should give you an idea of the data available to the model during fitting."),
+                           p("The standard deviation of the residual values should help inform the range of error magnitudes. Small mean errors could still be problematic if individual
                              errors can be large."),
                            p("These plots are interactive, so hover your mouse over the graph to see the data values."),
                            p("Scroll down to see a map of the regions used to produce the plot."))
@@ -251,33 +253,55 @@ server <- function(input, output, session) {
     Uncertainty_plot<-reactive({
         req(input$Uncertainty, input$Date_range, any(input$Months%in%1:12), input$Uncertainty_value)
         
-        str_model <- paste0("<tr><td>Resid: &nbsp</td><td>%s</td></tr>",
-                            "<tr><td>SD: &nbsp</td><td>%s</td></tr>",
-                            "<tr><td>Year: &nbsp</td><td>%s</td></tr>", 
-                            "<tr><td>Month: &nbsp</td><td>%s</td></tr>")
+        
         
         
         if(input$Uncertainty=="Model residuals"){
-            Data<-Resid_sum
+            Data<-Model_eval%>%
+                rename(Fill=Resid, Fill_SD=SD)
         }else{
-            Data<-Resid_CV%>%
-                rename(Resid=Resid_CV)
+            if(input$Uncertainty=="Sample size of measured values"){
+                Data<-Model_eval%>%
+                    rename(Fill=N)
+            }else{
+                Data<-Model_eval%>%
+                    rename(Fill=Resid_CV, Fill_SD=SD_CV)%>%
+                    filter(Year>=1974)
+            }
+            
         }
         
-        Data<-Data%>%
-            filter(Year>year(min(input$Date_range)) & Year<year(max(input$Date_range)) & Month%in%input$Months)%>%
-            mutate(Month=month(Month, label=T))%>%
-            mutate(tooltip=sprintf(str_model, round(Resid, 2), round(SD, 2), Year, Month),
-                   tooltip=paste0( "<table>", tooltip, "</table>" ),
-                   ID=1:n())
+        if(input$Uncertainty=="Sample size of measured values"){
+            str_model <- paste0("<tr><td>N: &nbsp</td><td>%s</td></tr>",
+                                "<tr><td>Year: &nbsp</td><td>%s</td></tr>", 
+                                "<tr><td>Month: &nbsp</td><td>%s</td></tr>")
+            Data<-Data%>%
+                filter(Year>year(min(input$Date_range)) & Year<year(max(input$Date_range)) & Month%in%input$Months)%>%
+                mutate(Month=month(Month, label=T))%>%
+                mutate(tooltip=sprintf(str_model, round(Fill, 2), Year, Month),
+                       tooltip=paste0( "<table>", tooltip, "</table>" ),
+                       ID=1:n())
+        } else{
+            str_model <- paste0("<tr><td>Resid: &nbsp</td><td>%s</td></tr>",
+                                "<tr><td>SD: &nbsp</td><td>%s</td></tr>",
+                                "<tr><td>Year: &nbsp</td><td>%s</td></tr>", 
+                                "<tr><td>Month: &nbsp</td><td>%s</td></tr>")
+            Data<-Data%>%
+                filter(Year>year(min(input$Date_range)) & Year<year(max(input$Date_range)) & Month%in%input$Months)%>%
+                mutate(Month=month(Month, label=T))%>%
+                mutate(tooltip=sprintf(str_model, round(Fill, 2), round(Fill_SD, 2), Year, Month),
+                       tooltip=paste0( "<table>", tooltip, "</table>" ),
+                       ID=1:n())
+        }
+        
         
         p_resid<-ggplot(Data)+
-            {if(input$Uncertainty_value=="Mean"){
-                geom_tile_interactive(aes(x=Year, y=Month, fill=Resid, color=Resid, tooltip=tooltip, data_id=ID))
+            {if(input$Uncertainty_value=="Mean" | input$Uncertainty=="Sample size of measured values"){
+                geom_tile_interactive(aes(x=Year, y=Month, fill=Fill, color=Fill, tooltip=tooltip, data_id=ID))
             }else{
-                geom_tile_interactive(aes(x=Year, y=Month, fill=SD, color=SD, tooltip=tooltip, data_id=ID))
+                geom_tile_interactive(aes(x=Year, y=Month, fill=Fill_SD, color=Fill_SD, tooltip=tooltip, data_id=ID))
             }}+
-            {if(input$Uncertainty_value=="Mean"){
+            {if(input$Uncertainty_value=="Mean" & !input$Uncertainty=="Sample size of measured values"){
                 scale_fill_gradient2(name=paste("Mean", tolower(input$Uncertainty), "(°C)"),
                                      high = muted("red"),
                                      low = muted("blue"),
@@ -286,11 +310,19 @@ server <- function(input, output, session) {
                                                           title.hjust=0.5, label.position="bottom"),
                                      aesthetics = c("color", "fill"))
             }else{
-                scale_fill_viridis_c(name=paste("Standard deviation in", tolower(input$Uncertainty), "(°C)"),
-                                     breaks=seq(0,4.5, by=0.5),
-                                     guide=guide_colorbar(direction="horizontal", title.position = "top", ticks.linewidth = 1,
-                                                          title.hjust=0.5, label.position="bottom"),
-                                     aesthetics = c("color", "fill"))
+                if(input$Uncertainty=="Sample size of measured values"){
+                    scale_fill_viridis_c(name="Sample size",
+                                         guide=guide_colorbar(direction="horizontal", title.position = "top", ticks.linewidth = 1,
+                                                              title.hjust=0.5, label.position="bottom"),
+                                         aesthetics = c("color", "fill"))
+                }else{
+                    scale_fill_viridis_c(name=paste("Standard deviation in", tolower(input$Uncertainty), "(°C)"),
+                                         breaks=seq(0,4.5, by=0.5),
+                                         guide=guide_colorbar(direction="horizontal", title.position = "top", ticks.linewidth = 1,
+                                                              title.hjust=0.5, label.position="bottom"),
+                                         aesthetics = c("color", "fill")) 
+                }
+                
             }}+
             scale_x_continuous(breaks=seq(1970, 2020, by=10))+
             {if(setequal(1:12, input$Months)){
@@ -304,7 +336,7 @@ server <- function(input, output, session) {
                   axis.ticks=element_line(size=0.1), axis.ticks.length = unit(0.2, units="lines"),
                   legend.position="top", legend.key.width = unit(50, "native"), legend.justification="center",
                   legend.box.spacing = unit(0.2, "lines"),legend.box.margin=margin(b=-50))+
-            {if(input$Uncertainty_value=="Mean"){
+            {if(input$Uncertainty_value=="Mean" & !input$Uncertainty=="Sample size of measured values"){
                 theme(panel.background = element_rect(fill="black"))
             }else{
                 theme(panel.background = element_rect(fill="white"))

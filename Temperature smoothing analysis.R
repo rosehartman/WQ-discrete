@@ -78,7 +78,17 @@ Data<-Data%>%
   mutate(Group=if_else(is.even(Year), 1, 2))%>%
   mutate_at(vars(Date_num, Longitude, Latitude, Time_num, Year, Julian_day), list(s=~(.-mean(., na.rm=T))/sd(., na.rm=T))) # Create centered and standardized versions of covariates
 
-saveRDS(Data, file="Temperature smoothing model/Discrete Temp Data.Rds")
+#saveRDS(Data, file="Temperature smoothing model/Discrete Temp Data.Rds")
+
+ #Region data for shiny app
+Delta_regions<-Delta%>%
+  left_join(Data%>%
+              st_drop_geometry()%>%
+              group_by(SubRegion)%>%
+              summarise(N_data=n(), .groups="drop"),
+            by="SubRegion")%>%
+  mutate(SubRegion=droplevels(SubRegion))
+saveRDS(Delta_regions, file="Shiny app/Delta subregions.Rds")
 
 # Model selection ---------------------------------------------------------
 
@@ -410,8 +420,6 @@ Resid_sum<-Data_resid%>%
   ungroup()%>%
   as_tibble()
 
-#saveRDS(Resid_sum, file="Shiny app/Residuals.Rds")
-
 p_resid<-ggplot(Resid_sum)+
   geom_tile(aes(x=Year, y=Month, fill=Resid))+
   scale_fill_gradient2(high = muted("red"),
@@ -509,8 +517,6 @@ Resid_CV_sum<-Data_split_CV%>%
   summarise(SD=sd(Resid_CV), Resid_CV=mean(Resid_CV), Fitted_resid=mean(Fitted_resid))%>%
   ungroup()%>%
   as_tibble()
-
-#saveRDS(Resid_CV_sum, file="Shiny app/Resid_CV.Rds")
 
 # First plot deviation of predicted values from true values
 p_resid_CV<-ggplot(Resid_CV_sum)+
@@ -851,7 +857,7 @@ CC_gam6b <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1
 
 CC_gam7b <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
-                   s(Time_num_s, k=5), correlation = corExp(form=~Date_num_s|YearStation, nugget=T, nugget=T),
+                   s(Time_num_s, k=5), correlation = corExp(form=~Date_num_s|Station),
                  data = Data_CC2, method="REML")
 
 
@@ -950,6 +956,18 @@ ggplot(CC_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
   geom_line()+
   geom_point()
 
+
+# Shiny app data ----------------------------------------------------------
+
+Model_eval<-Resid_sum%>%
+  left_join(Resid_CV_sum%>%
+              rename(SD_CV=SD)%>%
+              select(-Fitted_resid),
+            by=c("Year", "Month", "SubRegion"))%>%
+  left_join(Data_effort,
+            by=c("Year", "Month", "SubRegion"))
+
+saveRDS(Model_eval, file="Shiny app/Model_eval.Rds")
 
 # Next steps ----------------------------------------------------
 
