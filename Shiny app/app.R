@@ -1,3 +1,5 @@
+# Add ability to download data
+# Add raw data with same features as time series plots
 library(shiny)
 library(shinyWidgets)
 library(dplyr)
@@ -103,6 +105,8 @@ ui <- fluidPage(
                                                                 "September" = 9, "October" = 10, "November" = 11, 
                                                                 "December" = 12), 
                                  selected = 1:12, multiple = T, options=list(`actions-box`=TRUE, `selected-text-format` = "count > 3")),
+                     #Buttons to download data and plots
+                     actionBttn("Download", "Download data", style="simple", color="royal", icon=icon("file-download")),
                      h1("Plot options"),
                      conditionalPanel(condition="input.Tab=='Rasters' || input.Tab=='Time series'", 
                                       radioGroupButtons("variable",
@@ -180,11 +184,11 @@ server <- function(input, output, session) {
                                                actual measured values. The generalized additive model was fit to an integrated
                                                discrete water quality dataset."),
                                         tags$p("The model was fit with the R package", tags$code("mgcv"), "with the following model structure:"), 
+                                        tags$p(align="left", tags$code("bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c('tp', 'cc'), k=c(25, 20), by=Year_fac) + s(Time_num_s, k=5),
+    data = Data, method='fREML', discrete=T)")),
                                         tags$p("The first tab 'Model evaluation' presents the uncertainty in model predictions 
                                                and should be explored to understand the limitations of the model."),
                                         tags$p("Use the data filters to control the range of dates and months included in the plots."),
-                                        tags$p(align="left", tags$code("bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c('tp', 'cc'), k=c(25, 20), by=Year_fac) + s(Time_num_s, k=5),
-    data = Data, method='fREML', discrete=T)")),
                                         "------------------------------------------",
                                         tags$p(tags$b("Dataset, model, and app created and maintained by", 
                                                       tags$a("Sam Bashevkin.", href = "mailto:sam.bashevkin@deltacouncil.ca.gov"), "Please email me with any questions.")),
@@ -212,7 +216,8 @@ server <- function(input, output, session) {
                               Cross-validation residuals also represent the deviations of model predictions from true measured values, but this time
                               the models were fit to datasets missing the value to be predicted. A stratified cross-validation approach was used, in which
                              the dataset was split into 20 parts, evenly splitting across regions, years, and seasons. Twenty separate datasets were created
-                             each missing 1 of those 20 parts and predictions were generated for the missing parts."),
+                             each missing 1 of those 20 parts and predictions were generated for the missing parts. CV residuals were not calculated for years
+                             before 1974 due to the very small number of data points in those years."),
                            p("The 'Sample size of measured values' options allows you to explore the number of temperature measurements in each month, year, and region.
                              This should give you an idea of the data available to the model during fitting."),
                            p("The standard deviation of the residual values should help inform the range of error magnitudes. Small mean errors could still be problematic if individual
@@ -247,6 +252,71 @@ server <- function(input, output, session) {
                        type = "info",
                        btn_labels = "Ok", html = FALSE, closeOnClickOutside = TRUE)
     })
+    
+    #Show modal dialog to save data when Download button is clicked
+    observeEvent(input$Download, {
+        showModal(ModalDownloadData())
+    })
+    
+    #Modal dialog (popup window) to download data
+    ModalDownloadData<-function(){
+        Data_info<-if(input$Tab=="Model evaluation"){
+            span(p("This will download the model evaluation dataset. To download the temperature data, navigate to one of the other tabs."),
+                 p("The variable", code('Resid'), "represents the model residuals,", code('SD'), "represents the standard deviation of those model residuals.",
+                   code('Resid_CV'), "and", code('SD_CV'), "represent the same for the cross-validation residuals.", code('N'), "represents the number of measured data points in
+                   the integrated dataset used to fit these models."))
+        } else{
+            if(input$Tab=="Rasters"){
+                p("This will download the rasterized model predictions in tif format. Only the variable (Predicted Temperature or Standard Error) 
+                  selected under 'Plot options' will be downloaded. To download both, you must download 2 separate files selecting a different variable each time.")
+            }else{
+                span(p("This will download the model predictions converted to a time-series format. Only predictions from selected areas on the map will be included."),
+                     p(code("Prediction"), "represents the model-predicted temperature in °C, while", code("SE"), "represents the standard error."),
+                     p("Data will be averaged for each date across the region of interest."),
+                     h5("If you select 'Region' in the 'Facet' selections under 'Plot options', your
+                       data will come divided by regions. Otherwise, the data will be averaged across all selected regions", style="color:DarkOrchid"))
+            }
+        }
+        
+        modalDialog(
+            h1("Data info"),
+            h5("Data will be clipped to the date and month filters before downloading.", style="color:red"),
+            Data_info,
+            footer = tagList(modalButton("Cancel"),
+                             downloadBttn("Downloaddata", "Download data", style="bordered", color = "primary", size="sm")),
+            easyClose=TRUE
+        )
+    }
+    
+    #Download handler for data downloading
+    output$Downloaddata <- downloadHandler(
+        filename = function() {
+            if(input$Tab=="Rasters"){
+                ext<-".tif"
+            }else{
+                ext<-".csv"
+            }
+            
+            paste0("Delta temperature ", tolower(input$Tab), ext)
+            
+        },
+        content = function(file) {
+            
+            if(input$Tab=="Model evaluation"){
+                Model_eval%>%
+                    filter(Year>year(min(input$Date_range)) & Year<year(max(input$Date_range)) & Month%in%input$Months)%>%
+                    write_csv(file)
+            }else{
+                if(input$Tab=="Rasters"){
+                    write_stars(TempData(), file, layer=input$variable)
+                }else{
+                    timeseries_data()%>%
+                        mutate(Date=as.character(Date, format="%Y-%m-%d"))%>%
+                        write_csv(file)
+                }
+            }
+            
+        })
     
     # Uncertainty plot --------------------------------------------------------
     
@@ -763,9 +833,11 @@ server <- function(input, output, session) {
                 summarise(Prediction=mean(Prediction, na.rm=T),
                           SE=sqrt(sum(Var, na.rm=T)/(n()^2)), 
                           .groups="drop")%>%
+                mutate(across(c(Prediction, SE), ~if_else(is.nan(.x), NA_real_, .x)))%>%
                 complete(Date=parse_date_time(Data_dates(), "%Y-%m-%d"))%>%
                 mutate(Month=month(Date),
-                       Year=year(Date))
+                       Year=year(Date),
+                       SE=na_if(SE, 0))
         }
     })
     
