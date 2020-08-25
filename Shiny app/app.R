@@ -59,7 +59,7 @@ pal_N2_rev_static<-colorNumeric("viridis", domain=range(Delta_regions_static$N, 
 Region_plot<-leaflet()%>%
     addProviderTiles("Esri.WorldGrayCanvas")%>%
     addFeatures(data=st_transform(Delta_regions_static, 4326), fillColor=~pal_N2_static(N), 
-                color="black", fillOpacity = 0.2, label=~SubRegion, 
+                color="black", fillOpacity = 0.2, label=lapply(paste0("<h5 align='center'>", Delta_regions_static$SubRegion, "</h5>", "<h6 align='center' style='color:red'>N: ", format(Delta_regions_static$N, big.mark   = ","), "</h6>"), htmltools::HTML), 
                 layerId = ~SubRegion, weight=0.4)%>%
     addLegend(data=st_transform(Delta_regions_static, 4326), position="topright", pal = pal_N2_rev_static, values = ~N, opacity=0.5, 
               labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)), title="Number of raster cells</br>and time points with</br>model-predicted data")
@@ -71,7 +71,7 @@ pal_N3_rev_static<-colorNumeric("viridis", domain=range(Delta_regions_static$N_d
 Region_plot2<-leaflet()%>%
     addProviderTiles("Esri.WorldGrayCanvas")%>%
     addFeatures(data=st_transform(Delta_regions_static, 4326), fillColor=~pal_N3_static(N_data), 
-                color="black", fillOpacity = 0.2, label= lapply(paste0("<h5 align='center'>", Delta_regions_static$SubRegion, "</h5>", "<h6 align='center' style='color:red'>N: ", Delta_regions_static$N_data, "</h6>"), htmltools::HTML),
+                color="black", fillOpacity = 0.2, label= lapply(paste0("<h5 align='center'>", Delta_regions_static$SubRegion, "</h5>", "<h6 align='center' style='color:red'>N: ", format(Delta_regions_static$N_data, big.mark   = ","), "</h6>"), htmltools::HTML),
                 layerId = ~SubRegion, weight=0.4)%>%
     addLegend(data=st_transform(Delta_regions_static, 4326), position="topright", pal = pal_N3_rev_static, values = ~N_data, opacity=0.5, 
               labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)), title="Total number of data points</br>(actual temperature records)")
@@ -227,6 +227,8 @@ server <- function(input, output, session) {
         } else{
             if(input$Tab=="Rasters"){
                 out<-tags$span(h2("Raterized plots of model-predicted surface water temperatures"),
+                               p("Model predictions have been spatially and temporally trimmed to the extent of the integrated dataset. Predictions were only generated for
+                                 regions sampled in each month and year. The spatial extent of these raster plots changes over time due to variability in this sampling effort."),
                                p("Plots can be facetted by year, month, or both. Facetted plots will be slower to load."),
                                p("Year and month sliders can be used to animate through time-series. This works best with fewer facets."),
                                p(tags$b("It is highly recommended to also 'fix' the scale when scrolling or animating through time so the color scale does not
@@ -234,6 +236,8 @@ server <- function(input, output, session) {
             }else{
                 out<-tags$span(h2("Time series plots"),
                                p("Select spatial regions of interest and plot a timeseries for those regions."),
+                               p("Model predictions have been spatially and temporally trimmed to the extent of the integrated dataset. Predictions were only generated for
+                                 regions sampled in each month and year. Explore the Raster plots, or the sample size plots in the 'Model evaluation' tab to see how the spatial extent of sampling has changed over time."),
                                p("You have the choice to draw your own spatial regions, or select from a set of pre-set regions based on the EDSM sub-regions (controlled with the slider)."),
                                p("In either case, you can draw rectangles or polygons on the map to select any spatial areas they touch. You can also drop a marker to select invididual cells or regions.
                                  There are also buttons for editing or deleting your drawn areas. Hover over the buttons to see their use. The map will update to highlight the areas you've selected.
@@ -241,7 +245,11 @@ server <- function(input, output, session) {
                                p("If you want to average across all the areas you select to produce one time-series, leave the facets option on 'None'. But if you want to plot each region separately, switch it to 'Region'. 
                                  You can also choose to facet plots by month."),
                                p("Use the month slider to control which month is represented on the plot. To plot the full time-series across all months, switch the slider labeled 'Plot all months?'"),
-                               p("These plots are interactive, so hover to reveal the data values. For the time-series plot, you need to hover over the points (i.e., vertices in the line)."))
+                               p("These plots are interactive, so hover to reveal the data values. For the time-series plot, you need to hover over the points (i.e., vertices in the line)."),
+                               tags$em("NOTE: If you select areas that span multiple regions with different sample sizes, different subsets of spatial locations will be included in the averaged
+                                       temperature values for each date. For example, the Confluence is heavily represented, while the Upper San Joaquin River is often missing dates in the timeseries.
+                                       Averaging across both these areas would be biased by some time points including the warm Upper San Joaquin River temperatures, and others only including the
+                                       cooler Confluence temperatures."))
             }
         }
         return(out)
@@ -273,7 +281,7 @@ server <- function(input, output, session) {
                 span(p("This will download the model predictions converted to a time-series format. Only predictions from selected areas on the map will be included."),
                      p(code("Prediction"), "represents the model-predicted temperature in °C, while", code("SE"), "represents the standard error."),
                      p("Data will be averaged for each date across the region of interest."),
-                     h5("If you select 'Region' in the 'Facet' selections under 'Plot options', your
+                     h5("If you select", tags$b("Region"), "in the", tags$b("Facet"), "selections under", tags$b('Plot options,'), "your
                        data will come divided by regions. Otherwise, the data will be averaged across all selected regions", style="color:DarkOrchid"))
             }
         }
@@ -720,7 +728,9 @@ server <- function(input, output, session) {
         proxy.points %>%
             clearShapes()%>%
             clearControls()%>%
-            addFeatures(data=Delta_regions_plot(), fillColor=~pal_N2()(N), color="black", fillOpacity = ~opac, label=~SubRegion, layerId = ~SubRegion, weight=~opac*2)%>%
+            addFeatures(data=Delta_regions_plot(), fillColor=~pal_N2()(N), color="black", fillOpacity = ~opac, 
+                        label=~lapply(paste0("<h5 align='center'>", Delta_regions_plot()$SubRegion, "</h5>", "<h6 align='center' style='color:red'>N: ", format(Delta_regions_plot()$N, big.mark   = ","), "</h6>"), htmltools::HTML), 
+                        layerId = ~SubRegion, weight=~opac*2)%>%
             addLegend(data=Delta_regions_plot(), position="topright", pal = pal_N2_rev(), values = ~N, opacity=1, 
                       labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)))
     })
@@ -829,8 +839,10 @@ server <- function(input, output, session) {
                 as_tibble()%>%
                 mutate(across(c(Prediction, SE), ~if_else(is.nan(.x), NA_real_, .x)))%>%
                 mutate(Var=SE^2)%>%
+                complete(Date=parse_date_time(Data_dates(), "%Y-%m-%d"))%>%
                 group_by(Date)%>%
-                summarise(Prediction=mean(Prediction, na.rm=T),
+                summarise(Pred1<-mean(Prediction),
+                    Prediction=mean(Prediction, na.rm=T),
                           SE=sqrt(sum(Var, na.rm=T)/(n()^2)), 
                           .groups="drop")%>%
                 mutate(across(c(Prediction, SE), ~if_else(is.nan(.x), NA_real_, .x)))%>%
@@ -838,6 +850,7 @@ server <- function(input, output, session) {
                 mutate(Month=month(Date),
                        Year=year(Date),
                        SE=na_if(SE, 0))
+                
         }
     })
     
@@ -879,7 +892,7 @@ server <- function(input, output, session) {
             geom_line(color="firebrick3", 
                       size=if_else(input$Facet=="Region" & input$Regions_all, 0.3, 0.5))+
             geom_pointrange_interactive(aes(tooltip=tooltip, data_id=ID), color="firebrick3", alpha=0.5, 
-                                        size=if_else(input$Facet=="Region" & input$Regions_all, 0.001, 0.05), 
+                                        size=if_else(input$Facet=="Region" & input$Regions_all, 0.001, 0.2), 
                                         shape=ifelse(input$Facet=="Region" & input$Regions_all, ".", 16))+
             {if(input$Facet=="Month"){
                 facet_wrap(~month(Date, label=T))
