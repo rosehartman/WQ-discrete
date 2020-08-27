@@ -39,3 +39,4 @@ vignettes/*.pdf
 .Renviron
 
 CV_model*
+Shiny app/rsconnect
