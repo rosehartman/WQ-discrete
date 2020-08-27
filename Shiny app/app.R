@@ -1,5 +1,5 @@
-# Add ability to download data
 # Add raw data with same features as time series plots
+require(cubelyr)
 library(shiny)
 library(shinyWidgets)
 library(dplyr)
@@ -18,6 +18,16 @@ require(ggiraph)
 require(scales)
 
 rastered_predsSE<-readRDS("Rasterized modellc4 predictions.Rds")
+
+# To fix error with different versions of Proj on shinyapps.io vs. the saved object and since the function `st_crs<-` is missing for stars objects
+d <- st_dimensions(rastered_predsSE)
+xy <- attr(rastered_predsSE, "raster")$dimensions
+if (!all(is.na(xy))) { # has x/y spatial dimensions:
+    d[[ xy[1] ]]$refsys <- st_crs(9122)
+    d[[ xy[2] ]]$refsys <- st_crs(9122)
+}
+rastered_predsSE<-structure(rastered_predsSE, dimensions = d)
+
 Dates<-st_get_dimension_values(rastered_predsSE, "Date")
 
 all_points_static<-select(rastered_predsSE, Prediction)%>%
@@ -41,6 +51,10 @@ Point_plot<-leaflet()%>%
 
 Delta_regions_static<-readRDS("Delta subregions.Rds")%>%
     mutate(SubRegion=as.character(SubRegion))
+
+# To fix error with different versions of Proj on shinyapps.io vs. the saved object
+st_crs(Delta_regions_static)<-26910
+
 Delta_regions_N<-all_points_static%>%
     st_transform(crs=26910)%>%
     st_centroid()%>%
@@ -85,12 +99,22 @@ mygrid <- data.frame(
 )
 
 Model_eval<-readRDS("Model_eval.Rds")
-# Define UI for application that draws a histogram
+
+#Settings for the "data crunching" message. 
+info_loading <- "Crunching data"
+progress_color <- "black"
+progress_background <- "#c5c5c9"
+
+
+# Define UI
 ui <- fluidPage(
     theme = shinytheme("cerulean"),
     
     # Application title
-    titlePanel("Delta Temperature"),
+    titlePanel(title=div(h1("Delta Discrete Temperature Model", style="display: inline-block"), 
+                         a(img(src="DSP_Logo_Horizontal.png", height = 100, align="right", style="display: inline-block"), href="https://deltacouncil.ca.gov/delta-science-program/"),
+                         h5("If you encounter any issues, please email ", a("sam.bashevkin@deltacouncil.ca.gov.", href="mailto:sam.bashevkin@deltacouncil.ca.gov?subject=Discrete%20Temperature%20Shiny%20app"))), 
+               windowTitle = "Delta Discrete Temperature"),
     
     sidebarLayout(
         # Sidebar with a slider input for number of bins 
@@ -108,7 +132,7 @@ ui <- fluidPage(
                      #Buttons to download data and plots
                      actionBttn("Download", "Download data", style="simple", color="royal", icon=icon("file-download")),
                      h1("Plot options"),
-                     conditionalPanel(condition="input.Tab=='Rasters' || input.Tab=='Time series'", 
+                     conditionalPanel(condition="input.Tab=='Rasters'", 
                                       radioGroupButtons("variable",
                                                         "Plot:",
                                                         choices = c("Predicted temperature"="Prediction", "Standard Error"="SE"), selected="Prediction", individual = TRUE, 
@@ -118,9 +142,10 @@ ui <- fluidPage(
                      conditionalPanel(condition="input.Tab=='Rasters' && input.Facet!='Year x Month' && input.Facet!='Month x Year'", 
                                       uiOutput("scale_options")),
                      conditionalPanel(condition="input.Tab=='Time series'", 
-                                      h5("Draw your own regions or select preset regions?"),
-                                      switchInput("Regions", value = TRUE , offLabel="Preset", onLabel="Draw", onStatus = "success", offStatus = "primary"),
-                                      conditionalPanel(condition="!input.Regions",
+                                      radioGroupButtons("Regions",
+                                                        "Draw your own regions or select preset regions?",
+                                                        choices = c(`<i class='fa fa-pen'> Draw</i>`="Draw", `<i class='fa fa-shapes'> Preset</i>`="Preset"), selected="Draw", individual = TRUE),
+                                      conditionalPanel(condition="input.Regions=='Preset'",
                                                        prettySwitch("Regions_all","Select all regions?", status = "success", fill = TRUE))),
                      conditionalPanel(condition="input.Tab=='Model evaluation'",
                                       radioGroupButtons("Uncertainty",
@@ -150,8 +175,8 @@ ui <- fluidPage(
                                        plotOutput("TempPlot")
                               ),
                               tabPanel("Time series",
-                                       fluidRow(conditionalPanel(condition="input.Regions", editModUI("Pointplot", height = "80vh", width="100%")),
-                                                conditionalPanel(condition="!input.Regions", editModUI("Regionplot", height = "80vh", width="100%"))),
+                                       fluidRow(conditionalPanel(condition="input.Regions=='Draw'", editModUI("Pointplot", height = "80vh", width="100%")),
+                                                conditionalPanel(condition="input.Regions=='Preset'", editModUI("Regionplot", height = "80vh", width="100%"))),
                                        fluidRow(conditionalPanel(condition="input.Facet!='Month'",
                                                                  column(2, h5("Plot all months?"), materialSwitch(
                                                                      inputId = "Month2_slider",
@@ -166,7 +191,30 @@ ui <- fluidPage(
     tags$head(tags$style("#Pointplot{height:80vh !important;}")),
     tags$head(tags$style("#Regionplot{height:80vh !important;}")),
     tags$head(tags$style("#Time_plot{height:80vh !important;}")),
-    tags$head(tags$style("#Regions_plot2{height:80vh !important;}"))
+    tags$head(tags$style("#Regions_plot2{height:80vh !important;}")),
+    
+    # Display the "data crunching" message. 
+    tags$head(tags$style(type="text/css",
+                         paste0("
+                                             #loadmessage {
+                                             position: fixed;
+                                             top: 25%;
+                                             left: 25%;
+                                             width: 50%;
+                                             padding: 30px 0px 30px 0px;
+                                             text-align: center;
+                                             font-weight: bold;
+                                             font-size: 200%;
+                                             color: ", progress_color,";
+                                             background-color: ", progress_background,";
+                                             z-index: 105;
+                                             border: 2px solid black;
+                                             border-radius: 50px;
+                                             }
+                                             "))),
+    conditionalPanel(condition="$('html').hasClass('shiny-busy')",
+                     tags$div(tags$i(class = "fa fa-spinner", style = "color: black"), info_loading, tags$i(class = "fa fa-spinner", style = "color: black"), id="loadmessage")),
+    tags$style(type="text/css", ".recalculating {opacity: 1.0;}"),
 )
 
 # Define server logic required to draw a histogram
@@ -578,19 +626,21 @@ server <- function(input, output, session) {
             scale_fill_viridis_c(limits=Scale(), expand=expansion(0,0), name=if_else(input$variable=="Prediction", "Temperature (°C)", "Standard error"), na.value="white", breaks=Breaks, labels= Labels,
                                  guide = guide_colorbar(direction="horizontal", title.position = "top", ticks.linewidth = 2,
                                                         title.hjust=0.5, label.position="bottom"))+
-            {if(input$Facet=="None"){
-                #ggtitle(par("din")[1])
-                annotate("label", x=-122, y=38.45, label=paste(month(input$Month, label=T), input$Year), size=10)
-            }}+
-            {if(input$Facet=="Month"){
-                annotate("label", x=-122, y=38.45, label=input$Year, size=10)
-            }}+
             coord_sf()+
+            {if(input$Facet=="None"){
+                ggtitle(paste(month(input$Month, label=T, abbr = FALSE), input$Year))
+            }}+
             {if(input$Facet=="Month"){
                 facet_wrap(~month(Date, label=T))
             }}+
+            {if(input$Facet=="Month"){
+                ggtitle(paste("Year:", input$Year))
+            }}+
             {if(input$Facet=="Year"){
                 facet_wrap(~year(Date))
+            }}+
+            {if(input$Facet=="Year"){
+                ggtitle(paste("Month:", month(input$Month, label=T, abbr = FALSE)))
             }}+
             {if(input$Facet=="Year x Month"){
                 facet_grid(year(Date)~month(Date, label=T))
@@ -604,7 +654,7 @@ server <- function(input, output, session) {
             theme(axis.text.x = element_text(angle=45, hjust=1), strip.background=element_blank(),
                   panel.grid=element_blank(), #legend.background = element_rect(color="black"),
                   legend.position="top", legend.key.width = unit(150, "native"), legend.justification="center",
-                  text=element_text(size=18), plot.title = element_text(hjust=0.5))
+                  text=element_text(size=18), plot.title = element_text(size=24, face="bold", hjust=0.5))
     })
     
     output$TempPlot <- renderPlot({
@@ -617,10 +667,10 @@ server <- function(input, output, session) {
     # Draw your own regions/areas of interest -------------------------------------------------
     
     all_points<-reactive({
-        select(TempData(), all_of(input$variable))%>%
+        select(TempData(), Prediction)%>%
             aggregate(by=c(as.Date("1960-01-01"), Sys.Date()), function(x) length(which(!is.na(x))))%>%
             filter(time==as.Date("1960-01-01"))%>%
-            mutate(across(all_of(input$variable), ~na_if(.x, 0)))%>%
+            mutate(Prediction=na_if(Prediction, 0))%>%
             st_as_sf()%>%
             rename(N=`1960-01-01`)%>%
             mutate(ID=as.character(1:n()),)%>%
@@ -740,7 +790,7 @@ server <- function(input, output, session) {
     
     Points<-reactive({
         req(!(is.null(edits()) & is.null(edits_regions())))
-        if(input$Regions){
+        if(input$Regions=="Draw"){
             if(is.null(edits()$all)){
                 return(NULL)
             }
