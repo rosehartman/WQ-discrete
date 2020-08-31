@@ -119,8 +119,8 @@ ui <- fluidPage(
     sidebarLayout(
         # Sidebar with a slider input for number of bins 
         sidebarPanel(width=3,
-                     #Instructions
-                     actionBttn("Instructions", "Instructions", style="simple", color="primary", icon=icon("question-circle")),
+                     #Information
+                     actionBttn("Information", "Information", style="simple", color="primary", icon=icon("question-circle")),
                      h1("Filters"),
                      dateRangeInput("Date_range", label = "Date range", 
                                     start = min(Dates), end = max(Dates), startview = "year"),
@@ -223,9 +223,9 @@ server <- function(input, output, session) {
     
     # Informational popups ----------------------------------------------------
     
-    #Popup for app instructions
-    observeEvent(input$Instructions, {
-        sendSweetAlert(session, title = "Instructions", 
+    #Popup for app Information
+    observeEvent(input$Information, {
+        sendSweetAlert(session, title = "Information", 
                        text = tags$span(tags$p("This app presents model-smoothed water temperatures across the Delta 
                                                and Suisun regions. Data are predicted from a generalized additive model 
                                                and represent an approximation of surface water temperatures, not the 
@@ -238,8 +238,8 @@ server <- function(input, output, session) {
                                                and should be explored to understand the limitations of the model."),
                                         tags$p("Use the data filters to control the range of dates and months included in the plots."),
                                         "------------------------------------------",
-                                        tags$p(tags$b("Dataset, model, and app created and maintained by", 
-                                                      tags$a("Sam Bashevkin.", href = "mailto:sam.bashevkin@deltacouncil.ca.gov"), "Please email me with any questions.")),
+                                        tags$p(tags$b("Dataset, model, and app created and maintained by Sam Bashevkin (Delta Science Program) in collaboration with Brian Mahardja (USFWS) and Larry Brown (USGS). 
+                                                      Please email", a("Sam", href="mailto:sam.bashevkin@deltacouncil.ca.gov?subject=Discrete%20Temperature%20Shiny%20app"), "with any questions.")),
                                         tags$p(tags$i("The integrated dataset used to fit this model included data from the", 
                                                       tags$a("Environmental Monitoring Program, ", href = "https://portal.edirepository.org/nis/mapbrowse?packageid=edi.458.2", target="_blank"), 
                                                       tags$a("Summer Townet, ", href = "https://wildlife.ca.gov/Conservation/Delta/Townet-Survey", target="_blank"),
