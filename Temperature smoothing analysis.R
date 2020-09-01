@@ -311,8 +311,7 @@ Rasterize_season<-function(season, data, n, out_crs=4326){
   out <- exec(c, !!!preds, along=list(Year=Years, Season=season))
 }
 
-# Function to rasterize all seasons. Creates a 4D raster Latitude x Longitude x Year x Season (including all 4 seasons). 
-# Unfortunately, this requires equal dimension values across all seasons. Since some seasons are missing earlier years, this doesn't work well. 
+# Function to rasterize all dates. Creates a 3D raster Latitude x Longitude x Date 
 Rasterize_all <- function(data, var, out_crs=4326, n=100){
   var<-rlang::enquo(var)
   rlang::as_name(var)
@@ -322,7 +321,7 @@ Rasterize_all <- function(data, var, out_crs=4326, n=100){
                                                          template=st_as_stars(st_bbox(Delta), dx=diff(st_bbox(Delta)[c(1, 3)])/n, dy=diff(st_bbox(Delta)[c(2, 4)])/n, values = NA_real_))%>%
                st_warp(crs=out_crs))
   
-  # Then bind all years together into 1 raster
+  # Then bind all dates together into 1 raster
   out <- exec(c, !!!preds, along=list(Date=unique(data$Date)))
   return(out)
 }
@@ -892,12 +891,21 @@ CC_gam7c <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1
 
 sp <- SpatialPoints(coords=data.frame(Longitude=Data_CC3$Longitude, Latitude=Data_CC3$Latitude))
 sp2<-STIDF(sp, time=Data_CC3$Date, data=data.frame(Residuals=residuals(CC_gam7c$lme, type="normalized")))
-CC_gam7c_vario<-variogramST(Residuals~1, data=sp2, tunit="months", cores=3)
+CC_gam7c_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", tlags=(30/7)*1:10, cores=3)
 
+CC_gam7c2 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
+                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(30, 20), by=Year_s) + 
+                   s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
+                 data = Data_CC3, method="REML")
 
-auto<-Data_CC2%>%
-  mutate(Resid_raw=residuals(CC_gam5b$gam),
-         Resid_norm=residuals(CC_gam5b$lme,type="normalized"))%>%
+CC_gam7c3 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
+                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 25), by=Year_s) + 
+                   s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
+                 data = Data_CC3, method="REML")
+
+auto<-Data_CC3%>%
+  mutate(Resid_raw=residuals(CC_gam7c$gam),
+         Resid_norm=residuals(CC_gam7c$lme,type="normalized"))%>%
   filter(Source!="EDSM" & !str_detect(Station, "EZ"))%>% # Remove EDSM and EZ stations because they're not fixed
   mutate(Station=paste(Source, Station))%>%
   group_by(Station)%>%
