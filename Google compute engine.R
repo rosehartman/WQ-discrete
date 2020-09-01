@@ -17,7 +17,7 @@ vm <- gce_vm(template = "rstudio", zone="us-west1-a",
              disk_size_gb=100)
 gce_set_metadata(list(GCS_SESSION_BUCKET = "discretewq"), vm)
 
-# To save all files from VM, run in cloud: googleCloudStorageR::gcs_save_all(bucket="discretewq")
+# To save all files from VM, run in cloud: googleCloudStorageR::gcs_save_all  (bucket="discretewq")
 # Load files from local machine with something like:
 # gcs_load("model.Rds")
 
@@ -27,12 +27,12 @@ gce_set_metadata(list(GCS_SESSION_BUCKET = "discretewq"), vm)
 
 # To add a project
 # 1) Create Rstudio project in the VM
-# 2) Create file within the project folder named "_gcssave.yaml" with the following 2 lines:
+# 2) Create file within the project folder named "_gcssave.yaml" with the following 2 lines (without the #s):
 
 # bucket: discretewq
 # loaddir:
   
-# 3) Create .Rprofile file within project folder with the following 15 lines:
+# 3) Create .Rprofile file within project folder with the following 15 lines (without the #s):
 
 #   .First <- function(){
 #     cat("\n# Welcome Sam! Today is ", date(), "\n")

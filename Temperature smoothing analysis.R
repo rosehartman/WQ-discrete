@@ -1,3 +1,6 @@
+require(gstat)
+require(sp)
+require(spacetime)
 library(tidyverse)
 library(deltareportr)
 library(mgcv)
@@ -80,15 +83,6 @@ Data<-Data%>%
 
 #saveRDS(Data, file="Temperature smoothing model/Discrete Temp Data.Rds")
 
- #Region data for shiny app
-Delta_regions<-Delta%>%
-  left_join(Data%>%
-              st_drop_geometry()%>%
-              group_by(SubRegion)%>%
-              summarise(N_data=n(), .groups="drop"),
-            by="SubRegion")%>%
-  mutate(SubRegion=droplevels(SubRegion))
-saveRDS(Delta_regions, file="Shiny app/Delta subregions.Rds")
 
 # Model selection ---------------------------------------------------------
 
@@ -231,7 +225,6 @@ newdata<-newdata_year%>%
   mutate(SE=modellc4_predictions$se.fit,
          L95=Prediction-SE*1.96,
          U95=Prediction+SE*1.96)%>%
-  mutate()%>%
   mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-")))) # Create Date variable from Julian Day and Year
 
 # Year predictions --------------------------------------------------------
@@ -848,24 +841,63 @@ Data_CC2<-Data%>%
   ungroup()%>%
   mutate(ID=paste(Station, Date_num))%>%
   filter(!(ID%in%ID[which(duplicated(ID))]))%>%
-  mutate(YearStation=paste(Year, Station))
+  mutate(YearStation=paste(Year, Station),
+         Date_num2=as.numeric(Date)/(3600*24*14)) # Create a numeric date variable in units of 2 weeks. 
+
+CC_gam5b <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
+                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
+                   s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num_s|Station),
+                 data = Data_CC2, method="REML")
 
 CC_gam6b <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
                   s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num_s|YearStation),
                 data = Data_CC2, method="REML")
 
+# corExp won't fit
+
 CC_gam7b <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
-                   s(Time_num_s, k=5), correlation = corExp(form=~Date_num_s|Station),
+                   s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
                  data = Data_CC2, method="REML")
+#Seems to be exactly the same using the other form of Date_num, so standardization of the date variable does not have an effect on model predictions
 
 
+sp <- SpatialPoints(coords=data.frame(Longitude=Data_CC2$Longitude, Latitude=Data_CC2$Latitude))
+sp2<-STIDF(sp, time=Data_CC2$Date, data=data.frame(Residuals=residuals(CC_gam7b$lme, type="normalized")))
+CC_gam7b_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=3, tlags=seq(2,20,by=2))
+
+#Try reducing temporal resolution to once every month.
+Data_CC3<-Data%>%
+  filter(Source%in%c("EMP", "STN", "FMWT", "DJFMP", "SKT", "20mm", "Suisun", "Baystudy", "USGS") & !str_detect(Station, "EZ") & !(Source=="SKT" & Station=="799" & Latitude>38.2))%>%
+  mutate(Station=paste(Source, Station),
+         Noon_diff=abs(hms(hours=12)-as_hms(Datetime)))%>%
+  group_by(Station, Month, Year)%>%
+  filter(Date==min(Date) & Noon_diff==min(Noon_diff))%>%
+  ungroup()%>%
+  lazy_dt()%>%
+  group_by(Date, Date_num, Date_num_s, Month, SubRegion, Julian_day_s, Julian_day, Year, Year_s, Year_fac, Station, Source, Latitude_s, Longitude_s, Latitude, Longitude)%>%
+  summarise(Temperature=mean(Temperature), Time_num=mean(Time_num), Time_num_s=mean(Time_num_s))%>%
+  as_tibble()%>%
+  ungroup()%>%
+  mutate(ID=paste(Station, Date_num))%>%
+  filter(!(ID%in%ID[which(duplicated(ID))]))%>%
+  mutate(YearStation=paste(Year, Station),
+         Date_num2=as.numeric(Date)/(3600*24*30)) # Create a numeric date variable in units of ~ 1 month. 
+
+CC_gam7c <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
+                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
+                   s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
+                 data = Data_CC3, method="REML")
+
+sp <- SpatialPoints(coords=data.frame(Longitude=Data_CC3$Longitude, Latitude=Data_CC3$Latitude))
+sp2<-STIDF(sp, time=Data_CC3$Date, data=data.frame(Residuals=residuals(CC_gam7c$lme, type="normalized")))
+CC_gam7c_vario<-variogramST(Residuals~1, data=sp2, tunit="months", cores=3)
 
 
-auto<-Data_CC%>%
-  mutate(Resid_raw=residuals(CC_gam6$gam),
-         Resid_norm=residuals(CC_gam6$lme,type="normalized"))%>%
+auto<-Data_CC2%>%
+  mutate(Resid_raw=residuals(CC_gam5b$gam),
+         Resid_norm=residuals(CC_gam5b$lme,type="normalized"))%>%
   filter(Source!="EDSM" & !str_detect(Station, "EZ"))%>% # Remove EDSM and EZ stations because they're not fixed
   mutate(Station=paste(Source, Station))%>%
   group_by(Station)%>%
@@ -919,15 +951,21 @@ CC_effort<-newdata%>%
   group_by(Month, SubRegion)%>%
   summarise(N=n(), .groups="drop")
 
-test<-predict(CC_gam, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
+CC_pred<-predict(CC_gam7b$gam, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
 
 newdata_CC_pred<-CC_newdata%>%
-  mutate(Slope=test$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
-         Slope=(Slope/Year_s)/sd(Data$Year),
-         Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
-         Month=month(Date, label = T))
+  mutate(Slope=CC_pred$fit[,"te(Latitude_s,Longitude_s,Julian_day_s):Year_s"],
+         Slope_se=CC_pred$se.fit[,"te(Latitude_s,Longitude_s,Julian_day_s):Year_s"],
+         Intercept=CC_pred$fit[,"te(Latitude_s,Longitude_s,Julian_day_s)"]+CC_pred$fit[,"s(Time_num_s)"])%>%
+  mutate(across(c(Slope, Slope_se), ~(.x/Year_s)/sd(Data$Year)))%>%
+  mutate(Slope_se=abs(Slope_se))%>%
+  mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
+         Month=month(Date, label = T),
+         Slope_l95=Slope-Slope_se*qnorm(0.995),
+         Slope_u95=Slope+Slope_se*qnorm(0.995))%>%
+  mutate(Sig=if_else(Slope_u95>0 & Slope_l95<0, "ns", "*"))
 
-p_CC_gam<-ggplot(newdata_CC_pred, aes(x=Longitude, y=Latitude, color=Slope))+
+p_CC_gam<-ggplot(filter(newdata_CC_pred, Sig=="*"), aes(x=Longitude, y=Latitude, color=Slope))+
   geom_point()+
   facet_wrap(~Month)+
   scale_color_gradient2(high = muted("red"), low = muted("blue"), breaks=(-6:7)/100, guide=guide_colorbar(barheight=20))+
@@ -955,19 +993,6 @@ save(CC_vario, CC_vario_EMP, CC_brm, CC_brm2, CC_brm3, CC_brm4, CC_brm_EMP, file
 ggplot(CC_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
   geom_line()+
   geom_point()
-
-
-# Shiny app data ----------------------------------------------------------
-
-Model_eval<-Resid_sum%>%
-  left_join(Resid_CV_sum%>%
-              rename(SD_CV=SD)%>%
-              select(-Fitted_resid),
-            by=c("Year", "Month", "SubRegion"))%>%
-  left_join(Data_effort,
-            by=c("Year", "Month", "SubRegion"))
-
-saveRDS(Model_eval, file="Shiny app/Model_eval.Rds")
 
 # Next steps ----------------------------------------------------
 

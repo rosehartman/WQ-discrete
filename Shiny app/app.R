@@ -154,8 +154,8 @@ ui <- fluidPage(
                                                         checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue"))),
                                       conditionalPanel(condition="input.Uncertainty!='Sample size of measured values'", 
                                                        radioGroupButtons("Uncertainty_value",
-                                                                         "Plot mean error or standard deviation of error?",
-                                                                         choices = c("Mean", "SD"), selected="Mean", individual = TRUE, 
+                                                                         "Plot mean error, mean magnitude of error, or standard deviation of error?",
+                                                                         choices = c("Mean", "Mean magnitude", "SD"), selected="Mean", individual = TRUE, 
                                                                          checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue"))))),
                      actionBttn("Plot_info", label = NULL, style="material-circle", 
                                 color="primary", icon=icon("question"))
@@ -266,10 +266,12 @@ server <- function(input, output, session) {
                              the dataset was split into 20 parts, evenly splitting across regions, years, and seasons. Twenty separate datasets were created
                              each missing 1 of those 20 parts and predictions were generated for the missing parts. CV residuals were not calculated for years
                              before 1974 due to the very small number of data points in those years."),
-                           p("The 'Sample size of measured values' options allows you to explore the number of temperature measurements in each month, year, and region.
-                             This should give you an idea of the data available to the model during fitting."),
+                           p("The 'Mean magnitude' option for visualizing residuals allows you to explore the average magnitude of error. 
+                             Since the residuals can be positive or negative, the regular mean may result in large positive or negative values canceling one another out."),
                            p("The standard deviation of the residual values should help inform the range of error magnitudes. Small mean errors could still be problematic if individual
                              errors can be large."),
+                           p("The 'Sample size of measured values' options allows you to explore the number of temperature measurements in each month, year, and region.
+                             This should give you an idea of the data available to the model during fitting."),
                            p("These plots are interactive, so hover your mouse over the graph to see the data values."),
                            p("Scroll down to see a map of the regions used to produce the plot."))
         } else{
@@ -383,15 +385,16 @@ server <- function(input, output, session) {
         
         
         if(input$Uncertainty=="Model residuals"){
-            Data<-Model_eval%>%
-                rename(Fill=Resid, Fill_SD=SD)
+                Data<-Model_eval%>%
+                    rename(Fill=Resid, Fill_mag=Resid_mag, Fill_SD=SD)
+            
         }else{
             if(input$Uncertainty=="Sample size of measured values"){
                 Data<-Model_eval%>%
                     rename(Fill=N)
             }else{
                 Data<-Model_eval%>%
-                    rename(Fill=Resid_CV, Fill_SD=SD_CV)%>%
+                    rename(Fill=Resid_CV, Fill_mag=Resid_mag_CV, Fill_SD=SD_CV)%>%
                     filter(Year>=1974)
             }
             
@@ -408,14 +411,15 @@ server <- function(input, output, session) {
                        tooltip=paste0( "<table>", tooltip, "</table>" ),
                        ID=1:n())
         } else{
-            str_model <- paste0("<tr><td>Resid: &nbsp</td><td>%s</td></tr>",
+            str_model <- paste0("<tr><td>Mean resid: &nbsp</td><td>%s</td></tr>",
+                                "<tr><td>Mean resid magnitude: &nbsp</td><td>%s</td></tr>",
                                 "<tr><td>SD: &nbsp</td><td>%s</td></tr>",
                                 "<tr><td>Year: &nbsp</td><td>%s</td></tr>", 
                                 "<tr><td>Month: &nbsp</td><td>%s</td></tr>")
             Data<-Data%>%
                 filter(Year>year(min(input$Date_range)) & Year<year(max(input$Date_range)) & Month%in%input$Months)%>%
                 mutate(Month=month(Month, label=T))%>%
-                mutate(tooltip=sprintf(str_model, round(Fill, 2), round(Fill_SD, 2), Year, Month),
+                mutate(tooltip=sprintf(str_model, round(Fill, 2), round(Fill_mag, 2), round(Fill_SD, 2), Year, Month),
                        tooltip=paste0( "<table>", tooltip, "</table>" ),
                        ID=1:n())
         }
@@ -424,8 +428,13 @@ server <- function(input, output, session) {
         p_resid<-ggplot(Data)+
             {if(input$Uncertainty_value=="Mean" | input$Uncertainty=="Sample size of measured values"){
                 geom_tile_interactive(aes(x=Year, y=Month, fill=Fill, color=Fill, tooltip=tooltip, data_id=ID))
-            }else{
-                geom_tile_interactive(aes(x=Year, y=Month, fill=Fill_SD, color=Fill_SD, tooltip=tooltip, data_id=ID))
+            }else{ 
+                if(input$Uncertainty_value=="Mean magnitude"){
+                    geom_tile_interactive(aes(x=Year, y=Month, fill=Fill_mag, color=Fill_mag, tooltip=tooltip, data_id=ID))
+                }else{
+                    geom_tile_interactive(aes(x=Year, y=Month, fill=Fill_SD, color=Fill_SD, tooltip=tooltip, data_id=ID))
+                }
+                
             }}+
             {if(input$Uncertainty_value=="Mean" & !input$Uncertainty=="Sample size of measured values"){
                 scale_fill_gradient2(name=paste("Mean", tolower(input$Uncertainty), "(°C)"),
@@ -442,11 +451,19 @@ server <- function(input, output, session) {
                                                               title.hjust=0.5, label.position="bottom"),
                                          aesthetics = c("color", "fill"))
                 }else{
-                    scale_fill_viridis_c(name=paste("Standard deviation in", tolower(input$Uncertainty), "(°C)"),
-                                         breaks=seq(0,4.5, by=0.5),
-                                         guide=guide_colorbar(direction="horizontal", title.position = "top", ticks.linewidth = 1,
-                                                              title.hjust=0.5, label.position="bottom"),
-                                         aesthetics = c("color", "fill")) 
+                    if(input$Uncertainty_value=="Mean magnitude"){
+                        scale_fill_viridis_c(name=paste("Mean magnitude of", tolower(input$Uncertainty), "(°C)"),
+                                             breaks=seq(0,9, by=0.5),
+                                             guide=guide_colorbar(direction="horizontal", title.position = "top", ticks.linewidth = 1,
+                                                                  title.hjust=0.5, label.position="bottom"),
+                                             aesthetics = c("color", "fill")) 
+                    }else{
+                        scale_fill_viridis_c(name=paste("Standard deviation in", tolower(input$Uncertainty), "(°C)"),
+                                             breaks=seq(0,4.5, by=0.5),
+                                             guide=guide_colorbar(direction="horizontal", title.position = "top", ticks.linewidth = 1,
+                                                                  title.hjust=0.5, label.position="bottom"),
+                                             aesthetics = c("color", "fill")) 
+                    }
                 }
                 
             }}+
