@@ -888,6 +888,7 @@ CC_gam7c <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1
                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
                  data = Data_CC3, method="REML")
+# BIC: 177774.8
 
 sp <- SpatialPoints(coords=data.frame(Longitude=Data_CC3$Longitude, Latitude=Data_CC3$Latitude))
 sp2<-STIDF(sp, time=Data_CC3$Date, data=data.frame(Residuals=residuals(CC_gam7c$lme, type="normalized")))
@@ -897,6 +898,8 @@ CC_gam7c2 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,
                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(30, 20), by=Year_s) + 
                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
                  data = Data_CC3, method="REML")
+# BIC: 177775.2
+# No improvement over CC_gam7c
 
 CC_gam7c3 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 25), by=Year_s) + 
