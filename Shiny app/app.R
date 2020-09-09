@@ -1,5 +1,6 @@
 # Add raw data with same features as time series plots
 require(cubelyr)
+require(stringr)
 library(shiny)
 library(shinyWidgets)
 library(dplyr)
@@ -100,13 +101,53 @@ mygrid <- data.frame(
 
 Model_eval<-readRDS("Model_eval.Rds")
 
+
+# Raw data ----------------------------------------------------------------
+
+
+Data<-readRDS("Raw temp data.Rds")%>%
+    mutate(Station=case_when(
+        str_detect(Station, "EZ") ~ paste("EMP", str_extract(Station, "([^\\s]+)")),
+        Source=="EDSM" ~ paste("EDSM", SubRegion),
+        TRUE ~ paste(Source, Station)
+    ))
+
+all_stations_static<-Data%>%
+    filter(Source!="EDSM" & !str_detect(Station, "EZ") & !StationID%in%c("SKT 799", "SKT 999", "SKT 699"))%>%
+    st_drop_geometry()%>%
+    group_by(StationID, Latitude, Longitude)%>%
+    summarise(N=n(), .groups="drop")%>%
+    distinct()%>%
+    st_as_sf(coords=c("Longitude", "Latitude"), crs=4326)
+
+pal_N3_static<-colorNumeric("viridis", domain=range(log(all_stations_static$N), na.rm=T), na.color="#00000000")
+
+pal_N3_rev_static<-colorNumeric("viridis", domain=range(log(all_stations_static$N), na.rm=T), reverse=T, na.color="#00000000")
+
+Station_plot<-leaflet()%>%
+    addProviderTiles("Esri.WorldGrayCanvas")%>%
+    addFeatures(data=all_stations_static, fillColor=~pal_N3_static(log(N)), 
+                color="black", fillOpacity = 0.2, label=lapply(paste0("<h5 align='center'>", all_stations_static$StationID, "</h5>", "<h6 align='center' style='color:red'>N: ", format(all_stations_static$N, big.mark   = ","), "</h6>"), htmltools::HTML), 
+                layerId = ~StationID, weight=0.4)%>%
+    addLegend(data=all_stations_static, position="topright", pal = pal_N3_rev_static, values = ~log(N), opacity=0.5,
+              labFormat = labelFormat(transform = function(x) sort(round(exp(x)), decreasing = TRUE)), title="Number of raw</br>temperature records</br>(log scale)")
+
+
+# Time correction
+
+Time_correction<-readRDS("Time_correction.Rds")
+
+
 #Settings for the "data crunching" message. 
 info_loading <- "Crunching data"
 progress_color <- "black"
 progress_background <- "#c5c5c9"
 
 
-# Define UI
+
+# User interface ----------------------------------------------------------
+
+
 ui <- fluidPage(
     theme = shinytheme("cerulean"),
     
@@ -129,15 +170,16 @@ ui <- fluidPage(
                                                                 "September" = 9, "October" = 10, "November" = 11, 
                                                                 "December" = 12), 
                                  selected = 1:12, multiple = T, options=list(`actions-box`=TRUE, `selected-text-format` = "count > 3")),
-                     #Buttons to download data and plots
-                     actionBttn("Download", "Download data", style="simple", color="royal", icon=icon("file-download")),
+                     #Buttons to download data
+                     conditionalPanel(condition="input.Tab!='Raw data'",
+                                      actionBttn("Download", "Download data", style="simple", color="royal", icon=icon("file-download"))),
                      h1("Plot options"),
                      conditionalPanel(condition="input.Tab=='Rasters'", 
                                       radioGroupButtons("variable",
                                                         "Plot:",
                                                         choices = c("Predicted temperature"="Prediction", "Standard Error"="SE"), selected="Prediction", individual = TRUE, 
                                                         checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue")))),
-                     conditionalPanel(condition="input.Tab=='Rasters' || input.Tab=='Time series'", 
+                     conditionalPanel(condition="input.Tab=='Rasters' || input.Tab=='Time series' || input.Tab=='Raw data'", 
                                       uiOutput("facet_options")),
                      conditionalPanel(condition="input.Tab=='Rasters' && input.Facet!='Year x Month' && input.Facet!='Month x Year'", 
                                       uiOutput("scale_options")),
@@ -157,6 +199,17 @@ ui <- fluidPage(
                                                                          "Plot mean error, mean magnitude of error, or standard deviation of error?",
                                                                          choices = c("Mean", "Mean magnitude", "SD"), selected="Mean", individual = TRUE, 
                                                                          checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue"))))),
+                     conditionalPanel(condition="input.Tab=='Raw data'",
+                                      h5("Include data from non-fixed stations (EDSM, EMP EZ stations, and SKT stations 699, 799, and 999) that are not plotted on map?"), 
+                                      materialSwitch(
+                                          inputId = "Nonfixed",
+                                          value = TRUE, inline=F,
+                                          status = "primary"),
+                                      h5("Apply time-of-day correction to normalize all data to noon?"), 
+                                      materialSwitch(
+                                          inputId = "Time_correction",
+                                          value = TRUE, inline=F,
+                                          status = "primary")),
                      actionBttn("Plot_info", label = NULL, style="material-circle", 
                                 color="primary", icon=icon("question"))
         ),
@@ -184,7 +237,16 @@ ui <- fluidPage(
                                                                      status = "primary")), 
                                                                  column(10,conditionalPanel(condition="!input.Month2_slider",uiOutput("select_Month2"))))),
                                        fluidRow(girafeOutput("Time_plot", height="100vh", width="130vh"))
-                              )
+                              ),
+                              tabPanel("Raw data",
+                                       fluidRow(editModUI("Rawmap", height = "80vh", width="100%")),
+                                       fluidRow(conditionalPanel(condition="input.Facet!='Month'",
+                                                                 column(2, h5("Plot all months?"), materialSwitch(
+                                                                     inputId = "Month3_slider",
+                                                                     value = FALSE, inline=F,
+                                                                     status = "primary")), 
+                                                                 column(10,conditionalPanel(condition="!input.Month3_slider",uiOutput("select_Month3"))))),
+                                       fluidRow(girafeOutput("Raw_time_plot", height="100vh", width="130vh")))
                   ))
     ),
     tags$head(tags$style("#TempPlot{height:80vh !important;}")),
@@ -192,6 +254,8 @@ ui <- fluidPage(
     tags$head(tags$style("#Regionplot{height:80vh !important;}")),
     tags$head(tags$style("#Time_plot{height:80vh !important;}")),
     tags$head(tags$style("#Regions_plot2{height:80vh !important;}")),
+    tags$head(tags$style("#Rawmap{height:80vh !important;}")),
+    tags$head(tags$style("#Raw_time_plot{height:80vh !important;}")),
     
     # Display the "data crunching" message. 
     tags$head(tags$style(type="text/css",
@@ -237,6 +301,7 @@ server <- function(input, output, session) {
                                         tags$p("The first tab 'Model evaluation' presents the uncertainty in model predictions 
                                                and should be explored to understand the limitations of the model."),
                                         tags$p("Use the data filters to control the range of dates and months included in the plots."),
+                                        tags$p("The raw data can be plotted in a time-series within your region of interest on the 'Raw data' tab."),
                                         "------------------------------------------",
                                         tags$p(tags$b("Dataset, model, and app created and maintained by Sam Bashevkin (Delta Science Program) in collaboration with Brian Mahardja (USFWS) and Larry Brown (USGS). 
                                                       Please email", a("Sam", href="mailto:sam.bashevkin@deltacouncil.ca.gov?subject=Discrete%20Temperature%20Shiny%20app"), "with any questions.")),
@@ -284,6 +349,7 @@ server <- function(input, output, session) {
                                p(tags$b("It is highly recommended to also 'fix' the scale when scrolling or animating through time so the color scale does not
                                  change with every new time point.")))
             }else{
+                if(input$Tab=="Time series"){
                 out<-tags$span(h2("Time series plots"),
                                p("Select spatial regions of interest and plot a timeseries for those regions."),
                                p("Model predictions have been spatially and temporally trimmed to the extent of the integrated dataset. Predictions were only generated for
@@ -300,6 +366,17 @@ server <- function(input, output, session) {
                                        temperature values for each date. For example, the Confluence is heavily represented, while the Upper San Joaquin River is often missing dates in the timeseries.
                                        Averaging across both these areas would be biased by some time points including the warm Upper San Joaquin River temperatures, and others only including the
                                        cooler Confluence temperatures."))
+                }else{
+                    out<-tags$span(h2("Raw data time-series"),
+                                   p("This section will display the raw temperature data, rather than the model-predicted data shown in the other tabs"),
+                                   p("Select sampling stations of interest and plot a timeseries of raw data for those regions."),
+                                   p("Only fixed stations are displayed on the map but data from unfixed stations (EDSM, EMP EZ stations, and SKT stations 699, 799, and 999)
+                                     within the selected region are also included in plots by default unless the slider on the left is clicked."),
+                                   p("By default, time-of-day effects will be eliminated by correcting temperature data to noon. 
+                                     This correction is applied using the value of the time-of-day smoother in the GAM presented in the other 3 tabs.
+                                     You can disable this correction using the slider to the left."),
+                                   tags$em("Plots facetted by month will be slow to load, especially if a large number of stations are selected."))
+                }
             }
         }
         return(out)
@@ -385,8 +462,8 @@ server <- function(input, output, session) {
         
         
         if(input$Uncertainty=="Model residuals"){
-                Data<-Model_eval%>%
-                    rename(Fill=Resid, Fill_mag=Resid_mag, Fill_SD=SD)
+            Data<-Model_eval%>%
+                rename(Fill=Resid, Fill_mag=Resid_mag, Fill_SD=SD)
             
         }else{
             if(input$Uncertainty=="Sample size of measured values"){
@@ -535,11 +612,23 @@ server <- function(input, output, session) {
                     animate=animationOptions(interval=1000, loop=T), width="100%")
     })
     
+    output$select_Month3 <- renderUI({
+        req(!is.null(input$Months))
+        sliderInput("Month3",
+                    "Select month:", min=min(Data_filtered()$Month), max=max(Data_filtered()$Month), value =  min(Data_filtered()$Month), step=1, round=T, sep="", 
+                    animate=animationOptions(interval=1000, loop=T), width="100%")
+    })
+    
     output$facet_options<-renderUI({
         if(input$Tab=='Rasters'){
             Choices<-c("None", "Month", "Year", "Month x Year", "Year x Month")
         }else{
-            Choices<-c("None", "Month", "Region")
+            if(input$Tab=="Time series"){
+                Choices<-c("None", "Month", "Region")
+                
+            }else{
+                Choices<-c("None", "Month")
+            }
         }
         pickerInput("Facet",
                     "Facet plot by:",
@@ -909,7 +998,7 @@ server <- function(input, output, session) {
                 complete(Date=parse_date_time(Data_dates(), "%Y-%m-%d"))%>%
                 group_by(Date)%>%
                 summarise(Pred1<-mean(Prediction),
-                    Prediction=mean(Prediction, na.rm=T),
+                          Prediction=mean(Prediction, na.rm=T),
                           SE=sqrt(sum(Var, na.rm=T)/(n()^2)), 
                           .groups="drop")%>%
                 mutate(across(c(Prediction, SE), ~if_else(is.nan(.x), NA_real_, .x)))%>%
@@ -917,7 +1006,7 @@ server <- function(input, output, session) {
                 mutate(Month=month(Date),
                        Year=year(Date),
                        SE=na_if(SE, 0))
-                
+            
         }
     })
     
@@ -991,6 +1080,157 @@ server <- function(input, output, session) {
         girafe_options(p, opts_toolbar(saveaspng = FALSE), opts_selection(type="none"))
     })
     
+    
+    # Raw data ----------------------------------------------------------------
+    
+    Data_filtered<-reactive({
+        req(input$Date_range, any(input$Months%in%1:12))
+        Data%>%
+            filter(Date>min(input$Date_range) & Date<max(input$Date_range) & month(Date)%in%input$Months)
+    })
+    
+    
+    all_stations<-reactive({
+        Data_filtered()%>%
+            filter(Source!="EDSM" & !str_detect(Station, "EZ") & !StationID%in%c("SKT 799", "SKT 999", "SKT 699"))%>%
+            st_drop_geometry()%>%
+            group_by(StationID, Latitude, Longitude)%>%
+            summarise(N=n(), .groups="drop")%>%
+            distinct()%>%
+            st_as_sf(coords=c("Longitude", "Latitude"), crs=4326)
+        
+    })
+    
+    all_stations_plot<-reactive({
+        all_stations()%>%
+            {if(is.null(Stations())){
+                mutate(., opac=0.2)
+            }else{
+                mutate(., opac=if_else(StationID%in%Stations()$StationID, 0.9, 0.2))
+            }}
+    })
+    
+    pal_N3<-reactive({
+        colorNumeric("viridis", domain=range(log(all_stations()$N), na.rm=T), na.color="#00000000")
+    })
+    
+    pal_N3_rev<-reactive({
+        colorNumeric("viridis", domain=range(log(all_stations()$N), na.rm=T), reverse=T, na.color="#00000000")
+    })
+    
+    #set the namespace for the map
+    ns_Rawmap <- shiny::NS("Rawmap")
+    
+    
+    
+    #call the editMod function from 'mapedit' to use in the leaflet map.
+    
+    edits_Rawmap <- callModule(editMod, "Rawmap", leafmap = Station_plot, 
+                               editorOptions=list(polylineOptions=F, circleMarkerOptions=F, markerOptions=F))
+    
+    observeEvent(all_stations_plot(), {  
+        proxy.points <- leafletProxy(ns_Rawmap("map"))
+        
+        proxy.points %>%
+            clearShapes()%>%
+            clearControls()%>%
+            addFeatures(data=all_stations_plot(), fillColor=~pal_N3()(log(N)), color="black", fillOpacity = ~opac, 
+                        label=lapply(paste0("<h5 align='center'>", all_stations_plot()$StationID, "</h5>", "<h6 align='center' style='color:red'>N: ", format(all_stations_plot()$N, big.mark   = ","), "</h6>"), htmltools::HTML), 
+                        layerId = ~StationID, weight=~opac*2)%>%
+            addLegend(data=all_stations_plot(), position="topright", pal = pal_N3_rev(), values = ~log(N), opacity=1, 
+                      labFormat = labelFormat(transform = function(x) sort(round(exp(x)), decreasing = TRUE)), title="Number of raw</br>temperature records</br>(log scale)")
+    }) 
+    
+    # Extract and plot raw timeseries data ----------------------------------------
+    
+    Stations<-reactive({
+        req(!(is.null(edits_Rawmap())))
+        if(is.null(edits_Rawmap()$all)){
+            return(NULL)
+        }
+        
+        Area<-edits_Rawmap()$all%>%
+            st_transform(crs=26910)%>%
+            st_union()
+        
+        Selected_stations<-Data_filtered()%>%
+            st_transform(crs=26910)%>%
+            st_filter(Area)%>%
+            st_drop_geometry()%>%
+            pull(StationID)%>%
+            unique()
+        
+        if(length(Selected_stations)>0){
+            out<-filter(Data_filtered(), StationID%in%Selected_stations)%>%
+                st_transform(crs=4326)
+        }else(
+            out<-NULL
+        )
+        
+        
+        return(out)
+    })  
+    
+    raw_data_plot<-reactive({
+        req(input$Facet, input$Month3, Stations())
+        
+        if(input$Nonfixed){
+            Data<-Stations()
+        }else{
+            Data<-Stations()%>%
+                filter(Source!="EDSM" & !str_detect(Station, "EZ"))
+        }
+        
+        if(input$Facet!="Month" & !input$Month3_slider){
+            Data<-Data%>%
+                filter(Month%in%input$Month3)
+        }
+        
+        if(input$Time_correction){
+            Data<-Data%>%
+                mutate(Time=as.character(round(Time_num_s, 1)))%>%
+                left_join(Time_correction, by="Time")%>%
+                mutate(Temperature=Temperature+Correction)
+        }
+        return(Data)
+    })
+    
+    raw_time_series_plot<-reactive({
+        req(raw_data_plot())
+        
+        str_model <- paste0("<tr><td>Station: &nbsp</td><td>%s</td></tr>",
+                            "<tr><td>Date: &nbsp</td><td>%s</td></tr>",
+                            "<tr><td>Time: &nbsp</td><td>%s</td></tr>", 
+                            "<tr><td>Temperature: &nbsp</td><td>%s</td></tr>")
+        
+        Data<-raw_data_plot()%>%
+            rowwise()%>%
+            mutate(tooltip=sprintf(str_model, Station, format(Date, format="%b %d, %Y"), format(Datetime, format="%I:%M %p"), round(Temperature, 2)))%>%
+            ungroup()%>%
+            mutate(ID=1:n(),
+                   tooltip=paste0( "<table>", tooltip, "</table>" ))
+        
+        ggplot(Data, aes(x=Date, y=Temperature, group=Station, fill=Station, color=Station))+
+            geom_line_interactive(size=0.5, aes(data_id=Station, tooltip=Station,
+                                                hover_css = "fill:none; stroke:gold; stroke-width:3px;"))+
+            geom_point_interactive(aes(tooltip=tooltip, data_id=ID,
+                                       hover_css = "stroke-width:3px; fill:gold; stroke:gold;"), alpha=0.5, 
+                                   shape=21)+
+            {if(input$Facet=="Month"){
+                facet_wrap(~month(Month, label=T))
+            }}+
+            ylab("Temperature (°C)")+
+            theme_bw()+
+            theme(strip.background=element_blank(), text=element_text(size=18), axis.text.x=element_text(angle=45, hjust=1))
+        
+    })
+    
+    output$Raw_time_plot<-renderGirafe({
+        p<-girafe(ggobj=raw_time_series_plot(), width_svg = 10, pointsize=12, 
+                  options = list(
+                      opts_sizing(rescale = T, width = 1)))
+        girafe_options(p, opts_toolbar(saveaspng = FALSE), opts_selection(type="none"))
+    })
     
     
 }

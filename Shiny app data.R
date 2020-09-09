@@ -4,8 +4,13 @@ require(purrr)
 require(stars)
 require(lubridate)
 require(dtplyr)
+require(tibble)
+require(mgcv)
 
 Data<-readRDS("Temperature smoothing model/Discrete Temp Data.Rds")
+
+
+
 #Region data for shiny app
 
 Delta<-st_read("Delta Subregions")%>%
@@ -16,6 +21,13 @@ Data_effort <- Data%>%
   st_drop_geometry()%>%
   group_by(SubRegion, Month, Year)%>%
   summarise(N=n(), .groups="drop")
+
+
+# Raw data ----------------------------------------------------------------
+
+Data_shiny<-Data%>%
+  select(Source, Station, Date, Datetime, Temperature, Year, StationID, Latitude, Longitude, Month, Season, SubRegion, Julian_day, Time_num_s)
+saveRDS(Data_shiny, file="Shiny app/Raw temp data.Rds")
 
 # Delta Regions -----------------------------------------------------------
 
@@ -123,3 +135,27 @@ Model_eval<-Resid_sum%>%
             by=c("Year", "Month", "SubRegion"))
 
 saveRDS(Model_eval, file="Shiny app/Model_eval.Rds")
+
+
+# Time correction ---------------------------------------------------------
+
+modellc4<-readRDS("C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Models/modellc4.Rds")
+Noon<-((12*3600)-mean(Data$Time_num))/sd(Data$Time_num)
+
+Times<-tibble(Time_num_s=c(seq(floor(min(Data$Time_num_s)*10)/10, ceiling(max(Data$Time_num_s)*10)/10, by=0.1), Noon),
+              Year_fac="2000", Longitude_s=0, Latitude_s=0, Julian_day_s=0, )
+### Need to install earlier version of mgcv for this to work
+## devtools::install_version("mgcv", version = "1.8-31", repos = "http://cran.us.r-project.org")
+
+Time_correction<-predict(modellc4, newdata=Times, type="terms", terms="s(Time_num_s)")
+
+Times<-Times%>%
+  mutate(Correction=as.vector(Time_correction))
+
+Times<-Times%>%
+  filter(Time_num_s!=Noon)%>%
+  mutate(Correction=filter(Times, Time_num_s==Noon)%>%pull(Correction)-Correction,
+         Time=as.character(Time_num_s))%>%
+  select(Time, Correction)
+
+saveRDS(Times, file="Shiny app/Time_correction.Rds")
