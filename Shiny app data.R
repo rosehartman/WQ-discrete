@@ -143,7 +143,7 @@ modellc4<-readRDS("C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water qu
 Noon<-((12*3600)-mean(Data$Time_num))/sd(Data$Time_num)
 
 Times<-tibble(Time_num_s=c(seq(floor(min(Data$Time_num_s)*10)/10, ceiling(max(Data$Time_num_s)*10)/10, by=0.1), Noon),
-              Year_fac="2000", Longitude_s=0, Latitude_s=0, Julian_day_s=0, )
+              Year_fac="2000", Longitude_s=0, Latitude_s=0, Julian_day_s=0)
 ### Need to install earlier version of mgcv for this to work
 ## devtools::install_version("mgcv", version = "1.8-31", repos = "http://cran.us.r-project.org")
 
