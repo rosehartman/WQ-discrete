@@ -120,15 +120,27 @@ modellc6a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day
 #AIC: 116029.4
 #BIC: 159493.6
 
+## New best
 modellda <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
                   te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
                  data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
 #AIC: 116044.4
 #BIC: 156647.7
 
+## New best
+
 modelld2a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
                   te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 20)),
                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
+# AIC: 116037.9
+# BIC: 156774
+
+modelld3a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 15), by=Year_fac) + 
+                  te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
+                data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
+# AIC: 125744.8
+# BIC: 157472.3
+
 # Final model -------------------------------------------------------------
 
 require(googleComputeEngineR)
