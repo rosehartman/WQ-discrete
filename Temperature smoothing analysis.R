@@ -242,10 +242,18 @@ modellc4_predictions<-predict(modellc4, newdata=newdata_year, type="response", s
 
 newdata_year<-readRDS("Temperature smoothing model/Prediction Data.Rds")
 modellc4_predictions<-readRDS("Temperature smoothing model/modellc4_predictions.Rds")
+modelld_predictions<-readRDS("Temperature smoothing model/modelld_predictions.Rds")
 
 newdata<-newdata_year%>%
   mutate(Prediction=modellc4_predictions$fit)%>%
   mutate(SE=modellc4_predictions$se.fit,
+         L95=Prediction-SE*1.96,
+         U95=Prediction+SE*1.96)%>%
+  mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-")))) # Create Date variable from Julian Day and Year
+
+newdata_d<-newdata_year%>%
+  mutate(Prediction=modelld_predictions$fit)%>%
+  mutate(SE=modelld_predictions$se.fit,
          L95=Prediction-SE*1.96,
          U95=Prediction+SE*1.96)%>%
   mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-")))) # Create Date variable from Julian Day and Year
@@ -271,6 +279,12 @@ newdata_year2<-newdata%>%
   left_join(Data_effort, by=c("SubRegion", "Month", "Year"))%>% 
   filter(!is.na(N))
 
+newdata_year2_d<-newdata_d%>%
+  select(-N)%>%
+  mutate(Month=month(Date))%>%
+  left_join(Data_effort, by=c("SubRegion", "Month", "Year"))%>% 
+  filter(!is.na(N))
+
 Data_year<-Data%>%
   filter(hour(Time)<14 & hour(Time)>10)%>%
   lazy_dt()%>%
@@ -280,6 +294,17 @@ Data_year<-Data%>%
   as_tibble()
 
 newdata_sum<-newdata_year2%>%
+  mutate(Var=SE^2,
+         Month=month(Date))%>%
+  lazy_dt()%>%
+  group_by(Year, Month, SubRegion)%>%
+  summarise(Temperature=mean(Prediction), SE=sqrt(sum(Var)/(n()^2)))%>%
+  ungroup()%>%
+  as_tibble()%>%
+  mutate(L95=Temperature-1.96*SE,
+         U95=Temperature+1.96*SE)
+
+newdata_sum_d<-newdata_year2_d%>%
   mutate(Var=SE^2,
          Month=month(Date))%>%
   lazy_dt()%>%
@@ -301,7 +326,7 @@ ggplot(filter(newdata_sum, SubRegion=="Confluence"))+
 
 # Plot by Subregion for 1 season
 mapyear<-function(month){
-  ggplot(filter(newdata_sum, Month==month))+
+  ggplot(filter(newdata_sum_d, Month==month))+
     geom_ribbon(aes(x=Year, ymin=L95, ymax=U95), fill="firebrick3", alpha=0.5)+
     geom_line(aes(x=Year, y=Temperature), color="firebrick3")+
     geom_pointrange(data=filter(Data_year, Month==month), aes(x=Year, y=Temperature, ymin=Temperature-SD, ymax=Temperature+SD), size=0.5, alpha=0.4)+
@@ -310,7 +335,7 @@ mapyear<-function(month){
     theme(panel.grid=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
 }
 
-walk(1:12, function(x) ggsave(plot=mapyear(x), filename=paste0("C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Year predictions month ", x, " 8.7.20.png"), device=png(), width=15, height=12, units="in"))
+walk(1:12, function(x) ggsave(plot=mapyear(x), filename=paste0("C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Year predictions month ", x, " 9.18.20_d.png"), device=png(), width=15, height=12, units="in"))
 
 
 # Rasterized predictions --------------------------------------------------
@@ -360,15 +385,23 @@ newdata_rast <- newdata%>%
   left_join(Data_effort, by=c("SubRegion", "Month", "Year"))%>% 
   mutate(across(c(Prediction, SE, L95, U95), ~if_else(is.na(N), NA_real_, .)))
 
+newdata_rast_d <- newdata_d%>%
+  mutate(Month=month(Date))%>%
+  select(-N)%>%
+  left_join(Data_effort, by=c("SubRegion", "Month", "Year"))%>% 
+  mutate(across(c(Prediction, SE, L95, U95), ~if_else(is.na(N), NA_real_, .)))
+
 # Create full rasterization of all predictions for interactive visualizations
 rastered_preds<-Rasterize_all(newdata_rast, Prediction)
+rastered_preds_d<-Rasterize_all(newdata_rast_d, Prediction)
 # Same for SE
 rastered_SE<-Rasterize_all(newdata_rast, SE)
+rastered_SE_d<-Rasterize_all(newdata_rast_d, SE)
 # Bind SE and predictions together
 rastered_predsSE<-c(rastered_preds, rastered_SE)
+rastered_predsSE_d<-c(rastered_preds_d, rastered_SE_d)
 
 #saveRDS(rastered_predsSE, file="Shiny app/Rasterized modellc4 predictions.Rds")
-
 
 raster_plot<-function(data, Years=unique(newdata_rast_season$Year), labels="All"){
   ggplot()+
@@ -401,17 +434,27 @@ newdata_rast_season <- newdata%>%
   left_join(Data_effort, by=c("SubRegion", "Month", "Year"))%>% 
   mutate(across(c(Prediction, SE, L95, U95), ~if_else(is.na(N), NA_real_, .)))
 
+newdata_rast_season_d <- newdata_d%>%
+  mutate(Month=month(Date))%>%
+  select(-N)%>%
+  filter(Year%in%round(seq(min(Data$Year)+2, max(Data$Year)-2, length.out=9)) & Month%in%c(1,4,7,10))%>%
+  left_join(Data_effort, by=c("SubRegion", "Month", "Year"))%>% 
+  mutate(across(c(Prediction, SE, L95, U95), ~if_else(is.na(N), NA_real_, .)))
+
 # Rasterize each season
 rastered_preds_season <- map(set_names(c("Winter", "Spring", "Summer", "Fall")), function(x) Rasterize_season(season=x, data=newdata_rast_season, n=100))
+rastered_preds_season_d <- map(set_names(c("Winter", "Spring", "Summer", "Fall")), function(x) Rasterize_season(season=x, data=newdata_rast_season_d, n=100))
 
 # Plot each season
 p<-map2(rastered_preds_season, c("Left", "None", "None", "Right"), ~raster_plot(data=.x, labels=.y))
+p_d<-map2(rastered_preds_season_d, c("Left", "None", "None", "Right"), ~raster_plot(data=.x, labels=.y))
 
 # Use Patchwork to bind plots together. Won't look very good until the plot is saved
 p2<-wrap_plots(p)+plot_layout(nrow=1, heights=c(1,1,1,1))
+p2_d<-wrap_plots(p_d)+plot_layout(nrow=1, heights=c(1,1,1,1))
 
 # Save plots
-ggsave(plot=p2, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Rasterized predictions 8.7.20.png", device=png(), width=7, height=12, units="in")
+ggsave(plot=p2_d, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Rasterized predictions 9.18.20_d.png", device=png(), width=7, height=12, units="in")
 
 # Model error by region ---------------------------------------------------
 
@@ -422,13 +465,30 @@ ggsave(plot=p2, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete w
 #modellc4_fitted <- modellc4$fitted.values
 #saveRDS(modellc4_fitted, file="Temperature smoothing model/modellc4_fitted.Rds")
 
+modelld<-readRDS("Temperature smoothing model/modelld.Rds")
+modelld_residuals <- modelld$residuals
+saveRDS(modelld_residuals, file="Temperature smoothing model/modelld_residuals.Rds")
+
+modelld_fitted <- modelld$fitted.values
+saveRDS(modelld_fitted, file="Temperature smoothing model/modelld_fitted.Rds")
+
 # Stored as modellc4_residuals.Rds
 modellc4_residuals<-readRDS("Temperature smoothing model/modellc4_residuals.Rds")
 
 Data_resid<-Data%>%
   mutate(Residuals = modellc4_residuals)
 
+Data_resid_d<-Data%>%
+  mutate(Residuals = modelld_residuals)
+
 Resid_sum<-Data_resid%>%
+  lazy_dt()%>%
+  group_by(Year, Month, SubRegion)%>%
+  summarise(Resid=mean(Residuals), SD=sd(Residuals))%>%
+  ungroup()%>%
+  as_tibble()
+
+Resid_sum_d<-Data_resid_d%>%
   lazy_dt()%>%
   group_by(Year, Month, SubRegion)%>%
   summarise(Resid=mean(Residuals), SD=sd(Residuals))%>%
@@ -447,7 +507,19 @@ p_resid<-ggplot(Resid_sum)+
   theme_bw()+
   theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank(), panel.background = element_rect(fill="black"))
 
-ggsave(plot=p_resid, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Residuals 8.7.20.png", device=png(), width=20, height=12, units="in")
+p_resid_d<-ggplot(Resid_sum_d)+
+  geom_tile(aes(x=Year, y=Month, fill=Resid))+
+  scale_fill_gradient2(high = muted("red"),
+                       low = muted("blue"),
+                       breaks=seq(-3,5.5, by=0.5),
+                       guide=guide_colorbar(barheight=40))+
+  scale_x_continuous(breaks=unique(Resid_sum_d$Year), labels = if_else((unique(Resid_sum_d$Year)/2)%% 2 == 0, as.character(unique(Resid_sum_d$Year)), ""))+
+  scale_y_continuous(breaks=unique(Resid_sum_d$Month), labels = if_else(unique(Resid_sum_d$Month)%% 2 == 0, as.character(unique(Resid_sum_d$Month)), ""))+
+  facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank(), panel.background = element_rect(fill="black"))
+
+ggsave(plot=p_resid_d, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Residuals 9.18.20_d.png", device=png(), width=20, height=12, units="in")
 
 
 # Plot sampling effort ----------------------------------------------------
