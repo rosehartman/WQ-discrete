@@ -111,6 +111,8 @@ Data<-readRDS("Raw temp data.Rds")%>%
         Source=="EDSM" ~ paste("EDSM", SubRegion),
         TRUE ~ paste(Source, Station)
     ))
+# To fix error with different versions of Proj on shinyapps.io vs. the saved object
+st_crs(Data)<-26910
 
 all_stations_static<-Data%>%
     filter(Source!="EDSM" & !str_detect(Station, "EZ") & !StationID%in%c("SKT 799", "SKT 999", "SKT 699"))%>%
