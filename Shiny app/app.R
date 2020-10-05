@@ -18,7 +18,7 @@ require(geofacet)
 require(ggiraph)
 require(scales)
 
-rastered_predsSE<-readRDS("Rasterized modellc4 predictions.Rds")
+rastered_predsSE<-readRDS("Rasterized modelld predictions.Rds")
 
 # To fix error with different versions of Proj on shinyapps.io vs. the saved object and since the function `st_crs<-` is missing for stars objects
 d <- st_dimensions(rastered_predsSE)
@@ -296,7 +296,7 @@ server <- function(input, output, session) {
                                                actual measured values. The generalized additive model was fit to an integrated
                                                discrete water quality dataset."),
                                         tags$p("The model was fit with the R package", tags$code("mgcv"), "with the following model structure:"), 
-                                        tags$p(align="left", tags$code("bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c('tp', 'cc'), k=c(25, 20), by=Year_fac) + s(Time_num_s, k=5),
+                                        tags$p(align="left", tags$code("bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c('tp', 'cc'), k=c(25, 20), by=Year_fac) + te(Time_num_s, Julian_day_s, bs=c('tp', 'cc'), k=c(5, 12)),
     data = Data, method='fREML', discrete=T)")),
                                         tags$p("The first tab 'Model evaluation' presents the uncertainty in model predictions 
                                                and should be explored to understand the limitations of the model."),
@@ -1189,7 +1189,7 @@ server <- function(input, output, session) {
         if(input$Time_correction){
             Data<-Data%>%
                 mutate(Time=as.character(round(Time_num_s, 1)))%>%
-                left_join(Time_correction, by="Time")%>%
+                left_join(Time_correction, by=c("Time", "Month"))%>%
                 mutate(Temperature=Temperature+Correction)
         }
         return(Data)

@@ -9,8 +9,6 @@ require(mgcv)
 
 Data<-readRDS("Temperature smoothing model/Discrete Temp Data.Rds")
 
-
-
 #Region data for shiny app
 
 Delta<-st_read("Delta Subregions")%>%
@@ -44,11 +42,11 @@ saveRDS(Delta_regions, file="Shiny app/Delta subregions.Rds")
 # Rasterized model predictions --------------------------------------------
 
 newdata_year<-readRDS("Temperature smoothing model/Prediction Data.Rds")
-modellc4_predictions<-readRDS("Temperature smoothing model/modellc4_predictions.Rds")
+modelld_predictions<-readRDS("Temperature smoothing model/modelld_predictions.Rds")
 
 newdata<-newdata_year%>%
-  mutate(Prediction=modellc4_predictions$fit)%>%
-  mutate(SE=modellc4_predictions$se.fit,
+  mutate(Prediction=modelld_predictions$fit)%>%
+  mutate(SE=modelld_predictions$se.fit,
          L95=Prediction-SE*1.96,
          U95=Prediction+SE*1.96)%>%
   mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-")))) # Create Date variable from Julian Day and Year
@@ -80,15 +78,15 @@ rastered_SE<-Rasterize_all(newdata_rast, SE)
 # Bind SE and predictions together
 rastered_predsSE<-c(rastered_preds, rastered_SE)
 
-#saveRDS(rastered_predsSE, file="Shiny app/Rasterized modellc4 predictions.Rds")
+saveRDS(rastered_predsSE, file="Shiny app/Rasterized modelld predictions.Rds")
 
 
 # Model evaluation data ---------------------------------------------------
-# Stored as modellc4_residuals.Rds
-modellc4_residuals<-readRDS("Temperature smoothing model/modellc4_residuals.Rds")
+# Stored as modelld_residuals.Rds
+modelld_residuals<-readRDS("Temperature smoothing model/modelld_residuals.Rds")
 
 Data_resid<-Data%>%
-  mutate(Residuals = modellc4_residuals)
+  mutate(Residuals = modelld_residuals)
 
 Resid_sum<-Data_resid%>%
   lazy_dt()%>%
@@ -97,8 +95,8 @@ Resid_sum<-Data_resid%>%
   ungroup()%>%
   as_tibble()
 
-CV_fit_1<-readRDS("Temperature smoothing model/Group 1 CV predictions.Rds")
-CV_fit_2<-readRDS("Temperature smoothing model/Group 2 CV predictions.Rds")
+CV_fit_1<-readRDS("Temperature smoothing model/Group 1 CV predictions d.Rds")
+CV_fit_2<-readRDS("Temperature smoothing model/Group 2 CV predictions d.Rds")
 Data_split<-readRDS("Temperature smoothing model/Split data for cross validation.Rds")
 
 CV_bind<-function(group, fold){
@@ -139,23 +137,29 @@ saveRDS(Model_eval, file="Shiny app/Model_eval.Rds")
 
 # Time correction ---------------------------------------------------------
 
-modellc4<-readRDS("C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Models/modellc4.Rds")
+modelld<-readRDS("C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Models/modelld.Rds")
 Noon<-((12*3600)-mean(Data$Time_num))/sd(Data$Time_num)
 
-Times<-tibble(Time_num_s=c(seq(floor(min(Data$Time_num_s)*10)/10, ceiling(max(Data$Time_num_s)*10)/10, by=0.1), Noon),
-              Year_fac="2000", Longitude_s=0, Latitude_s=0, Julian_day_s=0)
+Times<-expand_grid(Time_num_s=c(seq(floor(min(Data$Time_num_s)*10)/10, ceiling(max(Data$Time_num_s)*10)/10, by=0.1), Noon),
+              Year_fac="2000", 
+              Longitude_s=0, 
+              Latitude_s=0, 
+              Julian_day=yday(ymd(paste("2001", 1:12, "15", sep="-"))))%>%
+  mutate(Julian_day_s=(Julian_day-mean(Data$Julian_day))/sd(Data$Julian_day))
 ### Need to install earlier version of mgcv for this to work
 ## devtools::install_version("mgcv", version = "1.8-31", repos = "http://cran.us.r-project.org")
 
-Time_correction<-predict(modellc4, newdata=Times, type="terms", terms="s(Time_num_s)")
+Time_correction<-predict(modelld, newdata=Times, type="terms", terms="te(Time_num_s,Julian_day_s)")
 
 Times<-Times%>%
-  mutate(Correction=as.vector(Time_correction))
-
-Times<-Times%>%
-  filter(Time_num_s!=Noon)%>%
-  mutate(Correction=filter(Times, Time_num_s==Noon)%>%pull(Correction)-Correction,
+  mutate(Correction=as.vector(Time_correction))%>%
+  mutate(Month=as.integer(as.factor(Julian_day)))%>%
+  group_by(Month)%>%
+  mutate(Noon=Correction[which(Time_num_s==Noon)])%>%
+  ungroup()%>%
+  mutate(Correction=Noon-Correction,
          Time=as.character(Time_num_s))%>%
-  select(Time, Correction)
+  filter(Time_num_s!=Noon)%>%
+  select(Time, Month, Correction)
 
 saveRDS(Times, file="Shiny app/Time_correction.Rds")
