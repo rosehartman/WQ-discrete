@@ -633,6 +633,92 @@ p_resid_CV2<-ggplot(Resid_CV_sum)+
   theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank(), panel.background = element_rect(fill="black"))
 ggsave(plot=p_resid_CV2, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/CV Residuals2 6.16.20.png", device=png(), width=20, height=12, units="in")
 
+# model d
+
+CVd_fit_1=list()
+#~2 hours per model run
+for(i in 1:10){
+  out<-bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
+             te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
+           data = filter(Data_split, Group==1 & Fold!=i)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
+  saveRDS(out, file=paste0("Temperature smoothing model/CVd_model_1_", i, ".Rds"))
+  CVd_fit_1[[i]]<-predict(out, newdata=filter(Data_split, Group==1 & Fold==i), type="response", se.fit=TRUE, discrete=T, n.threads=4)
+  rm(out)
+  gc()
+  message(paste0("Finished run ", i, "/10")) 
+}
+
+saveRDS(CVd_fit_1, file="Temperature smoothing model/Group 1 CV predictions d.Rds")
+
+CVd_fit_2=list()
+for(i in 1:10){
+  out<-bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
+             te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
+           data = filter(Data_split, Group==2 & Fold!=i)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
+  saveRDS(out, file=paste0("Temperature smoothing model/CVd_model_2_", i, ".Rds"))
+  CVd_fit_2[[i]]<-predict(out, newdata=filter(Data_split, Group==2 & Fold==i), type="response", se.fit=TRUE, discrete=T, n.threads=4)
+  rm(out)
+  gc()
+  message(paste0("Finished run ", i, "/10"))  
+}
+
+saveRDS(CVd_fit_2, file="Temperature smoothing model/Group 2 CV predictions d.Rds")
+
+CV_bind<-function(group, fold){
+  if(group==1){
+    fit<-CVd_fit_1[[fold]]$fit
+  }
+  
+  if(group==2){
+    fit<-CVd_fit_2[[fold]]$fit
+  }
+  
+  Out<-Data_split%>%
+    filter(Group==group & Fold==fold)%>%
+    mutate(Fitted_CV=fit)
+}
+
+Data_split_CV_d<-map2_dfr(rep(c(1,2), each=10), rep(1:10,2), ~CV_bind(group=.x, fold=.y))%>%
+  mutate(Resid_CV=Fitted_CV-Temperature,
+         Fitted_resid=Fitted_CV-Fitted)
+
+# EMP (first year-round survey) started in 1974 so restricting analysis to those years
+Resid_CV_sum_d<-Data_split_CV_d%>%
+  filter(Year>=1974)%>%
+  lazy_dt()%>%
+  group_by(Year, Month, SubRegion)%>%
+  summarise(SD=sd(Resid_CV), Resid_CV=mean(Resid_CV), Fitted_resid=mean(Fitted_resid))%>%
+  ungroup()%>%
+  as_tibble()
+
+# First plot deviation of predicted values from true values
+p_resid_CV<-ggplot(Resid_CV_sum_d)+
+  geom_tile(aes(x=Year, y=Month, fill=Resid_CV))+
+  scale_fill_gradient2(high = muted("red"),
+                       low = muted("blue"),
+                       breaks=-9:7,
+                       guide=guide_colorbar(barheight=40))+
+  scale_x_continuous(breaks=unique(Resid_CV_sum_d$Year), labels = if_else((unique(Resid_CV_sum_d$Year)/2)%% 2 == 0, as.character(unique(Resid_CV_sum_d$Year)), ""))+
+  scale_y_continuous(breaks=unique(Resid_CV_sum_d$Month), labels = if_else(unique(Resid_CV_sum_d$Month)%% 2 == 0, as.character(unique(Resid_CV_sum_d$Month)), ""))+
+  facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank(), panel.background = element_rect(fill="black"))
+p_resid_CV
+ggsave(plot=p_resid_CV, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/CV Residuals 10.5.20 d.png", device=png(), width=20, height=12, units="in")
+
+
+# Next plot deviation of predicted values from fitted values from full model
+p_resid_CV2<-ggplot(Resid_CV_sum_d)+
+  geom_tile(aes(x=Year, y=Month, fill=Fitted_resid))+
+  scale_fill_gradient2(high = muted("red"),
+                       low = muted("blue"))+
+  scale_x_continuous(breaks=unique(Resid_CV_sum_d$Year), labels = if_else((unique(Resid_CV_sum_d$Year)/2)%% 2 == 0, as.character(unique(Resid_CV_sum_d$Year)), ""))+
+  scale_y_continuous(breaks=unique(Resid_CV_sum_d$Month), labels = if_else(unique(Resid_CV_sum_d$Month)%% 2 == 0, as.character(unique(Resid_CV_sum_d$Month)), ""))+
+  facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank(), panel.background = element_rect(fill="black"))
+ggsave(plot=p_resid_CV2, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/CV Residuals2 6.16.20.png", device=png(), width=20, height=12, units="in")
+
 
 # Test autocorrelation ----------------------------------------------------
 

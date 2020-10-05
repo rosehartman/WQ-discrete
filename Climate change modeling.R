@@ -9,6 +9,7 @@ require(ggplot2)
 require(geofacet)
 require(lubridate)
 require(hms)
+require(scales)
 
 mygrid <- data.frame(
   name = c("Cache Slough and Lindsey Slough", "Lower Sacramento River Ship Channel", "Liberty Island", "Suisun Marsh", "Middle Sacramento River", "Lower Cache Slough", "Steamboat and Miner Slough", "Upper Mokelumne River", "Lower Mokelumne River", "Georgiana Slough", "Sacramento River near Ryde", "Sacramento River near Rio Vista", "Grizzly Bay", "West Suisun Bay", "Mid Suisun Bay", "Honker Bay", "Confluence", "Lower Sacramento River", "San Joaquin River at Twitchell Island", "San Joaquin River at Prisoners Pt", "Disappointment Slough", "Lower San Joaquin River", "Franks Tract", "Holland Cut", "San Joaquin River near Stockton", "Mildred Island", "Middle River", "Old River", "Upper San Joaquin River", "Grant Line Canal and Old River", "Victoria Canal"),
@@ -389,8 +390,58 @@ CC_gam7c4 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,
 
 # BIC: 177545.9
 
+CC_gam7c5 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
+                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 12), by=Year_s) + 
+                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
+                  data = Data_CC3, method="REML")
+
+# BIC: 178235.2
+
+#Try reducing temporal resolution to once every month.
+# This time, pick days closest to the middle of the month
+# And split the filtering to 2 steps to fix error that removed too much data by requiring the earliest day AND the time closest to noon
+Data_CC4<-Data%>%
+  filter(Source%in%c("EMP", "STN", "FMWT", "DJFMP", "SKT", "20mm", "Suisun", "Baystudy", "USGS") & !str_detect(Station, "EZ") & !(Source=="SKT" & Station=="799" & Latitude>38.2))%>%
+  mutate(Station=paste(Source, Station),
+         Noon_diff=abs(hms(hours=12)-as_hms(Datetime)),
+         mday_15_diff=abs(mday(Date)-15))%>% # Find how far each date is from the 15th of the month
+  group_by(Station, Month, Year)%>%
+  filter(mday_15_diff==min(mday_15_diff))%>%
+  filter(Noon_diff==min(Noon_diff))%>%
+  ungroup()%>%
+  lazy_dt()%>%
+  group_by(Date, Date_num, Date_num_s, Month, SubRegion, Julian_day_s, Julian_day, Year, Year_s, Year_fac, Station, Source, Latitude_s, Longitude_s, Latitude, Longitude)%>%
+  summarise(Temperature=mean(Temperature), Time_num=mean(Time_num), Time_num_s=mean(Time_num_s))%>%
+  as_tibble()%>%
+  ungroup()%>%
+  mutate(ID=paste(Station, Date_num))%>%
+  filter(!(ID%in%ID[which(duplicated(ID))]))%>%
+  mutate(YearStation=paste(Year, Station),
+         Date_num2=as.numeric(Date)/(3600*24*30), # Create a numeric date variable in units of ~ 1 month. 
+         Month_fac=factor(Month)) 
+
+CC_gam8d <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Month, d=c(2,1), bs=c("tp", "cc"), k=c(25, 12)) + 
+                    te(Latitude_s, Longitude_s, Month, d=c(2,1), bs=c("tp", "cc"), k=c(25, 12), by=Year_s) + 
+                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station), knots=list(Month = c(0.5, seq(1, 12, length = 10), 12.5)),
+                  data = Data_CC4, method="REML") # knots from https://fromthebottomoftheheap.net/2015/11/21/climate-change-and-spline-interactions/
+
+CC_gam8d2 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Month, d=c(2,1), bs=c("tp", "cc"), k=c(25, 14)) + 
+                   te(Latitude_s, Longitude_s, Month, d=c(2,1), bs=c("tp", "cc"), k=c(25, 14), by=Year_s) + 
+                   s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station), knots=list(Month = c(0.5, 1:12, 12.5)),
+                 data = Data_CC4, method="REML")
+
+CC_gam8d3 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Month, d=c(2,1), bs=c("tp", "tp"), k=c(25, 12)) + 
+                    te(Latitude_s, Longitude_s, Month, d=c(2,1), bs=c("tp", "tp"), k=c(25, 12), by=Year_s) + 
+                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
+                  data = Data_CC4, method="REML")
+
+CC_gam8d4 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Month_fac, d=c(2,1), bs=c("tp", "fs"), k=c(25, 12)) + 
+                    te(Latitude_s, Longitude_s, Month_fac, d=c(2,1), bs=c("tp", "fs"), k=c(25, 12), by=Year_s) + 
+                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
+                  data = Data_CC4, method="REML")
+
 save(CC_gam5, CC_gam5_vario, CC_gam5a, CC_gam5a_vario, CC_gam5b, CC_gam6, CC_gam6b,
-        CC_gam7b, CC_gam7b_vario, CC_gam7c, CC_gam7c_vario, CC_gam7c2, CC_gam7c3, CC_gam7c4,
+        CC_gam7b, CC_gam7b_vario, CC_gam7c, CC_gam7c_vario, CC_gam7c2, CC_gam7c3, CC_gam7c4,CC_gam8d,
         file="Temperature smoothing model/CC_gam models with auto.Rds")
 
 auto<-Data_CC3%>%
@@ -434,7 +485,8 @@ CC_newdata<-newdata%>%
   distinct()%>%
   mutate(Year=2000,
          Year_s=(Year-mean(Data$Year))/sd(Data$Year),
-         Year_fac="2000")
+         Year_fac="2000",
+         Month=as.integer(as.factor(Julian_day)))
 
 saveRDS(CC_newdata, "Temperature smoothing model/Climate Change Prediction Data.Rds")
 # For filtering the newdata after predictions
@@ -449,12 +501,12 @@ CC_effort<-newdata%>%
   group_by(Month, SubRegion)%>%
   summarise(N=n(), .groups="drop")
 
-CC_pred<-predict(CC_gam7c$gam, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
+CC_pred<-predict(CC_gam8d2$gam, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
 
 newdata_CC_pred<-CC_newdata%>%
-  mutate(Slope=CC_pred$fit[,"te(Latitude_s,Longitude_s,Julian_day_s):Year_s"],
-         Slope_se=CC_pred$se.fit[,"te(Latitude_s,Longitude_s,Julian_day_s):Year_s"],
-         Intercept=CC_pred$fit[,"te(Latitude_s,Longitude_s,Julian_day_s)"]+CC_pred$fit[,"s(Time_num_s)"])%>%
+  mutate(Slope=CC_pred$fit[,"te(Latitude_s,Longitude_s,Month):Year_s"],
+         Slope_se=CC_pred$se.fit[,"te(Latitude_s,Longitude_s,Month):Year_s"],
+         Intercept=CC_pred$fit[,"te(Latitude_s,Longitude_s,Month)"]+CC_pred$fit[,"s(Time_num_s)"])%>%
   mutate(across(c(Slope, Slope_se), ~(.x/Year_s)/sd(Data$Year)))%>%
   mutate(Slope_se=abs(Slope_se))%>%
   mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
