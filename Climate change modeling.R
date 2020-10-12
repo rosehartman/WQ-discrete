@@ -424,19 +424,40 @@ CC_gam8d <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Month, d=c(2,1), bs=c
                     te(Latitude_s, Longitude_s, Month, d=c(2,1), bs=c("tp", "cc"), k=c(25, 12), by=Year_s) + 
                     s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station), knots=list(Month = c(0.5, seq(1, 12, length = 10), 12.5)),
                   data = Data_CC4, method="REML") # knots from https://fromthebottomoftheheap.net/2015/11/21/climate-change-and-spline-interactions/
+# BIC: 207035.5
 
 CC_gam8d2 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Month, d=c(2,1), bs=c("tp", "cc"), k=c(25, 14)) + 
                    te(Latitude_s, Longitude_s, Month, d=c(2,1), bs=c("tp", "cc"), k=c(25, 14), by=Year_s) + 
                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station), knots=list(Month = c(0.5, 1:12, 12.5)),
                  data = Data_CC4, method="REML")
+#BIC: 206880.3
 
 CC_gam8d3 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Month, d=c(2,1), bs=c("tp", "tp"), k=c(25, 12)) + 
                     te(Latitude_s, Longitude_s, Month, d=c(2,1), bs=c("tp", "tp"), k=c(25, 12), by=Year_s) + 
                     s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
                   data = Data_CC4, method="REML")
+#BIC: 206967.2
 
-CC_gam8d4 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Month_fac, d=c(2,1), bs=c("tp", "fs"), k=c(25, 12)) + 
-                    te(Latitude_s, Longitude_s, Month_fac, d=c(2,1), bs=c("tp", "fs"), k=c(25, 12), by=Year_s) + 
+CC_gam8d4 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Month, d=c(2,1), bs=c("tp", "cc"), k=c(25, 14)) + 
+                    te(Latitude_s, Longitude_s, Month_fac, d=c(2,1), bs=c("tp", "fs"), k=c(25), by=Year_s) + 
+                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station), knots=list(Month = c(0.5, 1:12, 12.5)),
+                  data = Data_CC4, method="REML")
+#BIC: 206975.5
+
+CC_gam8d5 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Month, d=c(2,1), bs=c("tp", "cc"), k=c(25, 14)) + 
+                    te(Latitude_s, Longitude_s, Month_fac, d=c(2,1), bs=c("tp", "re"), k=c(25, 12), by=Year_s) + 
+                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station), knots=list(Month = c(0.5, 1:12, 12.5)),
+                  data = Data_CC4, method="REML")
+#BIC: 206975.5
+
+CC_gam8d6 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 14)) + 
+                    te(Latitude_s, Longitude_s, Month_fac, d=c(2,1), bs=c("tp", "fs"), k=c(25), by=Year_s) + 
+                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
+                  data = Data_CC4, method="REML")
+# BIC: 198489.9
+
+CC_gam8d7 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
                     s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
                   data = Data_CC4, method="REML")
 
@@ -501,7 +522,7 @@ CC_effort<-newdata%>%
   group_by(Month, SubRegion)%>%
   summarise(N=n(), .groups="drop")
 
-CC_pred<-predict(CC_gam8d2$gam, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
+CC_pred<-predict(CC_gam8d$gam, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
 
 newdata_CC_pred<-CC_newdata%>%
   mutate(Slope=CC_pred$fit[,"te(Latitude_s,Longitude_s,Month):Year_s"],
@@ -522,7 +543,7 @@ p_CC_gam<-ggplot(filter(newdata_CC_pred, Sig=="*"), aes(x=Longitude, y=Latitude,
   theme_bw()+
   theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
 
-ggsave(p_CC_gam, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/CC gam.png",
+ggsave(p_CC_gam, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/CC_gam8d2.png",
        device="png", width=7, height=5, units="in")
 
 # Autocorrelation
@@ -543,3 +564,30 @@ save(CC_vario, CC_vario_EMP, CC_brm, CC_brm2, CC_brm3, CC_brm4, CC_brm_EMP, file
 ggplot(CC_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
   geom_line()+
   geom_point()
+
+# Visualize raw climate change signal -------------------------------------
+
+Times<-readRDS("Shiny app/Time_correction.Rds")
+
+Data_CC_plot<-Data_CC4%>%
+  group_by(Station, Month)%>%
+  mutate(N=n(), Anomoly=Temperature-mean(Temperature))%>%
+  ungroup()%>%
+  mutate(Time=as.character(round(Time_num_s, 1)))%>%
+  left_join(Times, by=c("Month", "Time"))%>%
+  mutate(Temp2=Temperature+Correction)%>%
+  group_by(Station, Month)%>%
+  mutate(Anomoly2=Temp2-mean(Temp2))%>%
+  ungroup()
+
+CC_data_plot<-function(Month, yrange=range(filter(test, Month%in%c(9,10,11))$Anomoly2)){
+  ggplot(filter(test, Month==Month), aes(x=Year, y=Anomoly2))+
+    geom_point()+
+    facet_wrap(~SubRegion)+
+    ylab("Temperature anomaly")+
+    scale_x_continuous(breaks=c(1970, 1990, 2010))+
+    coord_cartesian(ylim=yrange)+
+    ggtitle(month(Month, label=TRUE, abbr = FALSE))+
+    theme_bw()+
+    theme(text=element_text(size=16))
+}
