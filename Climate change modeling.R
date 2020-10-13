@@ -457,9 +457,17 @@ CC_gam8d6 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,
 # BIC: 198489.9
 
 CC_gam8d7 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 14), by=Year_s) + 
+                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
+                  data = Data_CC4, method="REML")
+
+#BIC: 198500.1
+
+CC_gam8d8 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
                     te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
                     s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
                   data = Data_CC4, method="REML")
+#BIC: 198233.8
 
 save(CC_gam5, CC_gam5_vario, CC_gam5a, CC_gam5a_vario, CC_gam5b, CC_gam6, CC_gam6b,
         CC_gam7b, CC_gam7b_vario, CC_gam7c, CC_gam7c_vario, CC_gam7c2, CC_gam7c3, CC_gam7c4,CC_gam8d,
