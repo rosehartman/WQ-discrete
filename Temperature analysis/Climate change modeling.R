@@ -1,3 +1,6 @@
+require(sp)
+require(gstat)
+require(spacetime)
 require(tidybayes)
 require(dplyr)
 require(stringr)
@@ -19,9 +22,9 @@ mygrid <- data.frame(
   stringsAsFactors = FALSE
 )
 
-Data<-readRDS("Temperature smoothing model/Discrete Temp Data.Rds")
-newdata_year<-readRDS("Temperature smoothing model/Prediction Data.Rds")
-modellc4_predictions<-readRDS("Temperature smoothing model/modellc4_predictions.Rds")
+Data<-readRDS("Temperature analysis/Discrete Temp Data.Rds")
+newdata_year<-readRDS("Temperature analysis/Prediction Data.Rds")
+modellc4_predictions<-readRDS("Temperature analysis/modellc4_predictions.Rds")
 
 
 # Using model-produced data  ----------------------------------------------------
@@ -235,7 +238,7 @@ Data_CC<-Data%>%
   filter(!(ID%in%ID[which(duplicated(ID))]))%>%
   mutate(YearStation=paste(Year, Station))
 
-saveRDS(Data_CC, "Temperature smoothing model/Discrete Temp Data CC.Rds")
+saveRDS(Data_CC, "Temperature analysis/Discrete Temp Data CC.Rds")
 
 CC_gam <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
                 te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
@@ -469,9 +472,19 @@ CC_gam8d8 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,
                   data = Data_CC4, method="REML")
 #BIC: 198233.8
 
-save(CC_gam5, CC_gam5_vario, CC_gam5a, CC_gam5a_vario, CC_gam5b, CC_gam6, CC_gam6b,
-        CC_gam7b, CC_gam7b_vario, CC_gam7c, CC_gam7c_vario, CC_gam7c2, CC_gam7c3, CC_gam7c4,CC_gam8d,
-        file="Temperature smoothing model/CC_gam models with auto.Rds")
+resid_norm_CC_gam8d8<-residuals(CC_gam8d8$lme,type="normalized")
+sp <- SpatialPoints(coords=data.frame(Longitude=Data_CC4$Longitude, Latitude=Data_CC4$Latitude))
+sp2<-STIDF(sp, time=Data_CC4$Date, data=data.frame(Residuals=resid_norm_CC_gam8d8))
+CC_gam8d8_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=3, tlags=(30/7)*1:10)
+
+CC_gam8d9 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
+                    te(Latitude_s, Longitude_s, Month_fac, d=c(2,1), bs=c("tp", "fs"), k=c(25), by=Year_s) + 
+                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
+                  data = Data_CC4, method="REML")
+
+ggplot(CC_gam8d8_vario, aes(x=avgDist, y=gamma, color=timelag, group=timelag))+
+  geom_line()+
+  geom_point()
 
 auto<-Data_CC3%>%
   mutate(Resid_raw=residuals(CC_gam7c$gam),
@@ -506,7 +519,7 @@ ggplot(filter(auto, lag_norm%in%1:4))+
 #Fit model
 # then predict over a range of locations and months using type="terms" or type="iterms" to get value of the Year slope for each location and month
 
-newdata<-readRDS("Temperature smoothing model/Prediction Data.Rds")
+newdata<-readRDS("Temperature analysis/Prediction Data.Rds")
 CC_newdata<-newdata%>%
   st_drop_geometry()%>%
   as_tibble()%>%
@@ -517,7 +530,7 @@ CC_newdata<-newdata%>%
          Year_fac="2000",
          Month=as.integer(as.factor(Julian_day)))
 
-saveRDS(CC_newdata, "Temperature smoothing model/Climate Change Prediction Data.Rds")
+saveRDS(CC_newdata, "Temperature analysis/Climate Change Prediction Data.Rds")
 # For filtering the newdata after predictions
 
 CC_effort<-newdata%>%
@@ -530,12 +543,12 @@ CC_effort<-newdata%>%
   group_by(Month, SubRegion)%>%
   summarise(N=n(), .groups="drop")
 
-CC_pred<-predict(CC_gam8d$gam, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
+CC_pred<-predict(CC_gam8d8$gam, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
 
 newdata_CC_pred<-CC_newdata%>%
-  mutate(Slope=CC_pred$fit[,"te(Latitude_s,Longitude_s,Month):Year_s"],
-         Slope_se=CC_pred$se.fit[,"te(Latitude_s,Longitude_s,Month):Year_s"],
-         Intercept=CC_pred$fit[,"te(Latitude_s,Longitude_s,Month)"]+CC_pred$fit[,"s(Time_num_s)"])%>%
+  mutate(Slope=CC_pred$fit[,"te(Latitude_s,Longitude_s,Julian_day_s):Year_s"],
+         Slope_se=CC_pred$se.fit[,"te(Latitude_s,Longitude_s,Julian_day_s):Year_s"],
+         Intercept=CC_pred$fit[,"te(Latitude_s,Longitude_s,Julian_day_s)"]+CC_pred$fit[,"s(Time_num_s)"])%>%
   mutate(across(c(Slope, Slope_se), ~(.x/Year_s)/sd(Data$Year)))%>%
   mutate(Slope_se=abs(Slope_se))%>%
   mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
@@ -576,6 +589,7 @@ ggplot(CC_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
 # Visualize raw climate change signal -------------------------------------
 
 Times<-readRDS("Shiny app/Time_correction.Rds")
+Data_CC4<-readRDS("Temperature analysis/Data_CC4.Rds")
 
 Data_CC_plot<-Data_CC4%>%
   group_by(Station, Month)%>%
