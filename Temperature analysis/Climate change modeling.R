@@ -482,6 +482,8 @@ CC_gam8d9 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,
                     s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
                   data = Data_CC4, method="REML")
 
+# BIC: 198314
+
 ggplot(CC_gam8d8_vario, aes(x=avgDist, y=gamma, color=timelag, group=timelag))+
   geom_line()+
   geom_point()
