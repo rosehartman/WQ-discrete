@@ -2,7 +2,7 @@ require(gstat)
 require(sp)
 require(spacetime)
 library(tidyverse)
-library(deltareportr)
+library(discretewq)
 library(mgcv)
 library(lubridate)
 library(hms)
@@ -13,6 +13,10 @@ require(geofacet)
 require(gamm4)
 require(dtplyr)
 require(scales)
+
+### TODO
+
+# 1) Redo all models now that year issue is fixed in the dataset
 
 
 # Data preparation --------------------------------------------------------
@@ -26,14 +30,11 @@ Delta<-st_read("Delta Subregions")%>%
   dplyr::select(SubRegion)
 
 # Load data
-Data <- DeltaDater(Start_year = 1900, 
-                   WQ_sources = c("EMP", "STN", "FMWT", "EDSM", "DJFMP", "SKT", "20mm", "Suisun", "Baystudy", "USBR", "USGS"), 
-                   Variables = "Water quality", 
-                   Regions = NULL)%>%
+Data <- wq()%>%
   filter(!is.na(Temperature) & !is.na(Datetime) & !is.na(Latitude) & !is.na(Longitude) & !is.na(Date))%>% #Remove any rows with NAs in our key variables
   filter(Temperature !=0)%>% #Remove 0 temps
   mutate(Temperature_bottom=if_else(Temperature_bottom>30, NA_real_, Temperature_bottom))%>% #Remove bad bottom temps
-  filter(hour(Datetime)>=5 & hour(Datetime)<=20)%>% # Only keep data betwen 5AM and 8PM
+  filter(hour(Datetime)>=5 & hour(Datetime)<=20)%>% # Only keep data between 5AM and 8PM
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)%>% # Convert to sf object
   st_transform(crs=st_crs(Delta))%>% # Change to crs of Delta
   st_join(Delta, join=st_intersects)%>% # Add subregions
@@ -81,7 +82,7 @@ Data<-Data%>%
   mutate(Group=if_else(is.even(Year), 1, 2))%>%
   mutate_at(vars(Date_num, Longitude, Latitude, Time_num, Year, Julian_day), list(s=~(.-mean(., na.rm=T))/sd(., na.rm=T))) # Create centered and standardized versions of covariates
 
-#saveRDS(Data, file="Temperature smoothing model/Discrete Temp Data.Rds")
+saveRDS(Data, file="Temperature analysis/Discrete Temp Data.Rds")
 
 
 # Model selection ---------------------------------------------------------
@@ -154,17 +155,21 @@ modell5a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_
 # Final model -------------------------------------------------------------
 
 require(googleComputeEngineR)
+require(googleCloudStorageR)
 
 vm <- gce_vm(template = "rstudio", zone="us-west1-a",
              name = "rstudio-server",
              username = "", password = "",  predefined_type = "e2-highmem-16",
+             dynamic_image = "gcr.io/gcer-public/persistent-rstudio",
              disk_size_gb=100)
+gce_set_metadata(list(GCS_SESSION_BUCKET = "discretewq"), vm)
 
 #Data used to fit the model are stored in "Simplified data.Rds" as Data_simp
 
 
-modellc4 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + s(Time_num_s, k=5),
-                data = Data_simp, method="fREML", discrete=T, nthreads=16)
+modelld <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
+                  te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
+                data = Data, method="fREML", discrete=T, nthreads=16)
 
 
 # Data prediction ---------------------------------------------------------
@@ -188,7 +193,7 @@ WQ_pred<-function(Full_data=Data,
     filter(!is.na(Shape_Area))%>%
     select(-Shape_Area)%>%
     distinct()%>%
-    st_join(Stations%>% # Applying the same approach we did to the full data: remove any pounts outside the convex hull formed by major survey stations sampled >50 times
+    st_join(Stations%>% # Applying the same approach we did to the full data: remove any points outside the convex hull formed by major survey stations sampled >50 times
               st_union()%>%
               st_convex_hull()%>%
               st_as_sf()%>%
@@ -242,17 +247,18 @@ newdata_year <- WQ_pred(Full_data=Data,
                         Julian_days = yday(ymd(paste("2001", 1:12, "15", sep="-"))),
                         Years=round(min(Data$Year):max(Data$Year)))
 
-saveRDS(newdata_year, file="Temperature smoothing model/Prediction Data.Rds")
+#saveRDS(newdata_year, file="Temperature analysis/Prediction Data.Rds")
 
 # Perform in the cloud
 
 modellc4_predictions<-predict(modellc4, newdata=newdata_year, type="response", se.fit=TRUE, discrete=T, n.threads=16) # Create predictions
+modelld_predictions<-predict(modelld, newdata=newdata_year, type="response", se.fit=TRUE, discrete=T, n.threads=16) # Create predictions
 
 # Predictions stored as "modellc4_predictions.Rds"
 
-newdata_year<-readRDS("Temperature smoothing model/Prediction Data.Rds")
-modellc4_predictions<-readRDS("Temperature smoothing model/modellc4_predictions.Rds")
-modelld_predictions<-readRDS("Temperature smoothing model/modelld_predictions.Rds")
+newdata_year<-readRDS("Temperature analysis/model outputs and validations/Prediction Data.Rds")
+modellc4_predictions<-readRDS("Temperature analysis/model outputs and validations/modellc4_predictions.Rds")
+modelld_predictions<-readRDS("Temperature analysis/model outputs and validations/modelld_predictions.Rds")
 
 newdata<-newdata_year%>%
   mutate(Prediction=modellc4_predictions$fit)%>%
@@ -271,10 +277,10 @@ newdata_d<-newdata_year%>%
 # Year predictions --------------------------------------------------------
 
 mygrid <- data.frame(
-  name = c("Cache Slough and Lindsey Slough", "Lower Sacramento River Ship Channel", "Liberty Island", "Suisun Marsh", "Middle Sacramento River", "Lower Cache Slough", "Steamboat and Miner Slough", "Upper Mokelumne River", "Lower Mokelumne River", "Georgiana Slough", "Sacramento River near Ryde", "Sacramento River near Rio Vista", "Grizzly Bay", "West Suisun Bay", "Mid Suisun Bay", "Honker Bay", "Confluence", "Lower Sacramento River", "San Joaquin River at Twitchell Island", "San Joaquin River at Prisoners Pt", "Disappointment Slough", "Lower San Joaquin River", "Franks Tract", "Holland Cut", "San Joaquin River near Stockton", "Mildred Island", "Middle River", "Old River", "Upper San Joaquin River", "Grant Line Canal and Old River", "Victoria Canal"),
-  row = c(2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 7, 7, 8, 8, 8),
-  col = c(4, 6, 5, 2, 8, 6, 7, 9, 9, 8, 7, 6, 2, 1, 2, 3, 4, 5, 6, 8, 9, 5, 6, 7, 9, 8, 8, 7, 9, 8, 7),
-  code = c(" 1", " 2", " 3", " 8", " 4", " 5", " 6", " 7", " 9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "30", "29", "31"),
+  name = c("Upper Sacramento River Ship Channel", "Cache Slough and Lindsey Slough", "Lower Sacramento River Ship Channel", "Liberty Island", "Suisun Marsh", "Middle Sacramento River", "Lower Cache Slough", "Steamboat and Miner Slough", "Upper Mokelumne River", "Lower Mokelumne River", "Georgiana Slough", "Sacramento River near Ryde", "Sacramento River near Rio Vista", "Grizzly Bay", "West Suisun Bay", "Mid Suisun Bay", "Honker Bay", "Confluence", "Lower Sacramento River", "San Joaquin River at Twitchell Island", "San Joaquin River at Prisoners Pt", "Disappointment Slough", "Lower San Joaquin River", "Franks Tract", "Holland Cut", "San Joaquin River near Stockton", "Mildred Island", "Middle River", "Old River", "Upper San Joaquin River", "Grant Line Canal and Old River", "Victoria Canal"),
+  row = c(2, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 7, 7, 8, 8, 8),
+  col = c(7, 4, 6, 5, 2, 8, 6, 7, 9, 9, 8, 7, 6, 2, 1, 2, 3, 4, 5, 6, 8, 9, 5, 6, 7, 9, 8, 8, 7, 9, 8, 7),
+  code = c(" 1", " 1", " 2", " 3", " 8", " 4", " 5", " 6", " 7", " 9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "30", "29", "31"),
   stringsAsFactors = FALSE
 )
 
@@ -345,7 +351,7 @@ mapyear<-function(month){
     theme(panel.grid=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
 }
 
-walk(1:12, function(x) ggsave(plot=mapyear(x), filename=paste0("C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Year predictions month ", x, " 9.18.20_d.png"), device=png(), width=15, height=12, units="in"))
+walk(1:12, function(x) ggsave(plot=mapyear(x), filename=paste0("C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Year predictions month ", x, " 11.6.20_d.png"), device=png(), width=15, height=12, units="in"))
 
 
 # Rasterized predictions --------------------------------------------------
@@ -412,6 +418,7 @@ rastered_predsSE<-c(rastered_preds, rastered_SE)
 rastered_predsSE_d<-c(rastered_preds_d, rastered_SE_d)
 
 #saveRDS(rastered_predsSE, file="Shiny app/Rasterized modellc4 predictions.Rds")
+#saveRDS(rastered_predsSE_d, file="Shiny app/Rasterized modelld predictions.Rds")
 
 raster_plot<-function(data, Years=unique(newdata_rast_season$Year), labels="All"){
   ggplot()+
@@ -447,7 +454,7 @@ newdata_rast_season <- newdata%>%
 newdata_rast_season_d <- newdata_d%>%
   mutate(Month=month(Date))%>%
   select(-N)%>%
-  filter(Year%in%round(seq(min(Data$Year)+2, max(Data$Year)-2, length.out=9)) & Month%in%c(1,4,7,10))%>%
+  filter(Year%in%seq(1970, 2018, length.out=9) & Month%in%c(1,4,7,10))%>%
   left_join(Data_effort, by=c("SubRegion", "Month", "Year"))%>% 
   mutate(across(c(Prediction, SE, L95, U95), ~if_else(is.na(N), NA_real_, .)))
 
@@ -464,26 +471,26 @@ p2<-wrap_plots(p)+plot_layout(nrow=1, heights=c(1,1,1,1))
 p2_d<-wrap_plots(p_d)+plot_layout(nrow=1, heights=c(1,1,1,1))
 
 # Save plots
-ggsave(plot=p2_d, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Rasterized predictions 9.18.20_d.png", device=png(), width=7, height=12, units="in")
+ggsave(plot=p2_d, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Rasterized predictions 11.6.20_d.png", device=png(), width=7, height=12, units="in")
 
 # Model error by region ---------------------------------------------------
 
-#modellc4<-readRDS("Temperature smoothing model/modellc4.Rds")
+#modellc4<-readRDS("Temperature analysis/model outputs and validations/modellc4.Rds")
 #modellc4_residuals <- modellc4$residuals
-#saveRDS(modellc4_residuals, file="Temperature smoothing model/modellc4_residuals.Rds")
+#saveRDS(modellc4_residuals, file="Temperature analysis/model outputs and validations/modellc4_residuals.Rds")
 
 #modellc4_fitted <- modellc4$fitted.values
-#saveRDS(modellc4_fitted, file="Temperature smoothing model/modellc4_fitted.Rds")
+#saveRDS(modellc4_fitted, file="Temperature analysis/model outputs and validations/modellc4_fitted.Rds")
 
-modelld<-readRDS("Temperature smoothing model/modelld.Rds")
+modelld<-readRDS("Temperature analysis/model outputs and validations/modelld.Rds")
 modelld_residuals <- modelld$residuals
-saveRDS(modelld_residuals, file="Temperature smoothing model/modelld_residuals.Rds")
+saveRDS(modelld_residuals, file="Temperature analysis/model outputs and validations/modelld_residuals.Rds")
 
 modelld_fitted <- modelld$fitted.values
-saveRDS(modelld_fitted, file="Temperature smoothing model/modelld_fitted.Rds")
+saveRDS(modelld_fitted, file="Temperature analysis/model outputs and validations/modelld_fitted.Rds")
 
 # Stored as modellc4_residuals.Rds
-modellc4_residuals<-readRDS("Temperature smoothing model/modellc4_residuals.Rds")
+modellc4_residuals<-readRDS("Temperature analysis/model outputs and validations/modellc4_residuals.Rds")
 
 Data_resid<-Data%>%
   mutate(Residuals = modellc4_residuals)
@@ -529,7 +536,7 @@ p_resid_d<-ggplot(Resid_sum_d)+
   theme_bw()+
   theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank(), panel.background = element_rect(fill="black"))
 
-ggsave(plot=p_resid_d, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Residuals 9.18.20_d.png", device=png(), width=20, height=12, units="in")
+ggsave(plot=p_resid_d, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Residuals 11.6.20_d.png", device=png(), width=20, height=12, units="in")
 
 
 # Plot sampling effort ----------------------------------------------------
@@ -544,20 +551,20 @@ p_effort<-ggplot(Data_effort)+
   theme_bw()+
   theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank())
 
-ggsave(plot=p_effort, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Effort 6.12.20.png", device=png(), width=20, height=12, units="in")
+ggsave(plot=p_effort, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Effort 11.6.20.png", device=png(), width=20, height=12, units="in")
 
 
 # Stratified cross-validation ---------------------------------------------
 set.seed(100)
 Data_split<-Data%>%
-  mutate(Resid=modellc4_residuals,
-         Fitted=modellc4_fitted)%>%
+  mutate(Resid=modelld_residuals,
+         Fitted=modelld_fitted)%>%
   group_by(SubRegion, Year, Season, Group)%>%
   mutate(Fold=sample(1:10, 1, replace=T))%>%
   ungroup()
 set.seed(NULL)
 
-#saveRDS(Data_split, file="Temperature smoothing model/Split data for cross validation.Rds")
+#saveRDS(Data_split, file="Temperature analysis/Split data for cross validation.Rds")
 
 # Saved as "Split data for cross validation.Rds"
 
@@ -567,26 +574,26 @@ CV_fit_1=list()
 for(i in 1:10){
   out<-bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + s(Time_num_s, k=5),
            data = filter(Data_split, Group==1 & Fold!=i)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
-  saveRDS(out, file=paste0("Temperature smoothing model/CV_model_1_", i, ".Rds"))
+  saveRDS(out, file=paste0("Temperature analysis/model outputs and validations/CV_model_1_", i, ".Rds"))
   CV_fit_1[[i]]<-predict(out, newdata=filter(Data_split, Group==1 & Fold==i), type="response", se.fit=TRUE, discrete=T, n.threads=4)
   rm(out)
   gc()
 }
 
-saveRDS(CV_fit_1, file="Temperature smoothing model/Group 1 CV predictions.Rds")
+saveRDS(CV_fit_1, file="Temperature analysis/model outputs and validations/Group 1 CV predictions.Rds")
 
 CV_fit_2=list()
 for(i in 1:10){
   out<-bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + s(Time_num_s, k=5),
            data = filter(Data_split, Group==2 & Fold!=i)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
-  saveRDS(out, file=paste0("Temperature smoothing model/CV_model_2_", i, ".Rds"))
+  saveRDS(out, file=paste0("Temperature analysis/model outputs and validations/CV_model_2_", i, ".Rds"))
   CV_fit_2[[i]]<-predict(out, newdata=filter(Data_split, Group==2 & Fold==i), type="response", se.fit=TRUE, discrete=T, n.threads=4)
   rm(out)
   gc()
   message(paste0("Finished run ", i, "/10"))  
 }
 
-saveRDS(CV_fit_2, file="Temperature smoothing model/Group 2 CV predictions.Rds")
+saveRDS(CV_fit_2, file="Temperature analysis/model outputs and validations/Group 2 CV predictions.Rds")
 
 CV_bind<-function(group, fold){
   if(group==1){
@@ -651,28 +658,28 @@ for(i in 1:10){
   out<-bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
              te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
            data = filter(Data_split, Group==1 & Fold!=i)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
-  saveRDS(out, file=paste0("Temperature smoothing model/CVd_model_1_", i, ".Rds"))
+  saveRDS(out, file=paste0("Temperature analysis/model outputs and validations/CVd_model_1_", i, ".Rds"))
   CVd_fit_1[[i]]<-predict(out, newdata=filter(Data_split, Group==1 & Fold==i), type="response", se.fit=TRUE, discrete=T, n.threads=4)
   rm(out)
   gc()
   message(paste0("Finished run ", i, "/10")) 
 }
 
-saveRDS(CVd_fit_1, file="Temperature smoothing model/Group 1 CV predictions d.Rds")
+saveRDS(CVd_fit_1, file="Temperature analysis/model outputs and validations/Group 1 CV predictions d.Rds")
 
 CVd_fit_2=list()
 for(i in 1:10){
   out<-bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
              te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
            data = filter(Data_split, Group==2 & Fold!=i)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
-  saveRDS(out, file=paste0("Temperature smoothing model/CVd_model_2_", i, ".Rds"))
+  saveRDS(out, file=paste0("Temperature analysis/model outputs and validations/CVd_model_2_", i, ".Rds"))
   CVd_fit_2[[i]]<-predict(out, newdata=filter(Data_split, Group==2 & Fold==i), type="response", se.fit=TRUE, discrete=T, n.threads=4)
   rm(out)
   gc()
   message(paste0("Finished run ", i, "/10"))  
 }
 
-saveRDS(CVd_fit_2, file="Temperature smoothing model/Group 2 CV predictions d.Rds")
+saveRDS(CVd_fit_2, file="Temperature analysis/model outputs and validations/Group 2 CV predictions d.Rds")
 
 CV_bind<-function(group, fold){
   if(group==1){

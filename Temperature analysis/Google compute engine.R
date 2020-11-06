@@ -62,5 +62,5 @@ gce_set_metadata(list(GCS_SESSION_BUCKET = "discretewq"), vm)
 #gcs_get_object("CC_gam1_predictions.Rds", saveToDisk="Temperature smoothing model/CC_gam1_predictions.Rds")
 #gcs_get_object("CC_gam1.Rds", saveToDisk="Temperature smoothing model/CC_gam1.Rds")
 
-gcs_get_object("modelld_predictions.Rds", saveToDisk="Temperature smoothing model/modelld_predictions.Rds", overwrite = T)
-gcs_get_object("modelld.Rds", saveToDisk="Temperature smoothing model/modelld.Rds")
+gcs_get_object("modelld_predictions.Rds", saveToDisk="Temperature analysis/model outputs and validations/modelld_predictions.Rds", overwrite = T)
+gcs_get_object("modelld.Rds", saveToDisk="Temperature analysis/model outputs and validations/modelld.Rds")
