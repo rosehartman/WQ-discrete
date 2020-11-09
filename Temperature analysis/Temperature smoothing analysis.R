@@ -17,6 +17,7 @@ require(scales)
 ### TODO
 
 # 1) Redo all models now that year issue is fixed in the dataset
+# 2) Calculate RMSE and pearson's correlation coefficients from CV results
 
 
 # Data preparation --------------------------------------------------------
@@ -92,65 +93,36 @@ saveRDS(Data, file="Temperature analysis/Discrete Temp Data.Rds")
 # Tried including a global smoother for lat, long, & julian_day, but ran into issues with curvilinearity.
 # Optimized k-values using BIC comparisons on models fit to the even years of the dataset as follows: 
 
-modellc2a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 15), by=Year_fac) + s(Time_num_s, k=5),
-                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
-#AIC: 126279.9
-#BIC: 158009.3
-
-modellc3a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(35, 15), by=Year_fac) + s(Time_num_s, k=5),
-                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
-#AIC: 125299.8
-#BIC: 161495.4
-
-# Now the best model
-modellc4a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + s(Time_num_s, k=5),
-                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
-#AIC: 116576.5
-#BIC: 157218.6
-
-# BIC2: 157006.3
-
-modellc5a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 25), by=Year_fac) + s(Time_num_s, k=5),
-                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4, gc.level=2)
-#AIC: 109347.2
-#BIC: 158281
-
-modellc6a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(30, 20), by=Year_fac) + s(Time_num_s, k=5),
-                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4, gc.level=2)
-
-#AIC: 116029.4
-#BIC: 159493.6
-
 ## New best
 modellda <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
                   te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
                  data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
-#AIC: 116044.4
-#BIC: 156647.7
 
 ## New best
 
-modelld2a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
+modelld2a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 10), by=Year_fac) + 
+                   te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
+                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
+
+modelld3a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(15, 20), by=Year_fac) + 
+                   te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
+                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
+
+modelld4a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
+                  te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 6)),
+                data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
+
+modelld5a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
                   te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 20)),
                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
-# AIC: 116037.9
-# BIC: 156774
 
-modelld3a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 15), by=Year_fac) + 
-                  te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
-                data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
-# AIC: 125744.8
-# BIC: 157472.3
-
-modelld4a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(35, 20), by=Year_fac) + 
+modelld6a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(35, 20), by=Year_fac) + 
                   te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
 
-modell5a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 30), by=Year_fac) + 
+modell7a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 30), by=Year_fac) + 
                    te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
                  data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
-# AIC: 115177.3
-# BIC: 160458.8
 
 # Final model -------------------------------------------------------------
 
