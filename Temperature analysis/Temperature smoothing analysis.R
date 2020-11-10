@@ -680,6 +680,16 @@ Resid_CV_sum_d<-Data_split_CV_d%>%
   ungroup()%>%
   as_tibble()
 
+RMSE <- function(m, o){
+  sqrt(mean((m - o)^2))
+}
+
+CV_sum<-Data_split_CV_d%>%
+  st_drop_geometry()%>%
+  group_by(Group, Fold)%>%
+  summarise(RMSE=sqrt(mean(Resid_CV^2)), 
+            r=cor(Fitted_CV, Temperature, method="pearson"), .groups="drop")
+
 # First plot deviation of predicted values from true values
 p_resid_CV<-ggplot(Resid_CV_sum_d)+
   geom_tile(aes(x=Year, y=Month, fill=Resid_CV))+
@@ -693,7 +703,7 @@ p_resid_CV<-ggplot(Resid_CV_sum_d)+
   theme_bw()+
   theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank(), panel.background = element_rect(fill="black"))
 p_resid_CV
-ggsave(plot=p_resid_CV, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/CV Residuals 10.5.20 d.png", device=png(), width=20, height=12, units="in")
+ggsave(plot=p_resid_CV, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/CV Residuals 11.9.20 d.png", device=png(), width=20, height=12, units="in")
 
 
 # Next plot deviation of predicted values from fitted values from full model
