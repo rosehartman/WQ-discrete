@@ -92,14 +92,17 @@ Region_plot2<-leaflet()%>%
               labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)), title="Total number of data points</br>(actual temperature records)")
 
 mygrid <- data.frame(
-    name = c("Cache Slough and Lindsey Slough", "Lower Sacramento River Ship Channel", "Liberty Island", "Suisun Marsh", "Middle Sacramento River", "Lower Cache Slough", "Steamboat and Miner Slough", "Upper Mokelumne River", "Lower Mokelumne River", "Georgiana Slough", "Sacramento River near Ryde", "Sacramento River near Rio Vista", "Grizzly Bay", "West Suisun Bay", "Mid Suisun Bay", "Honker Bay", "Confluence", "Lower Sacramento River", "San Joaquin River at Twitchell Island", "San Joaquin River at Prisoners Pt", "Disappointment Slough", "Lower San Joaquin River", "Franks Tract", "Holland Cut", "San Joaquin River near Stockton", "Mildred Island", "Middle River", "Old River", "Upper San Joaquin River", "Grant Line Canal and Old River", "Victoria Canal"),
-    row = c(2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 7, 7, 8, 8, 8),
-    col = c(4, 6, 5, 2, 8, 6, 7, 9, 9, 8, 7, 6, 2, 1, 2, 3, 4, 5, 6, 8, 9, 5, 6, 7, 9, 8, 8, 7, 9, 8, 7),
-    code = c(" 1", " 2", " 3", " 8", " 4", " 5", " 6", " 7", " 9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "30", "29", "31"),
+    name = c("Upper Sacramento River Ship Channel", "Cache Slough and Lindsey Slough", "Lower Sacramento River Ship Channel", "Liberty Island", "Suisun Marsh", "Middle Sacramento River", "Lower Cache Slough", "Steamboat and Miner Slough", "Upper Mokelumne River", "Lower Mokelumne River", "Georgiana Slough", "Sacramento River near Ryde", "Sacramento River near Rio Vista", "Grizzly Bay", "West Suisun Bay", "Mid Suisun Bay", "Honker Bay", "Confluence", "Lower Sacramento River", "San Joaquin River at Twitchell Island", "San Joaquin River at Prisoners Pt", "Disappointment Slough", "Lower San Joaquin River", "Franks Tract", "Holland Cut", "San Joaquin River near Stockton", "Mildred Island", "Middle River", "Old River", "Upper San Joaquin River", "Grant Line Canal and Old River", "Victoria Canal"),
+    row = c(2, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 7, 7, 8, 8, 8),
+    col = c(7, 4, 6, 5, 2, 8, 6, 7, 9, 9, 8, 7, 6, 2, 1, 2, 3, 4, 5, 6, 8, 9, 5, 6, 7, 9, 8, 8, 7, 9, 8, 7),
+    code = c(" 1", " 1", " 2", " 3", " 8", " 4", " 5", " 6", " 7", " 9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "30", "29", "31"),
     stringsAsFactors = FALSE
 )
 
 Model_eval<-readRDS("Model_eval.Rds")
+
+CV_sum<-readRDS("CV_sum.Rds")%>%
+    mutate(Year=recode(Group, `1`="Even years", `2`="Odd years"))
 
 
 # Raw data ----------------------------------------------------------------
@@ -193,14 +196,11 @@ ui <- fluidPage(
                                                        prettySwitch("Regions_all","Select all regions?", status = "success", fill = TRUE))),
                      conditionalPanel(condition="input.Tab=='Model evaluation'",
                                       radioGroupButtons("Uncertainty",
-                                                        "Variable to plot:",
-                                                        choices = c("Model residuals", "Cross-validation residuals", "Sample size of measured values"), selected="Model residuals", individual = TRUE, 
+                                                        "Metric to plot:",
+                                                        choices = c("Model residuals", "Cross-validation", "Sample size of measured values"), selected="Model residuals", individual = TRUE, 
                                                         checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue"))),
                                       conditionalPanel(condition="input.Uncertainty!='Sample size of measured values'", 
-                                                       radioGroupButtons("Uncertainty_value",
-                                                                         "Plot mean error, mean magnitude of error, or standard deviation of error?",
-                                                                         choices = c("Mean", "Mean magnitude", "SD"), selected="Mean", individual = TRUE, 
-                                                                         checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue"))))),
+                                                       uiOutput("summary_stats"))),
                      conditionalPanel(condition="input.Tab=='Raw data'",
                                       h5("Include data from non-fixed stations (EDSM, EMP EZ stations, and SKT stations 699, 799, and 999) that are not plotted on map?"), 
                                       materialSwitch(
@@ -212,16 +212,17 @@ ui <- fluidPage(
                                           inputId = "Time_correction",
                                           value = TRUE, inline=F,
                                           status = "primary")),
-                     actionBttn("Plot_info", label = NULL, style="material-circle", 
-                                color="primary", icon=icon("question"))
+                     actionBttn("Plot_info", label = "Plot description", style="simple", 
+                                color="success", icon=icon("question-circle"))
         ),
         mainPanel(width=9,
                   tabsetPanel(type="tabs",
                               id="Tab",
                               tabPanel("Model evaluation",
                                        fluidRow(girafeOutput("Uncertainty_plot", height="100vh", width="130vh")),
-                                       h2("Region map", align = "center"),
-                                       fluidRow(leafletOutput("Regions_plot2", width = "100%", height = "100%"))),
+                                       conditionalPanel(condition="input.Uncertainty=='Sample size of measured values' || input.Uncertainty_value=='Mean residuals' || input.Uncertainty_value=='Mean magnitude of residuals' || input.Uncertainty_value=='SD of residuals'", 
+                                                        h2("Region map", align = "center"),
+                                       fluidRow(leafletOutput("Regions_plot2", width = "100%", height = "100%")))),
                               tabPanel("Rasters",
                                        conditionalPanel(condition="input.Facet!='Year' && input.Facet!='Year x Month' && input.Facet!='Month x Year'",
                                                         uiOutput("select_Year")),
@@ -327,16 +328,21 @@ server <- function(input, output, session) {
     Plot_info<-reactive({
         if(input$Tab=="Model evaluation"){
             out<-tags$span(h2("Visualizations of model error and sample size"),
-                           p("Model residuals represent the deviations of model predictions from true measured values.
-                              Cross-validation residuals also represent the deviations of model predictions from true measured values, but this time
-                              the models were fit to datasets missing the value to be predicted. A stratified cross-validation approach was used, in which
-                             the dataset was split into 20 parts, evenly splitting across regions, years, and seasons. Twenty separate datasets were created
+                           h4("Cross validation methods"),
+                           p("A stratified cross-validation approach was used, in which
+                             the dataset was split into 20 parts. First, the dataset was split into even and odd years, then within each year grouping the data
+                             were further divided into 10 parts evenly split across regions, years, and seasons. Twenty separate datasets were created
                              each missing 1 of those 20 parts and predictions were generated for the missing parts. CV residuals were not calculated for years
                              before 1974 due to the very small number of data points in those years."),
+                           h4("Metric descriptions"),
+                           p("Residuals represent the deviations of model predictions from true measured values.
+                              The residuals were either calculated from the full model (model residuals) or from the cross-validation models described above (cross-validation residuals)."),
                            p("The 'Mean magnitude' option for visualizing residuals allows you to explore the average magnitude of error. 
                              Since the residuals can be positive or negative, the regular mean may result in large positive or negative values canceling one another out."),
                            p("The standard deviation of the residual values should help inform the range of error magnitudes. Small mean errors could still be problematic if individual
                              errors can be large."),
+                           p("The cross-validation results can be further explored with the RMSE (root-mean-square error) or Pearson's correlation (r) options. 
+                              Each metric is calculated separately for each of the 20 cross-validation models."),
                            p("The 'Sample size of measured values' options allows you to explore the number of temperature measurements in each month, year, and region.
                              This should give you an idea of the data available to the model during fitting."),
                            p("These plots are interactive, so hover your mouse over the graph to see the data values."),
@@ -352,19 +358,19 @@ server <- function(input, output, session) {
                                  change with every new time point.")))
             }else{
                 if(input$Tab=="Time series"){
-                out<-tags$span(h2("Time series plots"),
-                               p("Select spatial regions of interest and plot a timeseries for those regions."),
-                               p("Model predictions have been spatially and temporally trimmed to the extent of the integrated dataset. Predictions were only generated for
+                    out<-tags$span(h2("Time series plots"),
+                                   p("Select spatial regions of interest and plot a timeseries for those regions."),
+                                   p("Model predictions have been spatially and temporally trimmed to the extent of the integrated dataset. Predictions were only generated for
                                  regions sampled in each month and year. Explore the Raster plots, or the sample size plots in the 'Model evaluation' tab to see how the spatial extent of sampling has changed over time."),
-                               p("You have the choice to draw your own spatial regions, or select from a set of pre-set regions based on the EDSM sub-regions (controlled with the slider)."),
-                               p("In either case, you can draw rectangles or polygons on the map to select any spatial areas they touch. You can also drop a marker to select invididual cells or regions.
+                                   p("You have the choice to draw your own spatial regions, or select from a set of pre-set regions based on the EDSM sub-regions (controlled with the slider)."),
+                                   p("In either case, you can draw rectangles or polygons on the map to select any spatial areas they touch. You can also drop a marker to select invididual cells or regions.
                                  There are also buttons for editing or deleting your drawn areas. Hover over the buttons to see their use. The map will update to highlight the areas you've selected.
                                  It may take a few seconds to load."),
-                               p("If you want to average across all the areas you select to produce one time-series, leave the facets option on 'None'. But if you want to plot each region separately, switch it to 'Region'. 
+                                   p("If you want to average across all the areas you select to produce one time-series, leave the facets option on 'None'. But if you want to plot each region separately, switch it to 'Region'. 
                                  You can also choose to facet plots by month."),
-                               p("Use the month slider to control which month is represented on the plot. To plot the full time-series across all months, switch the slider labeled 'Plot all months?'"),
-                               p("These plots are interactive, so hover to reveal the data values. For the time-series plot, you need to hover over the points (i.e., vertices in the line)."),
-                               tags$em("NOTE: If you select areas that span multiple regions with different sample sizes, different subsets of spatial locations will be included in the averaged
+                                   p("Use the month slider to control which month is represented on the plot. To plot the full time-series across all months, switch the slider labeled 'Plot all months?'"),
+                                   p("These plots are interactive, so hover to reveal the data values. For the time-series plot, you need to hover over the points (i.e., vertices in the line)."),
+                                   tags$em("NOTE: If you select areas that span multiple regions with different sample sizes, different subsets of spatial locations will be included in the averaged
                                        temperature values for each date. For example, the Confluence is heavily represented, while the Upper San Joaquin River is often missing dates in the timeseries.
                                        Averaging across both these areas would be biased by some time points including the warm Upper San Joaquin River temperatures, and others only including the
                                        cooler Confluence temperatures."))
@@ -457,11 +463,21 @@ server <- function(input, output, session) {
     
     # Uncertainty plot --------------------------------------------------------
     
+    output$summary_stats <- renderUI({
+        if(input$Uncertainty=="Cross-validation"){
+            choices <- c("Mean residuals", "Mean magnitude of residuals", "SD of residuals", "RMSE", "Pearson's correlation")
+        } else{
+            choices <- c("Mean residuals", "Mean magnitude of residuals", "SD of residuals")
+        }
+        
+        radioGroupButtons("Uncertainty_value",
+                          "Summary statistic:",
+                          choices = choices, selected="Mean residuals", individual = TRUE, 
+                          checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue")))
+    })
+    
     Uncertainty_plot<-reactive({
         req(input$Uncertainty, input$Date_range, any(input$Months%in%1:12), input$Uncertainty_value)
-        
-        
-        
         
         if(input$Uncertainty=="Model residuals"){
             Data<-Model_eval%>%
@@ -472,9 +488,22 @@ server <- function(input, output, session) {
                 Data<-Model_eval%>%
                     rename(Fill=N)
             }else{
-                Data<-Model_eval%>%
-                    rename(Fill=Resid_CV, Fill_mag=Resid_mag_CV, Fill_SD=SD_CV)%>%
-                    filter(Year>=1974)
+                if(input$Uncertainty_value%in%c("RMSE", "Pearson's correlation")){
+                    Data<-CV_sum%>%
+                        {if(input$Uncertainty_value=="RMSE"){
+                            rename(., Metric=RMSE)
+                        }else{
+                            rename(., Metric=r)
+                        }}%>%
+                        group_by(Group)%>%
+                        mutate(Median=median(Metric))%>%
+                        ungroup()%>%
+                        select(Group, Year, Fold, Metric, Median)
+                } else{
+                    Data<-Model_eval%>%
+                        rename(Fill=Resid_CV, Fill_mag=Resid_mag_CV, Fill_SD=SD_CV)%>%
+                        filter(Year>=1974)
+                }
             }
             
         }
@@ -490,79 +519,109 @@ server <- function(input, output, session) {
                        tooltip=paste0( "<table>", tooltip, "</table>" ),
                        ID=1:n())
         } else{
-            str_model <- paste0("<tr><td>Mean resid: &nbsp</td><td>%s</td></tr>",
-                                "<tr><td>Mean resid magnitude: &nbsp</td><td>%s</td></tr>",
-                                "<tr><td>SD: &nbsp</td><td>%s</td></tr>",
-                                "<tr><td>Year: &nbsp</td><td>%s</td></tr>", 
-                                "<tr><td>Month: &nbsp</td><td>%s</td></tr>")
-            Data<-Data%>%
-                filter(Year>year(min(input$Date_range)) & Year<year(max(input$Date_range)) & Month%in%input$Months)%>%
-                mutate(Month=month(Month, label=T))%>%
-                mutate(tooltip=sprintf(str_model, round(Fill, 2), round(Fill_mag, 2), round(Fill_SD, 2), Year, Month),
-                       tooltip=paste0( "<table>", tooltip, "</table>" ),
-                       ID=1:n())
+            if(input$Uncertainty_value%in%c("RMSE", "Pearson's correlation")){
+                str_model1 <- paste0("<tr><td>Data grouping: &nbsp</td><td>%s</td></tr>",
+                                    "<tr><td>Median: &nbsp</td><td>%s</td></tr>")
+                
+                str_model2 <- paste0("<tr><td>Data grouping: &nbsp</td><td>%s</td></tr>",
+                                     "<tr><td>Fold:  &nbsp</td><td>%s</td></tr>",
+                                     "<tr><td>Value: &nbsp</td><td>%s</td></tr>")
+                
+                Data<-Data%>%
+                    mutate(tooltip1=sprintf(str_model1, Year, round(Median, 4)),
+                           tooltip1=paste0( "<table>", tooltip1, "</table>" ),
+                           tooltip2=sprintf(str_model2, Year, Fold, round(Metric, 4)),
+                           tooltip2=paste0( "<table>", tooltip2, "</table>" ))
+            }else{
+                
+                str_model <- paste0("<tr><td>Mean resid: &nbsp</td><td>%s</td></tr>",
+                                    "<tr><td>Mean resid magnitude: &nbsp</td><td>%s</td></tr>",
+                                    "<tr><td>SD: &nbsp</td><td>%s</td></tr>",
+                                    "<tr><td>Year: &nbsp</td><td>%s</td></tr>", 
+                                    "<tr><td>Month: &nbsp</td><td>%s</td></tr>")
+                Data<-Data%>%
+                    filter(Year>year(min(input$Date_range)) & Year<year(max(input$Date_range)) & Month%in%input$Months)%>%
+                    mutate(Month=month(Month, label=T))%>%
+                    mutate(tooltip=sprintf(str_model, round(Fill, 2), round(Fill_mag, 2), round(Fill_SD, 2), Year, Month),
+                           tooltip=paste0( "<table>", tooltip, "</table>" ),
+                           ID=1:n())
+            }
         }
         
-        
-        p_resid<-ggplot(Data)+
-            {if(input$Uncertainty_value=="Mean" | input$Uncertainty=="Sample size of measured values"){
-                geom_tile_interactive(aes(x=Year, y=Month, fill=Fill, color=Fill, tooltip=tooltip, data_id=ID))
-            }else{ 
-                if(input$Uncertainty_value=="Mean magnitude"){
-                    geom_tile_interactive(aes(x=Year, y=Month, fill=Fill_mag, color=Fill_mag, tooltip=tooltip, data_id=ID))
-                }else{
-                    geom_tile_interactive(aes(x=Year, y=Month, fill=Fill_SD, color=Fill_SD, tooltip=tooltip, data_id=ID))
-                }
+        if(input$Uncertainty=="Cross-validation" & input$Uncertainty_value%in%c("RMSE", "Pearson's correlation")){
+            
+            p_resid<-ggplot(Data, aes(x=as.factor(Group), y=Metric, group=as.factor(Group), fill=as.factor(Group)))+
+                geom_boxplot_interactive(aes(tooltip=tooltip1, data_id=Group), show.legend=F, outlier.shape = NA)+
+                geom_point_interactive(aes(x=Group+Fold/100, tooltip=tooltip2, data_id=paste(Group, Fold)), show.legend=F)+
+                scale_x_discrete(labels=c("Even years", "Odd years"))+
+                ylab(if_else(input$Uncertainty_value=="RMSE", "RMSE (°C)", "r"))+
+                xlab("Data grouping")+
+                theme_bw()
                 
-            }}+
-            {if(input$Uncertainty_value=="Mean" & !input$Uncertainty=="Sample size of measured values"){
-                scale_fill_gradient2(name=paste("Mean", tolower(input$Uncertainty), "(°C)"),
-                                     high = muted("red"),
-                                     low = muted("blue"),
-                                     breaks=seq(-9,6.5, by=0.5),
-                                     guide=guide_colorbar(direction="horizontal", title.position = "top", ticks.linewidth = 1,
-                                                          title.hjust=0.5, label.position="bottom"),
-                                     aesthetics = c("color", "fill"))
-            }else{
-                if(input$Uncertainty=="Sample size of measured values"){
-                    scale_fill_viridis_c(name="Sample size",
+            
+        }else{
+            
+            p_resid<-ggplot(Data)+
+                {if(input$Uncertainty_value=="Mean" | input$Uncertainty=="Sample size of measured values"){
+                    geom_tile_interactive(aes(x=Year, y=Month, fill=Fill, color=Fill, tooltip=tooltip, data_id=ID))
+                }else{ 
+                    if(input$Uncertainty_value=="Mean magnitude"){
+                        geom_tile_interactive(aes(x=Year, y=Month, fill=Fill_mag, color=Fill_mag, tooltip=tooltip, data_id=ID))
+                    }else{
+                        geom_tile_interactive(aes(x=Year, y=Month, fill=Fill_SD, color=Fill_SD, tooltip=tooltip, data_id=ID))
+                    }
+                    
+                }}+
+                {if(input$Uncertainty_value=="Mean" & !input$Uncertainty=="Sample size of measured values"){
+                    scale_fill_gradient2(name=paste("Mean", tolower(input$Uncertainty), "(°C)"),
+                                         high = muted("red"),
+                                         low = muted("blue"),
+                                         breaks=seq(-9,6.5, by=0.5),
                                          guide=guide_colorbar(direction="horizontal", title.position = "top", ticks.linewidth = 1,
                                                               title.hjust=0.5, label.position="bottom"),
                                          aesthetics = c("color", "fill"))
                 }else{
-                    if(input$Uncertainty_value=="Mean magnitude"){
-                        scale_fill_viridis_c(name=paste("Mean magnitude of", tolower(input$Uncertainty), "(°C)"),
-                                             breaks=seq(0,9, by=0.5),
+                    if(input$Uncertainty=="Sample size of measured values"){
+                        scale_fill_viridis_c(name="Sample size",
                                              guide=guide_colorbar(direction="horizontal", title.position = "top", ticks.linewidth = 1,
                                                                   title.hjust=0.5, label.position="bottom"),
-                                             aesthetics = c("color", "fill")) 
+                                             aesthetics = c("color", "fill"))
                     }else{
-                        scale_fill_viridis_c(name=paste("Standard deviation in", tolower(input$Uncertainty), "(°C)"),
-                                             breaks=seq(0,4.5, by=0.5),
-                                             guide=guide_colorbar(direction="horizontal", title.position = "top", ticks.linewidth = 1,
-                                                                  title.hjust=0.5, label.position="bottom"),
-                                             aesthetics = c("color", "fill")) 
+                        if(input$Uncertainty_value=="Mean magnitude"){
+                            scale_fill_viridis_c(name=paste("Mean magnitude of", tolower(input$Uncertainty), "(°C)"),
+                                                 breaks=seq(0,9, by=0.5),
+                                                 guide=guide_colorbar(direction="horizontal", title.position = "top", ticks.linewidth = 1,
+                                                                      title.hjust=0.5, label.position="bottom"),
+                                                 aesthetics = c("color", "fill")) 
+                        }else{
+                            scale_fill_viridis_c(name=paste("Standard deviation in", tolower(input$Uncertainty), "(°C)"),
+                                                 breaks=seq(0,4.5, by=0.5),
+                                                 guide=guide_colorbar(direction="horizontal", title.position = "top", ticks.linewidth = 1,
+                                                                      title.hjust=0.5, label.position="bottom"),
+                                                 aesthetics = c("color", "fill")) 
+                        }
                     }
-                }
-                
-            }}+
-            scale_x_continuous(breaks=seq(1970, 2020, by=10))+
-            {if(setequal(1:12, input$Months)){
-                scale_y_discrete(breaks=levels(Data$Month), labels = if_else(sort(as.integer(unique(month(sample(1:12, 100, replace=T), label=T)))+1)%% 2 == 0, levels(Data$Month), ""))
-            }}+
-            facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
-            theme_bw()+
-            theme(text=element_text(size=4), axis.text.x=element_text(angle=45, hjust=1), 
-                  panel.grid=element_blank(),
-                  strip.background = element_blank(), panel.spacing = unit(0.2, units="lines"),
-                  axis.ticks=element_line(size=0.1), axis.ticks.length = unit(0.2, units="lines"),
-                  legend.position="top", legend.key.width = unit(50, "native"), legend.justification="center",
-                  legend.box.spacing = unit(0.2, "lines"),legend.box.margin=margin(b=-50))+
-            {if(input$Uncertainty_value=="Mean" & !input$Uncertainty=="Sample size of measured values"){
-                theme(panel.background = element_rect(fill="black"))
-            }else{
-                theme(panel.background = element_rect(fill="white"))
-            }}
+                    
+                }}+
+                scale_x_continuous(breaks=seq(1970, 2020, by=10))+
+                {if(setequal(1:12, input$Months)){
+                    scale_y_discrete(breaks=levels(Data$Month), labels = if_else(sort(as.integer(unique(month(sample(1:12, 100, replace=T), label=T)))+1)%% 2 == 0, levels(Data$Month), ""))
+                }}+
+                facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
+                theme_bw()+
+                theme(text=element_text(size=4), axis.text.x=element_text(angle=45, hjust=1), 
+                      panel.grid=element_blank(),
+                      strip.background = element_blank(), panel.spacing = unit(0.2, units="lines"),
+                      axis.ticks=element_line(size=0.1), axis.ticks.length = unit(0.2, units="lines"),
+                      legend.position="top", legend.key.width = unit(50, "native"), legend.justification="center",
+                      legend.box.spacing = unit(0.2, "lines"),legend.box.margin=margin(b=-50))+
+                {if(input$Uncertainty_value=="Mean" & !input$Uncertainty=="Sample size of measured values"){
+                    theme(panel.background = element_rect(fill="black"))
+                }else{
+                    theme(panel.background = element_rect(fill="white"))
+                }}
+        }
+        return(p_resid)
     })
     
     output$Uncertainty_plot<-renderGirafe({

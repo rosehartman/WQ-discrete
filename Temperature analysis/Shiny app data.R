@@ -7,7 +7,7 @@ require(dtplyr)
 require(tibble)
 require(mgcv)
 
-Data<-readRDS("Temperature smoothing model/Discrete Temp Data.Rds")
+Data<-readRDS("Temperature analysis/Discrete Temp Data.Rds")
 
 #Region data for shiny app
 
@@ -34,15 +34,14 @@ Delta_regions<-Delta%>%
               st_drop_geometry()%>%
               group_by(SubRegion)%>%
               summarise(N_data=n(), .groups="drop"),
-            by="SubRegion")%>%
-  mutate(SubRegion=droplevels(SubRegion))
+            by="SubRegion")
 saveRDS(Delta_regions, file="Shiny app/Delta subregions.Rds")
 
 
 # Rasterized model predictions --------------------------------------------
 
-newdata_year<-readRDS("Temperature smoothing model/Prediction Data.Rds")
-modelld_predictions<-readRDS("Temperature smoothing model/modelld_predictions.Rds")
+newdata_year<-readRDS("Temperature analysis/Prediction Data.Rds")
+modelld_predictions<-readRDS("Temperature analysis/Model outputs and validations/modelld_predictions.Rds")
 
 newdata<-newdata_year%>%
   mutate(Prediction=modelld_predictions$fit)%>%
@@ -83,7 +82,7 @@ saveRDS(rastered_predsSE, file="Shiny app/Rasterized modelld predictions.Rds")
 
 # Model evaluation data ---------------------------------------------------
 # Stored as modelld_residuals.Rds
-modelld_residuals<-readRDS("Temperature smoothing model/modelld_residuals.Rds")
+modelld_residuals<-readRDS("Temperature analysis/Model outputs and validations/modelld_residuals.Rds")
 
 Data_resid<-Data%>%
   mutate(Residuals = modelld_residuals)
@@ -95,9 +94,9 @@ Resid_sum<-Data_resid%>%
   ungroup()%>%
   as_tibble()
 
-CV_fit_1<-readRDS("Temperature smoothing model/Group 1 CV predictions d.Rds")
-CV_fit_2<-readRDS("Temperature smoothing model/Group 2 CV predictions d.Rds")
-Data_split<-readRDS("Temperature smoothing model/Split data for cross validation.Rds")
+CV_fit_1<-readRDS("Temperature analysis/Model outputs and validations/Group 1 CV predictions d.Rds")
+CV_fit_2<-readRDS("Temperature analysis/Model outputs and validations/Group 2 CV predictions d.Rds")
+Data_split<-readRDS("Temperature analysis/Split data for cross validation.Rds")
 
 CV_bind<-function(group, fold){
   if(group==1){
@@ -133,6 +132,14 @@ Model_eval<-Resid_sum%>%
             by=c("Year", "Month", "SubRegion"))
 
 saveRDS(Model_eval, file="Shiny app/Model_eval.Rds")
+
+CV_sum<-Data_split_CV%>%
+  st_drop_geometry()%>%
+  group_by(Group, Fold)%>%
+  summarise(RMSE=sqrt(mean(Resid_CV^2)), 
+            r=cor(Fitted_CV, Temperature, method="pearson"), .groups="drop")
+
+saveRDS(CV_sum, file="Shiny app/CV_sum.Rds")
 
 
 # Time correction ---------------------------------------------------------
