@@ -122,11 +122,12 @@ modelld4a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day
 
 #AIC: 120732.4
 #BIC: 162066.7
-rm(modelld4a)
 
 modelld5a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(15, 20), by=Year_fac) + 
                    te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 6)),
                  data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
+#AIC: 22602.9
+#BIC: 155149.3
 
 # Final model -------------------------------------------------------------
 
