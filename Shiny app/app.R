@@ -155,6 +155,7 @@ progress_background <- "#c5c5c9"
 
 ui <- fluidPage(
     theme = shinytheme("cerulean"),
+    a(shiny::icon("reply"), "Delta Science shinyapps homepage", href="https://deltascience.shinyapps.io/Home/"),
     
     # Application title
     titlePanel(title=div(h1("Delta Discrete Temperature Model", style="display: inline-block"), 
