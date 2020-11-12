@@ -93,6 +93,8 @@ saveRDS(Data, file="Temperature analysis/Discrete Temp Data.Rds")
 # Tried including a global smoother for lat, long, & julian_day, but ran into issues with curvilinearity.
 # Optimized k-values using BIC comparisons on models fit to the even years of the dataset as follows: 
 
+# Gavin Simpson recommends using AIC, not BIC https://stackoverflow.com/questions/59825442/get-the-aic-or-bic-citerium-from-a-gamm-gam-and-lme-models-how-in-mgcv-and-h
+
 ## New best
 modellda <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
                   te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
