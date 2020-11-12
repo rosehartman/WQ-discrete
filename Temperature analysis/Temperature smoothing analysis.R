@@ -104,6 +104,12 @@ modellda <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_
 #BIC: 162087.7
 ## New best
 
+modellda.2 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
+                  te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)), select=TRUE,
+                data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
+#AIC: 120729.9
+#BIC: 161957.2
+
 modelld2a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 10), by=Year_fac) + 
                    te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
                  data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
