@@ -15,10 +15,10 @@ require(hms)
 require(scales)
 
 mygrid <- data.frame(
-  name = c("Cache Slough and Lindsey Slough", "Lower Sacramento River Ship Channel", "Liberty Island", "Suisun Marsh", "Middle Sacramento River", "Lower Cache Slough", "Steamboat and Miner Slough", "Upper Mokelumne River", "Lower Mokelumne River", "Georgiana Slough", "Sacramento River near Ryde", "Sacramento River near Rio Vista", "Grizzly Bay", "West Suisun Bay", "Mid Suisun Bay", "Honker Bay", "Confluence", "Lower Sacramento River", "San Joaquin River at Twitchell Island", "San Joaquin River at Prisoners Pt", "Disappointment Slough", "Lower San Joaquin River", "Franks Tract", "Holland Cut", "San Joaquin River near Stockton", "Mildred Island", "Middle River", "Old River", "Upper San Joaquin River", "Grant Line Canal and Old River", "Victoria Canal"),
-  row = c(2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 7, 7, 8, 8, 8),
-  col = c(4, 6, 5, 2, 8, 6, 7, 9, 9, 8, 7, 6, 2, 1, 2, 3, 4, 5, 6, 8, 9, 5, 6, 7, 9, 8, 8, 7, 9, 8, 7),
-  code = c(" 1", " 2", " 3", " 8", " 4", " 5", " 6", " 7", " 9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "30", "29", "31"),
+  name = c("Upper Sacramento River Ship Channel", "Cache Slough and Lindsey Slough", "Lower Sacramento River Ship Channel", "Liberty Island", "Suisun Marsh", "Middle Sacramento River", "Lower Cache Slough", "Steamboat and Miner Slough", "Upper Mokelumne River", "Lower Mokelumne River", "Georgiana Slough", "Sacramento River near Ryde", "Sacramento River near Rio Vista", "Grizzly Bay", "West Suisun Bay", "Mid Suisun Bay", "Honker Bay", "Confluence", "Lower Sacramento River", "San Joaquin River at Twitchell Island", "San Joaquin River at Prisoners Pt", "Disappointment Slough", "Lower San Joaquin River", "Franks Tract", "Holland Cut", "San Joaquin River near Stockton", "Mildred Island", "Middle River", "Old River", "Upper San Joaquin River", "Grant Line Canal and Old River", "Victoria Canal"),
+  row = c(2, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 7, 7, 8, 8, 8),
+  col = c(7, 4, 6, 5, 2, 8, 6, 7, 9, 9, 8, 7, 6, 2, 1, 2, 3, 4, 5, 6, 8, 9, 5, 6, 7, 9, 8, 8, 7, 9, 8, 7),
+  code = c(" 1", " 1", " 2", " 3", " 8", " 4", " 5", " 6", " 7", " 9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "30", "29", "31"),
   stringsAsFactors = FALSE
 )
 
@@ -220,186 +220,6 @@ CC_brm_ar<-brm(Temperature~Year_s+(Year_s|Month*SubRegion) + ar(time = Date, gr=
 
 # GAMs --------------------------------------------------------------------
 
-# Remove non-fixed stations, reduce temporal frequency to no more than 1 sample per week
-Data_CC<-Data%>%
-  filter(Source%in%c("EMP", "STN", "FMWT", "DJFMP", "SKT", "20mm", "Suisun", "Baystudy", "USGS") & !str_detect(Station, "EZ") & !(Source=="SKT" & Station=="799" & Latitude>38.2))%>%
-  mutate(Station=paste(Source, Station),
-         Week=week(Date),
-         Noon_diff=abs(hms(hours=12)-as_hms(Datetime)))%>%
-  group_by(Station, Week, Year)%>%
-  filter(Date==min(Date) & Noon_diff==min(Noon_diff))%>%
-  ungroup()%>%
-  lazy_dt()%>%
-  group_by(Date, Date_num, Date_num_s, Week, SubRegion, Julian_day_s, Julian_day, Year, Year_s, Year_fac, Station, Source, Latitude_s, Longitude_s, Latitude, Longitude)%>%
-  summarise(Temperature=mean(Temperature), Time_num=mean(Time_num), Time_num_s=mean(Time_num_s))%>%
-  as_tibble()%>%
-  ungroup()%>%
-  mutate(ID=paste(Station, Date_num))%>%
-  filter(!(ID%in%ID[which(duplicated(ID))]))%>%
-  mutate(YearStation=paste(Year, Station))
-
-saveRDS(Data_CC, "Temperature analysis/Discrete Temp Data CC.Rds")
-
-CC_gam <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
-                te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
-                s(Time_num_s, k=5),
-              data = Data, method="fREML", discrete=T, nthreads=4)
-# Adding m=1 to first smoother and m=2 to second smoother resulted in exact same concurvity
-
-CC_gam2 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
-                 te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
-                 s(Time_num_s, k=5),
-               data = filter(Data, Source!="EDSM"), method="fREML", discrete=T, nthreads=4)
-
-CC_gam3 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, Year_fac, d=c(2,1,1), bs=c("tp", "cc", "re"), k=c(15, 10)) + 
-                 te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
-                 s(Time_num_s, k=5),
-               data = Data, method="fREML", discrete=T, nthreads=4)
-# Weird results, probably too much collinearity
-
-CC_gam4 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
-                  te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
-                  s(Time_num_s, k=5), correlation = corCAR1(form=~Date|Station),
-                data = Data_CC, method="REML")
-
-CC_gam5a <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
-                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
-                   s(Time_num_s, k=5),
-                 data = Data_CC, method="REML")
-
-# Find the optimal correlation structure
-sp <- SpatialPoints(coords=data.frame(Longitude=Data_CC$Longitude, Latitude=Data_CC$Latitude))
-sp2<-STIDF(sp, time=Data_CC$Date, data=data.frame(Residuals=residuals(CC_gam5a$lme, type="normalized")))
-CC_gam5a_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=3)
-
-ggplot(CC_gam5a_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
-  geom_line()+
-  geom_point()
-
-CC_gam5 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
-                  te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
-                  s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num_s|Station),
-                data = Data_CC, method="REML")
-acf(residuals(CC_gam5$gam),main="raw residual ACF")
-resid_norm_CC_gam5<-residuals(CC_gam5$lme,type="normalized")
-acf(resid_norm_CC_gam5,main="standardized residual ACF")
-
-sp <- SpatialPoints(coords=data.frame(Longitude=Data_CC$Longitude, Latitude=Data_CC$Latitude))
-sp2<-STIDF(sp, time=Data_CC$Date, data=data.frame(Residuals=resid_norm_CC_gam5))
-CC_gam5_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=3)
-
-ggplot(CC_gam5_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
-  geom_line()+
-  geom_point()
-
-CC_gam6 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
-                  te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
-                  s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num_s|YearStation),
-                data = Data_CC, method="REML")
-
-CC_gam7 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
-                  te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
-                  s(Time_num_s, k=5), correlation = corExp(form=~Date_num_s|YearStation),
-                data = Data_CC, method="REML")
-# corExp Won't fit
-
-#Try reducing temporal resolution to once every 2 weeks.
-Data_CC2<-Data%>%
-  filter(Source%in%c("EMP", "STN", "FMWT", "DJFMP", "SKT", "20mm", "Suisun", "Baystudy", "USGS") & !str_detect(Station, "EZ") & !(Source=="SKT" & Station=="799" & Latitude>38.2))%>%
-  mutate(Station=paste(Source, Station),
-         Week2=round(week(Date)/2),
-         Noon_diff=abs(hms(hours=12)-as_hms(Datetime)))%>%
-  group_by(Station, Week2, Year)%>%
-  filter(Date==min(Date) & Noon_diff==min(Noon_diff))%>%
-  ungroup()%>%
-  lazy_dt()%>%
-  group_by(Date, Date_num, Date_num_s, Week2, SubRegion, Julian_day_s, Julian_day, Year, Year_s, Year_fac, Station, Source, Latitude_s, Longitude_s, Latitude, Longitude)%>%
-  summarise(Temperature=mean(Temperature), Time_num=mean(Time_num), Time_num_s=mean(Time_num_s))%>%
-  as_tibble()%>%
-  ungroup()%>%
-  mutate(ID=paste(Station, Date_num))%>%
-  filter(!(ID%in%ID[which(duplicated(ID))]))%>%
-  mutate(YearStation=paste(Year, Station),
-         Date_num2=as.numeric(Date)/(3600*24*14)) # Create a numeric date variable in units of 2 weeks. 
-
-CC_gam5b <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
-                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
-                   s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num_s|Station),
-                 data = Data_CC2, method="REML")
-
-CC_gam6b <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
-                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
-                   s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num_s|YearStation),
-                 data = Data_CC2, method="REML")
-
-# corExp won't fit
-
-CC_gam7b <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
-                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
-                   s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
-                 data = Data_CC2, method="REML")
-#Seems to be exactly the same using the other form of Date_num, so standardization of the date variable does not have an effect on model predictions
-
-
-sp <- SpatialPoints(coords=data.frame(Longitude=Data_CC2$Longitude, Latitude=Data_CC2$Latitude))
-sp2<-STIDF(sp, time=Data_CC2$Date, data=data.frame(Residuals=residuals(CC_gam7b$lme, type="normalized")))
-CC_gam7b_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=3, tlags=seq(2,20,by=2))
-
-#Try reducing temporal resolution to once every month.
-Data_CC3<-Data%>%
-  filter(Source%in%c("EMP", "STN", "FMWT", "DJFMP", "SKT", "20mm", "Suisun", "Baystudy", "USGS") & !str_detect(Station, "EZ") & !(Source=="SKT" & Station=="799" & Latitude>38.2))%>%
-  mutate(Station=paste(Source, Station),
-         Noon_diff=abs(hms(hours=12)-as_hms(Datetime)))%>%
-  group_by(Station, Month, Year)%>%
-  filter(Date==min(Date) & Noon_diff==min(Noon_diff))%>%
-  ungroup()%>%
-  lazy_dt()%>%
-  group_by(Date, Date_num, Date_num_s, Month, SubRegion, Julian_day_s, Julian_day, Year, Year_s, Year_fac, Station, Source, Latitude_s, Longitude_s, Latitude, Longitude)%>%
-  summarise(Temperature=mean(Temperature), Time_num=mean(Time_num), Time_num_s=mean(Time_num_s))%>%
-  as_tibble()%>%
-  ungroup()%>%
-  mutate(ID=paste(Station, Date_num))%>%
-  filter(!(ID%in%ID[which(duplicated(ID))]))%>%
-  mutate(YearStation=paste(Year, Station),
-         Date_num2=as.numeric(Date)/(3600*24*30)) # Create a numeric date variable in units of ~ 1 month. 
-
-CC_gam7c <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
-                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_s) + 
-                   s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
-                 data = Data_CC3, method="REML")
-# BIC: 177774.8
-
-sp <- SpatialPoints(coords=data.frame(Longitude=Data_CC3$Longitude, Latitude=Data_CC3$Latitude))
-sp2<-STIDF(sp, time=Data_CC3$Date, data=data.frame(Residuals=residuals(CC_gam7c$lme, type="normalized")))
-CC_gam7c_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", tlags=(30/7)*1:10, cores=3)
-
-CC_gam7c2 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
-                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(30, 20), by=Year_s) + 
-                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
-                  data = Data_CC3, method="REML")
-# BIC: 177775.2
-# No improvement over CC_gam7c
-
-CC_gam7c3 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
-                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 25), by=Year_s) + 
-                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
-                  data = Data_CC3, method="REML")
-# BIC: 177691.2
-
-CC_gam7c4 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
-                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 35), by=Year_s) + 
-                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
-                  data = Data_CC3, method="REML")
-
-# BIC: 177545.9
-
-CC_gam7c5 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
-                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 12), by=Year_s) + 
-                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
-                  data = Data_CC3, method="REML")
-
-# BIC: 178235.2
-
 #Try reducing temporal resolution to once every month.
 # This time, pick days closest to the middle of the month
 # And split the filtering to 2 steps to fix error that removed too much data by requiring the earliest day AND the time closest to noon
@@ -423,105 +243,33 @@ Data_CC4<-Data%>%
          Date_num2=as.numeric(Date)/(3600*24*30), # Create a numeric date variable in units of ~ 1 month. 
          Month_fac=factor(Month)) 
 
-CC_gam8d <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Month, d=c(2,1), bs=c("tp", "cc"), k=c(25, 12)) + 
-                    te(Latitude_s, Longitude_s, Month, d=c(2,1), bs=c("tp", "cc"), k=c(25, 12), by=Year_s) + 
-                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station), knots=list(Month = c(0.5, seq(1, 12, length = 10), 12.5)),
-                  data = Data_CC4, method="REML") # knots from https://fromthebottomoftheheap.net/2015/11/21/climate-change-and-spline-interactions/
-# BIC: 207035.5
-
-CC_gam8d2 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Month, d=c(2,1), bs=c("tp", "cc"), k=c(25, 14)) + 
-                   te(Latitude_s, Longitude_s, Month, d=c(2,1), bs=c("tp", "cc"), k=c(25, 14), by=Year_s) + 
-                   s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station), knots=list(Month = c(0.5, 1:12, 12.5)),
-                 data = Data_CC4, method="REML")
-#BIC: 206880.3
-
-CC_gam8d3 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Month, d=c(2,1), bs=c("tp", "tp"), k=c(25, 12)) + 
-                    te(Latitude_s, Longitude_s, Month, d=c(2,1), bs=c("tp", "tp"), k=c(25, 12), by=Year_s) + 
-                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
-                  data = Data_CC4, method="REML")
-#BIC: 206967.2
-
-CC_gam8d4 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Month, d=c(2,1), bs=c("tp", "cc"), k=c(25, 14)) + 
-                    te(Latitude_s, Longitude_s, Month_fac, d=c(2,1), bs=c("tp", "fs"), k=c(25), by=Year_s) + 
-                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station), knots=list(Month = c(0.5, 1:12, 12.5)),
-                  data = Data_CC4, method="REML")
-#BIC: 206975.5
-
-CC_gam8d5 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Month, d=c(2,1), bs=c("tp", "cc"), k=c(25, 14)) + 
-                    te(Latitude_s, Longitude_s, Month_fac, d=c(2,1), bs=c("tp", "re"), k=c(25, 12), by=Year_s) + 
-                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station), knots=list(Month = c(0.5, 1:12, 12.5)),
-                  data = Data_CC4, method="REML")
-#BIC: 206975.5
-
-CC_gam8d6 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 14)) + 
-                    te(Latitude_s, Longitude_s, Month_fac, d=c(2,1), bs=c("tp", "fs"), k=c(25), by=Year_s) + 
-                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
-                  data = Data_CC4, method="REML")
-# BIC: 198489.9
-
-CC_gam8d7 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
-                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 14), by=Year_s) + 
-                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
-                  data = Data_CC4, method="REML")
-
-#BIC: 198500.1
-
 CC_gam8d7b <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
                     te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
                     s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
                   data = Data_CC4, method="REML")
-
-CC_gam8d8 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
-                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
-                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
-                  data = Data_CC4, method="REML")
-#BIC: 198233.8
-
-resid_norm_CC_gam8d8<-residuals(CC_gam8d8$lme,type="normalized")
+resid_norm_CC_gam8d7b<-residuals(CC_gam8d7b$lme,type="normalized")
 sp <- SpatialPoints(coords=data.frame(Longitude=Data_CC4$Longitude, Latitude=Data_CC4$Latitude))
-sp2<-STIDF(sp, time=Data_CC4$Date, data=data.frame(Residuals=resid_norm_CC_gam8d8))
-CC_gam8d8_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=3, tlags=(30/7)*1:10)
+sp2<-STIDF(sp, time=Data_CC4$Date, data=data.frame(Residuals=resid_norm_CC_gam8d7b))
+CC_gam8d7b_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=4, tlags=(30/7)*1:10)
 
-CC_gam8d9 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20)) + 
-                    te(Latitude_s, Longitude_s, Month_fac, d=c(2,1), bs=c("tp", "fs"), k=c(25), by=Year_s) + 
-                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
-                  data = Data_CC4, method="REML")
-
-# BIC: 198314
-
-ggplot(CC_gam8d8_vario, aes(x=avgDist, y=gamma, color=timelag, group=timelag))+
+ggplot(CC_gam8d7b_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
   geom_line()+
   geom_point()
 
-auto<-Data_CC3%>%
-  mutate(Resid_raw=residuals(CC_gam7c$gam),
-         Resid_norm=residuals(CC_gam7c$lme,type="normalized"))%>%
-  filter(Source!="EDSM" & !str_detect(Station, "EZ"))%>% # Remove EDSM and EZ stations because they're not fixed
-  mutate(Station=paste(Source, Station))%>%
-  group_by(Station)%>%
-  mutate(N=n())%>%
-  filter(N>10)%>%
-  summarise(ACF_raw=list(pacf(Resid_raw, plot=F)), ACF_norm=list(pacf(Resid_norm, plot=F)), N=n(), ci=qnorm((1 + 0.95)/2)/sqrt(n()), .groups="drop")%>% # ci formula from https://stackoverflow.com/questions/14266333/extract-confidence-interval-values-from-acf-correlogram
-  rowwise()%>%
-  mutate(lag_raw=list(ACF_raw$lag), acf_raw=list(ACF_raw$acf),
-         lag_norm=list(ACF_norm$lag), acf_norm=list(ACF_norm$acf))%>%
-  unnest(cols=c(lag_raw, acf_raw, lag_norm, acf_norm))%>%
-  arrange(-N)%>%
-  mutate(Station=factor(Station, levels=unique(Station)))%>%
-  select(-ACF_raw, -ACF_norm)%>%
-  mutate(across(c(acf_norm, lag_norm, lag_raw, acf_raw), ~as.vector(.x)))
+#AIC: 201249.1
+#BIC: 201375.1
 
-ggplot(filter(auto, lag_norm%in%1:4))+
-  geom_point(aes(x=Station, y=abs(acf_norm)), fill="black", shape=21)+
-  geom_point(data=filter(auto, lag_norm%in%1:4 & abs(acf_norm)>abs(ci)), aes(x=Station, y=abs(acf_norm)), fill="red", shape=21)+
-  geom_point(aes(x=Station, y=abs(ci)), fill="white", shape=21)+
-  geom_segment(aes(x=Station, y=abs(acf_norm), xend=Station, yend=abs(ci)), linetype=2)+
-  geom_segment(data=filter(auto, lag_norm%in%1:4 & abs(acf_norm)>abs(ci)), aes(x=Station, y=abs(acf_norm), xend=Station, yend=abs(ci)), color="red")+
-  facet_wrap(~lag_norm)+
-  theme_bw()+
-  theme(panel.grid=element_blank(), axis.text.x=element_text(angle=45, hjust=1))
+CC_gam8d10<-gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(15, 13)) + 
+                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(15, 13), by=Year_s) + 
+                   s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
+                 data = Data_CC4, method="REML")
+#AIC: 201429.3
+#BIC: 201555.3
 
-#Try fitting this on top of the prior gam?
+CC_gam8d11 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(50, 13)) + 
+                     te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(50, 13), by=Year_s) + 
+                     s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
+                   data = Data_CC4, method="REML")
 
 #Fit model
 # then predict over a range of locations and months using type="terms" or type="iterms" to get value of the Year slope for each location and month
@@ -550,7 +298,7 @@ CC_effort<-newdata%>%
   group_by(Month, SubRegion)%>%
   summarise(N=n(), .groups="drop")
 
-CC_pred<-predict(CC_gam8d8$gam, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
+CC_pred<-predict(CC_gam8d7b$gam, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
 
 newdata_CC_pred<-CC_newdata%>%
   mutate(Slope=CC_pred$fit[,"te(Latitude_s,Longitude_s,Julian_day_s):Year_s"],
@@ -560,8 +308,8 @@ newdata_CC_pred<-CC_newdata%>%
   mutate(Slope_se=abs(Slope_se))%>%
   mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
          Month=month(Date, label = T),
-         Slope_l95=Slope-Slope_se*qnorm(0.975),
-         Slope_u95=Slope+Slope_se*qnorm(0.975))%>%
+         Slope_l95=Slope-Slope_se*qnorm(0.995),
+         Slope_u95=Slope+Slope_se*qnorm(0.995))%>%
   mutate(Sig=if_else(Slope_u95>0 & Slope_l95<0, "ns", "*"))
 
 p_CC_gam<-ggplot(filter(newdata_CC_pred, Sig=="*"), aes(x=Longitude, y=Latitude, color=Slope))+
