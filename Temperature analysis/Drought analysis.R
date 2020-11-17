@@ -22,12 +22,19 @@ mygrid <- data.frame(
   stringsAsFactors = FALSE
 )
 
+WY<-waterYearType::water_year_indices%>%
+  bind_rows(tibble(WY=rep(c(2018, 2019), each=2), location=rep(c("Sacramento Valley", "San Joaquin Valley"), 2), 
+                   Index=c(7.14, 3.03, 10.34, 4.94), WYsum=c(12.86, 4.76, 24.77, 9.28)))%>% # Add data for 2018 and 2019
+  group_by(WY)%>%
+  summarise(Index=sum(Index), WYsum=sum(WYsum), .groups="drop")
+
 Data_D<-readRDS("Temperature analysis/Data_CC4.Rds")%>%
   mutate(WY=Year)%>%
   mutate(WY=if_else(Month%in%10:12, WY+1, WY))%>%
-  left_join(waterYearType::water_year_indices)
+  left_join(WY, by="WY")%>%
+  filter(!is.na(WYsum))
 
 D_gam1 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
-                     te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
+                     te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=WYsum) + 
                      s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
-                   data = Data_CC4, method="REML")
+                   data = Data_D, method="REML")
