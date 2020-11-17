@@ -10,7 +10,6 @@ library(sf)
 library(stars)
 require(patchwork)
 require(geofacet)
-require(gamm4)
 require(dtplyr)
 require(scales)
 
