@@ -84,7 +84,7 @@ Data<-Data%>%
   mutate_at(vars(Date_num, Longitude, Latitude, Time_num, Year, Julian_day), list(s=~(.-mean(., na.rm=T))/sd(., na.rm=T))) # Create centered and standardized versions of covariates
 
 saveRDS(Data, file="Temperature analysis/Discrete Temp Data.Rds")
-
+Data<-readRDS("Temperature analysis/Discrete Temp Data.Rds")
 
 # Model selection ---------------------------------------------------------
 
@@ -156,19 +156,19 @@ modelld8a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day
 #AIC: 132112.5
 #BIC: 147318.7
 
-modelld9a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(50, 20), by=Year_fac) + 
+modelld9a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(40, 20), by=Year_fac) + 
                   te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
 
-AIC(modelld9a)
-BIC(modelld9a)
+#AIC: 119485.3
+#BIC: 167776.6
 
-modelld10a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 40), by=Year_fac) + 
+modelld10a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 30), by=Year_fac) + 
                   te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
 
-AIC(modelld10a)
-BIC(modelld10a)
+#AIC: 105217.7
+#BIC: 162644
 
 modelld11a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
                   te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 24)),
