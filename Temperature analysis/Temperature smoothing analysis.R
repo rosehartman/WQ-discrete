@@ -176,6 +176,20 @@ modelld11a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_da
 #AIC: 120166.2
 #BIC: 162078.2
 
+modelld12a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(50, 20), by=Year_fac) + 
+                   te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
+                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
+
+AIC(modelld12a)
+BIC(modelld12a)
+
+modelld13a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 40), by=Year_fac) + 
+                    te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
+                  data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
+
+AIC(modelld13a)
+BIC(modelld13a)
+
 # Final model -------------------------------------------------------------
 
 require(googleComputeEngineR)
