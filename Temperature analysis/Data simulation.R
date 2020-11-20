@@ -1,3 +1,7 @@
+# New method: Try simulating data (using the gratia simulate or predicted_sampled functions) from the global smoothing model to use for testing the model performance.
+# Simulate with a balanced and imbalanced sampling design to examing that impact
+# Also try simulating with all years vs. just years with similar average water temps to ensure model can differentiate real from spurious trends.
+
 require(dplyr)
 require(tidyr)
 

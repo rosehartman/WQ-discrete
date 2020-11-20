@@ -12,6 +12,7 @@ require(ggplot2)
 require(geofacet)
 require(lubridate)
 require(hms)
+require(sf)
 require(scales)
 
 mygrid <- data.frame(
@@ -243,6 +244,21 @@ Data_CC4<-Data%>%
          Date_num2=as.numeric(Date)/(3600*24*30), # Create a numeric date variable in units of ~ 1 month. 
          Month_fac=factor(Month)) 
 
+# Fit overall smoothing model to this reduced dataset to identify optimal k parameters
+
+is.even <- function(x) as.integer(x) %% 2 == 0
+
+
+model_CC4 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
+                   s(Time_num_s, k=5),
+                 data = filter(Data_CC4, is.even(Year))%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
+
+model_CC4b <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
+                   s(Time_num_s, k=5), family=scat,
+                 data = filter(Data_CC4, is.even(Year))%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
+
+
+
 CC_gam8d7b <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
                     te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
                     s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
@@ -270,9 +286,105 @@ CC_gam8d11 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2
                      te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(50, 13), by=Year_s) + 
                      s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
                    data = Data_CC4, method="REML")
+#AIC: 201049.7
+#BIC: 201175.7
+
+CC_gam8d12<-gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(8, 7)) + 
+                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(8, 7), by=Year_s) + 
+                   s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
+                 data = Data_CC4, method="REML")
 
 #Fit model
+
+CC_gam8d13<-gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(50, 13)) + 
+                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(80, 13), by=Year_s) + 
+                   s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
+                 data = Data_CC4, method="REML")
+
 # then predict over a range of locations and months using type="terms" or type="iterms" to get value of the Year slope for each location and month
+
+
+# Inspect residuals for suitability of k-value ----------------------------
+
+resd_CC_gam8d7b<-residuals(CC_gam8d7b$lme,type="normalized")
+
+CC_gam8d7b_residA <- bam(resd_CC_gam8d7b ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cs", "cc"), k=c(50, 13)),
+                    gamma=1.4, data = Data_CC4, method="fREML", discrete=T, nthreads=3)
+summary(CC_gam8d7b_residA)
+gam.check(CC_gam8d7b_residA)
+#Very low R2 (0.01) and no visible correlation between fitted values and response, so increased k-value here is not improving model fit.
+
+CC_gam8d7b_residB <- bam(resd_CC_gam8d7b ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cs", "cc"), k=c(50, 13), by=Year_s),
+                         gamma=1.4, data = Data_CC4, method="fREML", discrete=T, nthreads=3)
+summary(CC_gam8d7b_residB)
+gam.check(CC_gam8d7b_residB)
+#Very low R2 (0.002) and no visible correlation between fitted values and response, so increased k-value here is not improving model fit.
+
+
+
+
+resd_CC_gam8d10<-residuals(CC_gam8d10$lme,type="normalized")
+
+CC_gam8d10_residA <- bam(resd_CC_gam8d10 ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cs", "cc"), k=c(25, 13)),
+                         gamma=1.4, data = Data_CC4, method="fREML", discrete=T, nthreads=3)
+summary(CC_gam8d10_residA)
+gam.check(CC_gam8d10_residA)
+#Very low R2 (0.01) and no visible correlation between fitted values and response, so increased k-value here is not improving model fit.
+
+CC_gam8d10_residB <- bam(resd_CC_gam8d10 ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cs", "cc"), k=c(25, 13), by=Year_s),
+                         gamma=1.4, data = Data_CC4, method="fREML", discrete=T, nthreads=3)
+summary(CC_gam8d10_residB)
+gam.check(CC_gam8d10_residB)
+#Very low R2 (0.001) and no visible correlation between fitted values and response, so increased k-value here is not improving model fit.
+
+
+
+resd_CC_gam8d12<-residuals(CC_gam8d12$lme,type="normalized")
+
+CC_gam8d12_residA <- bam(resd_CC_gam8d12 ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cs", "cc"), k=c(15, 13)),
+                         gamma=1.4, data = Data_CC4, method="fREML", discrete=T, nthreads=3)
+summary(CC_gam8d12_residA)
+gam.check(CC_gam8d12_residA)
+#Very low R2 (0.01) and no visible correlation between fitted values and response, so increased k-value here is not improving model fit.
+
+CC_gam8d12_residB <- bam(resd_CC_gam8d12 ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cs", "cc"), k=c(15, 13), by=Year_s),
+                         gamma=1.4, data = Data_CC4, method="fREML", discrete=T, nthreads=3)
+summary(CC_gam8d12_residB)
+gam.check(CC_gam8d12_residB)
+#Very low R2 (0.001) and no visible correlation between fitted values and response, so increased k-value here is not improving model fit.
+
+
+CC_gam8d12_residC <- bam(resd_CC_gam8d12 ~ s(Latitude_s, Longitude_s, bs="tp", k=15),
+                         gamma=1.4, data = Data_CC4, method="fREML", discrete=T, nthreads=3)
+summary(CC_gam8d12_residC)
+gam.check(CC_gam8d12_residC)
+
+
+CC_gam8d12_residD <- bam(resd_CC_gam8d12 ~ s(Julian_day_s, bs="cc", k=13),
+                         gamma=1.4, data = Data_CC4, method="fREML", discrete=T, nthreads=3)
+summary(CC_gam8d12_residD)
+gam.check(CC_gam8d12_residD)
+
+
+CC_gam8d12_residE <- bam(resd_CC_gam8d12 ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cs", "cc"), k=c(25, 13))+
+                           te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cs", "cc"), k=c(25, 13), by=Year_s),
+                         gamma=1.4, data = Data_CC4, method="fREML", discrete=T, nthreads=3)
+summary(CC_gam8d12_residE)
+gam.check(CC_gam8d12_residE)
+
+
+CC_gam8d12_residF <- bam(resd_CC_gam8d12 ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cs", "cc"), k=c(50, 13))+
+                           te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cs", "cc"), k=c(50, 13), by=Year_s),
+                         gamma=1.4, data = Data_CC4, method="fREML", discrete=T, nthreads=3)
+summary(CC_gam8d12_residF)
+gam.check(CC_gam8d12_residF)
+
+
+CC_gam8d12_residG <- bam(resd_CC_gam8d12 ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cs", "cc"), k=c(50, 13))+
+                           te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cs", "cc"), k=c(80, 13), by=Year_s),
+                         gamma=1.4, data = Data_CC4, method="fREML", discrete=T, nthreads=3)
+summary(CC_gam8d12_residG)
+gam.check(CC_gam8d12_residG)
 
 newdata<-readRDS("Temperature analysis/Prediction Data.Rds")
 CC_newdata<-newdata%>%
@@ -298,7 +410,7 @@ CC_effort<-newdata%>%
   group_by(Month, SubRegion)%>%
   summarise(N=n(), .groups="drop")
 
-CC_pred<-predict(CC_gam8d7b$gam, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
+CC_pred<-predict(CC_gam8d13$gam, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
 
 newdata_CC_pred<-CC_newdata%>%
   mutate(Slope=CC_pred$fit[,"te(Latitude_s,Longitude_s,Julian_day_s):Year_s"],
