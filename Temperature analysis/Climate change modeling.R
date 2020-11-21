@@ -301,6 +301,8 @@ CC_gam8d13<-gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1
                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
                  data = Data_CC4, method="REML")
 
+# Predicted outputs from this model are indistinguishable from CC_gam8d11
+
 # then predict over a range of locations and months using type="terms" or type="iterms" to get value of the Year slope for each location and month
 
 
