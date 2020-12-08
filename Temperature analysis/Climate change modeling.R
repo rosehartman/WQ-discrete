@@ -301,7 +301,13 @@ CC_gam8d13<-gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1
                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
                  data = Data_CC4, method="REML")
 
-# Predicted outputs from this model are indistinguishable from CC_gam8d11
+# Predicted Slope and Intercept outputs from this model are indistinguishable from CC_gam8d11
+# Predicted Intercept outputs of CC_gam8d13, CC_gam8d11, and CC_gam8d7b are indistinguishable and almost indistinguishable from CC_gam8d10
+
+CC_gam8d14<-gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(15, 13)) + 
+                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(50, 13), by=Year_s) + 
+                   s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
+                 data = Data_CC4, method="REML")
 
 # then predict over a range of locations and months using type="terms" or type="iterms" to get value of the Year slope for each location and month
 
@@ -412,7 +418,7 @@ CC_effort<-newdata%>%
   group_by(Month, SubRegion)%>%
   summarise(N=n(), .groups="drop")
 
-CC_pred<-predict(CC_gam8d13$gam, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
+CC_pred<-predict(CC_gam8d14$gam, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
 
 newdata_CC_pred<-CC_newdata%>%
   mutate(Slope=CC_pred$fit[,"te(Latitude_s,Longitude_s,Julian_day_s):Year_s"],

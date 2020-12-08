@@ -19,6 +19,8 @@ require(ggiraph)
 require(scales)
 
 rastered_predsSE<-readRDS("Rasterized modelld predictions.Rds")
+Temp_min<-floor(min(rastered_predsSE$Prediction, na.rm=T)*10)/10
+Temp_max<-floor(max(rastered_predsSE$Prediction, na.rm=T)*10)/10
 
 # To fix error with different versions of Proj on shinyapps.io vs. the saved object and since the function `st_crs<-` is missing for stars objects
 d <- st_dimensions(rastered_predsSE)
@@ -37,7 +39,7 @@ all_points_static<-select(rastered_predsSE, Prediction)%>%
     mutate(across(Prediction, ~na_if(.x, 0)))%>%
     st_as_sf()%>%
     rename(N=`1960-01-01`)%>%
-    mutate(ID=as.character(1:n()),)%>%
+    mutate(ID=as.character(1:n()))%>%
     st_transform(crs=4326)
 
 pal_N_static<-colorNumeric("viridis", domain=range(all_points_static$N, na.rm=T), na.color="#00000000")
@@ -74,7 +76,8 @@ pal_N2_rev_static<-colorNumeric("viridis", domain=range(Delta_regions_static$N, 
 Region_plot<-leaflet()%>%
     addProviderTiles("Esri.WorldGrayCanvas")%>%
     addFeatures(data=st_transform(Delta_regions_static, 4326), fillColor=~pal_N2_static(N), 
-                color="black", fillOpacity = 0.2, label=lapply(paste0("<h5 align='center'>", Delta_regions_static$SubRegion, "</h5>", "<h6 align='center' style='color:red'>N: ", format(Delta_regions_static$N, big.mark   = ","), "</h6>"), htmltools::HTML), 
+                color="black", fillOpacity = 0.2, label=lapply(paste0("<h5 align='center'>", Delta_regions_static$SubRegion, "</h5>", "<h6 align='center' style='color:red'>N: ", 
+                                                                      format(Delta_regions_static$N, big.mark   = ","), "</h6>"), htmltools::HTML), 
                 layerId = ~SubRegion, weight=0.4)%>%
     addLegend(data=st_transform(Delta_regions_static, 4326), position="topright", pal = pal_N2_rev_static, values = ~N, opacity=0.5, 
               labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)), title="Number of raster cells</br>and time points with</br>model-predicted data")
@@ -86,16 +89,23 @@ pal_N3_rev_static<-colorNumeric("viridis", domain=range(Delta_regions_static$N_d
 Region_plot2<-leaflet()%>%
     addProviderTiles("Esri.WorldGrayCanvas")%>%
     addFeatures(data=st_transform(Delta_regions_static, 4326), fillColor=~pal_N3_static(N_data), 
-                color="black", fillOpacity = 0.2, label= lapply(paste0("<h5 align='center'>", Delta_regions_static$SubRegion, "</h5>", "<h6 align='center' style='color:red'>N: ", format(Delta_regions_static$N_data, big.mark   = ","), "</h6>"), htmltools::HTML),
+                color="black", fillOpacity = 0.2, label= lapply(paste0("<h5 align='center'>", Delta_regions_static$SubRegion, "</h5>", "<h6 align='center' style='color:red'>N: ", 
+                                                                       format(Delta_regions_static$N_data, big.mark   = ","), "</h6>"), htmltools::HTML),
                 layerId = ~SubRegion, weight=0.4)%>%
     addLegend(data=st_transform(Delta_regions_static, 4326), position="topright", pal = pal_N3_rev_static, values = ~N_data, opacity=0.5, 
               labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)), title="Total number of data points</br>(actual temperature records)")
 
 mygrid <- data.frame(
-    name = c("Upper Sacramento River Ship Channel", "Cache Slough and Lindsey Slough", "Lower Sacramento River Ship Channel", "Liberty Island", "Suisun Marsh", "Middle Sacramento River", "Lower Cache Slough", "Steamboat and Miner Slough", "Upper Mokelumne River", "Lower Mokelumne River", "Georgiana Slough", "Sacramento River near Ryde", "Sacramento River near Rio Vista", "Grizzly Bay", "West Suisun Bay", "Mid Suisun Bay", "Honker Bay", "Confluence", "Lower Sacramento River", "San Joaquin River at Twitchell Island", "San Joaquin River at Prisoners Pt", "Disappointment Slough", "Lower San Joaquin River", "Franks Tract", "Holland Cut", "San Joaquin River near Stockton", "Mildred Island", "Middle River", "Old River", "Upper San Joaquin River", "Grant Line Canal and Old River", "Victoria Canal"),
+    name = c("Upper Sacramento River Ship Channel", "Cache Slough and Lindsey Slough", "Lower Sacramento River Ship Channel", "Liberty Island", "Suisun Marsh", 
+             "Middle Sacramento River", "Lower Cache Slough", "Steamboat and Miner Slough", "Upper Mokelumne River", "Lower Mokelumne River", "Georgiana Slough", 
+             "Sacramento River near Ryde", "Sacramento River near Rio Vista", "Grizzly Bay", "West Suisun Bay", "Mid Suisun Bay", "Honker Bay", "Confluence", 
+             "Lower Sacramento River", "San Joaquin River at Twitchell Island", "San Joaquin River at Prisoners Pt", "Disappointment Slough", "Lower San Joaquin River", 
+             "Franks Tract", "Holland Cut", "San Joaquin River near Stockton", "Mildred Island", "Middle River", "Old River", "Upper San Joaquin River", 
+             "Grant Line Canal and Old River", "Victoria Canal"),
     row = c(2, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 7, 7, 8, 8, 8),
     col = c(7, 4, 6, 5, 2, 8, 6, 7, 9, 9, 8, 7, 6, 2, 1, 2, 3, 4, 5, 6, 8, 9, 5, 6, 7, 9, 8, 8, 7, 9, 8, 7),
-    code = c(" 1", " 1", " 2", " 3", " 8", " 4", " 5", " 6", " 7", " 9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "30", "29", "31"),
+    code = c(" 1", " 1", " 2", " 3", " 8", " 4", " 5", " 6", " 7", " 9", "10", "11", "12", "13", "14", "15", 
+             "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "30", "29", "31"),
     stringsAsFactors = FALSE
 )
 
@@ -132,7 +142,8 @@ pal_N3_rev_static<-colorNumeric("viridis", domain=range(log(all_stations_static$
 Station_plot<-leaflet()%>%
     addProviderTiles("Esri.WorldGrayCanvas")%>%
     addFeatures(data=all_stations_static, fillColor=~pal_N3_static(log(N)), 
-                color="black", fillOpacity = 0.2, label=lapply(paste0("<h5 align='center'>", all_stations_static$StationID, "</h5>", "<h6 align='center' style='color:red'>N: ", format(all_stations_static$N, big.mark   = ","), "</h6>"), htmltools::HTML), 
+                color="black", fillOpacity = 0.2, label=lapply(paste0("<h5 align='center'>", all_stations_static$StationID, "</h5>", "<h6 align='center' style='color:red'>N: ", 
+                                                                      format(all_stations_static$N, big.mark   = ","), "</h6>"), htmltools::HTML), 
                 layerId = ~StationID, weight=0.4)%>%
     addLegend(data=all_stations_static, position="topright", pal = pal_N3_rev_static, values = ~log(N), opacity=0.5,
               labFormat = labelFormat(transform = function(x) sort(round(exp(x)), decreasing = TRUE)), title="Number of raw</br>temperature records</br>(log scale)")
@@ -160,7 +171,8 @@ ui <- fluidPage(
     # Application title
     titlePanel(title=div(h1("Delta Discrete Temperature Model", style="display: inline-block"), 
                          a(img(src="DSP_Logo_Horizontal.png", height = 100, align="right", style="display: inline-block"), href="https://deltacouncil.ca.gov/delta-science-program/"),
-                         h5("If you encounter any issues, please email ", a("sam.bashevkin@deltacouncil.ca.gov.", href="mailto:sam.bashevkin@deltacouncil.ca.gov?subject=Discrete%20Temperature%20Shiny%20app"))), 
+                         h5("If you encounter any issues, please email ", a("sam.bashevkin@deltacouncil.ca.gov.", 
+                                                                            href="mailto:sam.bashevkin@deltacouncil.ca.gov?subject=Discrete%20Temperature%20Shiny%20app"))), 
                windowTitle = "Delta Discrete Temperature"),
     
     sidebarLayout(
@@ -180,26 +192,41 @@ ui <- fluidPage(
                      conditionalPanel(condition="input.Tab!='Raw data'",
                                       actionBttn("Download", "Download data", style="simple", color="royal", icon=icon("file-download"))),
                      h1("Plot options"),
-                     conditionalPanel(condition="input.Tab=='Rasters'", 
+                     conditionalPanel(condition="input.Tab=='Rasters' && !input.Habitat", 
                                       radioGroupButtons("variable",
                                                         "Plot:",
                                                         choices = c("Predicted temperature"="Prediction", "Standard Error"="SE"), selected="Prediction", individual = TRUE, 
-                                                        checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue")))),
+                                                        checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), 
+                                                                          no = tags$i(class = "fa fa-circle-o", style = "color: steelblue")))),
+                     conditionalPanel(condition="input.Tab=='Rasters' || input.Tab=='Time series'", 
+                                      prettySwitch("Habitat",HTML("<b>Plot habitat suitability?</b>"), status = "success", fill = TRUE, bigger=TRUE),
+                                      conditionalPanel(condition="input.Habitat",
+                                                       sliderInput("Habitat_range", "Use the two sliders to choose 3 temperature regions of differing suitability for your focal species",
+                                                                   min=Temp_min, max=Temp_max, value=c(20, 22), step=0.1, round=-1, post=" °C"),
+                                                       wellPanel(style = "background: #cccccc",
+                                                                 h3("Define labels for your 3 temperature regions"),
+                                                                 textInput("Habitat_range_high", "High", value="Bad"),
+                                                                 textInput("Habitat_range_med", "Medium", value="Tolerable"),
+                                                                 textInput("Habitat_range_low", "Low", value="Good"))
+                                      )),
                      conditionalPanel(condition="input.Tab=='Rasters' || input.Tab=='Time series' || input.Tab=='Raw data'", 
                                       uiOutput("facet_options")),
-                     conditionalPanel(condition="input.Tab=='Rasters' && input.Facet!='Year x Month' && input.Facet!='Month x Year'", 
+                     conditionalPanel(condition="input.Tab=='Rasters' && input.Facet!='Year x Month' && input.Facet!='Month x Year' && !input.Habitat", 
                                       uiOutput("scale_options")),
                      conditionalPanel(condition="input.Tab=='Time series'", 
                                       radioGroupButtons("Regions",
                                                         "Draw your own regions or select preset regions?",
-                                                        choices = c(`<i class='fa fa-pen'> Draw</i>`="Draw", `<i class='fa fa-shapes'> Preset</i>`="Preset"), selected="Draw", individual = TRUE),
+                                                        choices = c(`<i class='fa fa-pen'> Draw</i>`="Draw", `<i class='fa fa-shapes'> Preset</i>`="Preset"), 
+                                                        selected="Draw", individual = TRUE),
                                       conditionalPanel(condition="input.Regions=='Preset'",
                                                        prettySwitch("Regions_all","Select all regions?", status = "success", fill = TRUE))),
                      conditionalPanel(condition="input.Tab=='Model evaluation'",
                                       radioGroupButtons("Uncertainty",
                                                         "Metric to plot:",
-                                                        choices = c("Model residuals", "Cross-validation", "Sample size of measured values"), selected="Model residuals", individual = TRUE, 
-                                                        checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), no = tags$i(class = "fa fa-circle-o", style = "color: steelblue"))),
+                                                        choices = c("Model residuals", "Cross-validation", "Sample size of measured values"), 
+                                                        selected="Model residuals", individual = TRUE, 
+                                                        checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), 
+                                                                          no = tags$i(class = "fa fa-circle-o", style = "color: steelblue"))),
                                       conditionalPanel(condition="input.Uncertainty!='Sample size of measured values'", 
                                                        uiOutput("summary_stats"))),
                      conditionalPanel(condition="input.Tab=='Raw data'",
@@ -221,9 +248,10 @@ ui <- fluidPage(
                               id="Tab",
                               tabPanel("Model evaluation",
                                        fluidRow(girafeOutput("Uncertainty_plot", height="100vh", width="130vh")),
-                                       conditionalPanel(condition="input.Uncertainty=='Sample size of measured values' || input.Uncertainty_value=='Mean residuals' || input.Uncertainty_value=='Mean magnitude of residuals' || input.Uncertainty_value=='SD of residuals'", 
+                                       conditionalPanel(condition="input.Uncertainty=='Sample size of measured values' || input.Uncertainty_value=='Mean residuals' 
+                                                        || input.Uncertainty_value=='Mean magnitude of residuals' || input.Uncertainty_value=='SD of residuals'", 
                                                         h2("Region map", align = "center"),
-                                       fluidRow(leafletOutput("Regions_plot2", width = "100%", height = "100%")))),
+                                                        fluidRow(leafletOutput("Regions_plot2", width = "100%", height = "100%")))),
                               tabPanel("Rasters",
                                        conditionalPanel(condition="input.Facet!='Year' && input.Facet!='Year x Month' && input.Facet!='Month x Year'",
                                                         uiOutput("select_Year")),
@@ -283,6 +311,7 @@ ui <- fluidPage(
     conditionalPanel(condition="$('html').hasClass('shiny-busy')",
                      tags$div(tags$i(class = "fa fa-spinner", style = "color: black"), info_loading, tags$i(class = "fa fa-spinner", style = "color: black"), id="loadmessage")),
     tags$style(type="text/css", ".recalculating {opacity: 1.0;}"),
+    tags$style(HTML(" [for=Habitat_range]+span>.irs-bar {background: linear-gradient(rgb(221, 221, 221) -50%, rgb(255, 255, 255) 150%); border:1px solid #cccccc}"))
 )
 
 # Define server logic required to draw a histogram
@@ -300,7 +329,8 @@ server <- function(input, output, session) {
                                                actual measured values. The generalized additive model was fit to an integrated
                                                discrete water quality dataset."),
                                         tags$p("The model was fit with the R package", tags$code("mgcv"), "with the following model structure:"), 
-                                        tags$p(align="left", tags$code("bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c('tp', 'cc'), k=c(25, 20), by=Year_fac) + te(Time_num_s, Julian_day_s, bs=c('tp', 'cc'), k=c(5, 12)),
+                                        tags$p(align="left", tags$code("bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c('tp', 'cc'), k=c(25, 20), by=Year_fac) + 
+                                        te(Time_num_s, Julian_day_s, bs=c('tp', 'cc'), k=c(5, 12)),
     data = Data, method='fREML', discrete=T)")),
                                         tags$p("The first tab 'Model evaluation' presents the uncertainty in model predictions 
                                                and should be explored to understand the limitations of the model."),
@@ -356,19 +386,24 @@ server <- function(input, output, session) {
                                p("Plots can be facetted by year, month, or both. Facetted plots will be slower to load."),
                                p("Year and month sliders can be used to animate through time-series. This works best with fewer facets."),
                                p(tags$b("It is highly recommended to also 'fix' the scale when scrolling or animating through time so the color scale does not
-                                 change with every new time point.")))
+                                 change with every new time point.")),
+                               p("You can also visualize the extent of suitable habitat for a species of interest by clicking the 'Habitat suitability' slider. Select the same
+                                  option in the 'Time series' tab to explore changes in the spatial extent of suitable habitat over time."))
             }else{
                 if(input$Tab=="Time series"){
                     out<-tags$span(h2("Time series plots"),
                                    p("Select spatial regions of interest and plot a timeseries for those regions."),
                                    p("Model predictions have been spatially and temporally trimmed to the extent of the integrated dataset. Predictions were only generated for
-                                 regions sampled in each month and year. Explore the Raster plots, or the sample size plots in the 'Model evaluation' tab to see how the spatial extent of sampling has changed over time."),
+                                 regions sampled in each month and year. Explore the Raster plots, or the sample size plots in the 'Model evaluation' tab to see how the 
+                                     spatial extent of sampling has changed over time."),
+                                   p("You can visualize changes in the extent of suitable habitat for a species of interest by clicking the 'Habitat suitability' slider. Select the same option in the 
+                                     'Rasters' tab to explore the spatial distribution of suitable habitat."),
                                    p("You have the choice to draw your own spatial regions, or select from a set of pre-set regions based on the EDSM sub-regions (controlled with the slider)."),
                                    p("In either case, you can draw rectangles or polygons on the map to select any spatial areas they touch. You can also drop a marker to select invididual cells or regions.
                                  There are also buttons for editing or deleting your drawn areas. Hover over the buttons to see their use. The map will update to highlight the areas you've selected.
                                  It may take a few seconds to load."),
-                                   p("If you want to average across all the areas you select to produce one time-series, leave the facets option on 'None'. But if you want to plot each region separately, switch it to 'Region'. 
-                                 You can also choose to facet plots by month."),
+                                   p("If you want to average across all the areas you select to produce one time-series, leave the facets option on 'None'. 
+                                   But if you want to plot each region separately, switch it to 'Region'. You can also choose to facet plots by month."),
                                    p("Use the month slider to control which month is represented on the plot. To plot the full time-series across all months, switch the slider labeled 'Plot all months?'"),
                                    p("These plots are interactive, so hover to reveal the data values. For the time-series plot, you need to hover over the points (i.e., vertices in the line)."),
                                    tags$em("NOTE: If you select areas that span multiple regions with different sample sizes, different subsets of spatial locations will be included in the averaged
@@ -522,7 +557,7 @@ server <- function(input, output, session) {
         } else{
             if(input$Uncertainty_value%in%c("RMSE", "Pearson's correlation")){
                 str_model1 <- paste0("<tr><td>Data grouping: &nbsp</td><td>%s</td></tr>",
-                                    "<tr><td>Median: &nbsp</td><td>%s</td></tr>")
+                                     "<tr><td>Median: &nbsp</td><td>%s</td></tr>")
                 
                 str_model2 <- paste0("<tr><td>Data grouping: &nbsp</td><td>%s</td></tr>",
                                      "<tr><td>Fold:  &nbsp</td><td>%s</td></tr>",
@@ -558,7 +593,7 @@ server <- function(input, output, session) {
                 ylab(if_else(input$Uncertainty_value=="RMSE", "RMSE (°C)", "r"))+
                 xlab("Data grouping")+
                 theme_bw()
-                
+            
             
         }else{
             
@@ -644,6 +679,7 @@ server <- function(input, output, session) {
             filter(Date>min(input$Date_range))%>%
             filter(Date<max(input$Date_range))%>%
             filter(month(Date)%in%input$Months)
+        
         return(Data)
     }
     )
@@ -764,6 +800,16 @@ server <- function(input, output, session) {
                 filter(., year(Date)==input$Year)
             } else{
                 .
+            }}%>%
+            {if(input$Habitat){
+                mutate(., Suitability=case_when(
+                    Prediction<min(input$Habitat_range) ~ input$Habitat_range_low,
+                    Prediction>=min(input$Habitat_range) & Prediction <=max(input$Habitat_range) ~ input$Habitat_range_med,
+                    Prediction>max(input$Habitat_range) ~ input$Habitat_range_high
+                ))%>%
+                    mutate(Suitability=factor(Suitability, levels=c(input$Habitat_range_low, input$Habitat_range_med, input$Habitat_range_high)))
+            }else{
+                .
             }}
         return(Data)
     }
@@ -790,10 +836,22 @@ server <- function(input, output, session) {
             Labels<- function(x) ifelse(near(x*10, as.integer(x*10)), as.character(x), "")
         }
         ggplot()+
-            geom_stars(data=PlotData()%>%select(all_of(input$variable)))+
-            scale_fill_viridis_c(limits=Scale(), expand=expansion(0,0), name=if_else(input$variable=="Prediction", "Temperature (°C)", "Standard error"), na.value="white", breaks=Breaks, labels= Labels,
-                                 guide = guide_colorbar(direction="horizontal", title.position = "top", ticks.linewidth = 2,
-                                                        title.hjust=0.5, label.position="bottom"))+
+            {if(input$Habitat){
+                geom_stars(data=PlotData()%>%select(Suitability))
+                
+            }else{
+                geom_stars(data=PlotData()%>%select(all_of(input$variable)))
+                
+            }}+
+            {if(input$Habitat){
+                scale_fill_manual(values=c("#111D4A", "#FFE74C", "#CE4257"), drop=F, na.translate = FALSE, 
+                                  guide = guide_legend(direction="horizontal", title.position = "top",
+                                                       title.hjust=0.5, label.position="bottom"))
+            }else{
+                scale_fill_viridis_c(limits=Scale(), expand=expansion(0,0), name=if_else(input$variable=="Prediction", "Temperature (°C)", "Standard error"), na.value="white", breaks=Breaks, labels= Labels,
+                                     guide = guide_colorbar(direction="horizontal", title.position = "top", ticks.linewidth = 2,
+                                                            title.hjust=0.5, label.position="bottom"))
+            }}+
             coord_sf()+
             {if(input$Facet=="None"){
                 ggtitle(paste(month(input$Month, label=T, abbr = FALSE), input$Year))
@@ -820,7 +878,7 @@ server <- function(input, output, session) {
             xlab("Longitude")+
             theme_bw()+
             theme(axis.text.x = element_text(angle=45, hjust=1), strip.background=element_blank(),
-                  panel.grid=element_blank(), #legend.background = element_rect(color="black"),
+                  panel.grid=element_blank(), 
                   legend.position="top", legend.key.width = unit(150, "native"), legend.justification="center",
                   text=element_text(size=18), plot.title = element_text(size=24, face="bold", hjust=0.5))
     })
@@ -947,7 +1005,8 @@ server <- function(input, output, session) {
             clearShapes()%>%
             clearControls()%>%
             addFeatures(data=Delta_regions_plot(), fillColor=~pal_N2()(N), color="black", fillOpacity = ~opac, 
-                        label=~lapply(paste0("<h5 align='center'>", Delta_regions_plot()$SubRegion, "</h5>", "<h6 align='center' style='color:red'>N: ", format(Delta_regions_plot()$N, big.mark   = ","), "</h6>"), htmltools::HTML), 
+                        label=~lapply(paste0("<h5 align='center'>", Delta_regions_plot()$SubRegion, "</h5>", "<h6 align='center' style='color:red'>N: ", 
+                                             format(Delta_regions_plot()$N, big.mark   = ","), "</h6>"), htmltools::HTML), 
                         layerId = ~SubRegion, weight=~opac*2)%>%
             addLegend(data=Delta_regions_plot(), position="topright", pal = pal_N2_rev(), values = ~N, opacity=1, 
                       labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)))
@@ -1023,52 +1082,137 @@ server <- function(input, output, session) {
     
     timeseries_data<-reactive({
         req(Points())
-        if(input$Facet=="Region"){
-            Points<-Points()%>%
-                group_by(Region)%>%
-                summarise(geometry=st_union(geometry), .groups="drop")
-            TempData()%>%
-                select(Prediction)%>%
-                aggregate(by=Points, mean, na.rm=T)%>%
-                st_as_sf(long=F)%>%
-                st_drop_geometry()%>%
-                mutate(Region=Points$Region)%>%
-                pivot_longer(cols=c(-Region), names_to="Date", values_to="Prediction")%>%
-                left_join(TempData()%>%
-                              select(SE)%>%
-                              mutate(SE=SE^2)%>%
-                              aggregate(by=Points, function(x) sqrt(sum(x, na.rm=T)/(length(x)^2)))%>%
-                              st_as_sf(long=F)%>%
-                              st_drop_geometry()%>%
-                              mutate(Region=Points$Region)%>%
-                              pivot_longer(cols=c(-Region), names_to="Date", values_to="SE"), by=c("Region", "Date"))%>%
-                mutate(Prediction=if_else(is.nan(Prediction), NA_real_, Prediction),
-                       SE=na_if(SE, 0)
-                )%>%
-                mutate(Date=parse_date_time(Date, "%Y-%m-%d"))%>%
-                complete(Date=parse_date_time(Data_dates(), "%Y-%m-%d"), Region=unique(Points()$Region))%>%
-                mutate(Month=month(Date),
-                       Year=year(Date))
-        } else{
-            TempData()%>%
-                aggregate(by=st_union(Points()), mean, na.rm=T)%>%
-                st_as_sf(as_points=T, long=T)%>%
-                st_drop_geometry()%>%
-                as_tibble()%>%
-                mutate(across(c(Prediction, SE), ~if_else(is.nan(.x), NA_real_, .x)))%>%
-                mutate(Var=SE^2)%>%
-                complete(Date=parse_date_time(Data_dates(), "%Y-%m-%d"))%>%
-                group_by(Date)%>%
-                summarise(Pred1<-mean(Prediction),
-                          Prediction=mean(Prediction, na.rm=T),
-                          SE=sqrt(sum(Var, na.rm=T)/(n()^2)), 
-                          .groups="drop")%>%
-                mutate(across(c(Prediction, SE), ~if_else(is.nan(.x), NA_real_, .x)))%>%
-                complete(Date=parse_date_time(Data_dates(), "%Y-%m-%d"))%>%
-                mutate(Month=month(Date),
-                       Year=year(Date),
-                       SE=na_if(SE, 0))
+        if(input$Habitat){
+            suitability_ag<-function(x){
+                case_when(x<min(input$Habitat_range) ~ input$Habitat_range_low,
+                          x>=min(input$Habitat_range) & x <=max(input$Habitat_range) ~ input$Habitat_range_med,
+                          x>max(input$Habitat_range) ~ input$Habitat_range_high)
+            }
             
+            if(input$Facet=="Region"){
+                Points<-Points()%>%
+                    group_by(Region)%>%
+                    summarise(geometry=st_union(geometry), .groups="drop")
+                
+                Low<-TempData()%>%
+                    select(Prediction)%>%
+                    aggregate(by=Points, function(x) length(which(!is.na(x) & x<min(input$Habitat_range))))%>%
+                    st_as_sf(long=F)%>%
+                    st_drop_geometry()%>%
+                    mutate(Region=Points$Region)%>%
+                    pivot_longer(cols=c(-Region), names_to="Date", values_to="Low")
+                
+                Med<-TempData()%>%
+                    select(Prediction)%>%
+                    aggregate(by=Points, function(x) length(which(!is.na(x) & x>=min(input$Habitat_range) & x <=max(input$Habitat_range))))%>%
+                    st_as_sf(long=F)%>%
+                    st_drop_geometry()%>%
+                    mutate(Region=Points$Region)%>%
+                    pivot_longer(cols=c(-Region), names_to="Date", values_to="Med")
+                
+                High<-TempData()%>%
+                    select(Prediction)%>%
+                    aggregate(by=Points, function(x) length(which(!is.na(x) & x>max(input$Habitat_range))))%>%
+                    st_as_sf(long=F)%>%
+                    st_drop_geometry()%>%
+                    mutate(Region=Points$Region)%>%
+                    pivot_longer(cols=c(-Region), names_to="Date", values_to="High")
+                
+                out<-full_join(Low, Med, by=c("Region", "Date"))%>%
+                    full_join(High, by=c("Region", "Date"))%>%
+                    mutate(Date=parse_date_time(Date, "%Y-%m-%d"))%>%
+                    complete(Date=parse_date_time(Data_dates(), "%Y-%m-%d"), Region=unique(Points()$Region))%>%
+                    mutate(Month=month(Date),
+                           Year=year(Date))%>%
+                    pivot_longer(cols = all_of(c("Low", "Med", "High")), names_to="Suitability", values_to="N_cells")%>%
+                    mutate(Suitability=recode(Suitability, Low=input$Habitat_range_low, Med=input$Habitat_range_med, High=input$Habitat_range_high),
+                           Suitability=factor(Suitability, levels=c(input$Habitat_range_high, input$Habitat_range_med, input$Habitat_range_low)))%>%
+                    group_by(Date, Region)%>%
+                    mutate(Total_cells=sum(N_cells))%>%
+                    ungroup()%>%
+                    mutate(Freq=if_else(Total_cells==0 | is.na(Total_cells), NA_real_, N_cells/Total_cells))
+                return(out)
+                
+            }else{
+                Low<-TempData()%>%
+                    select(Prediction)%>%
+                    aggregate(by=st_union(Points()), function(x) length(which(!is.na(x) & x<min(input$Habitat_range))))%>%
+                    st_as_sf(as_points=T, long=T)%>%
+                    st_drop_geometry()%>%
+                    as_tibble()%>%
+                    rename(Low=Prediction)
+                Med<-TempData()%>%
+                    select(Prediction)%>%
+                    aggregate(by=st_union(Points()), function(x) length(which(!is.na(x) & x>=min(input$Habitat_range) & x <=max(input$Habitat_range))))%>%
+                    st_as_sf(as_points=T, long=T)%>%
+                    st_drop_geometry()%>%
+                    as_tibble()%>%
+                    rename(Med=Prediction)
+                High<-TempData()%>%
+                    select(Prediction)%>%
+                    aggregate(by=st_union(Points()), function(x) length(which(!is.na(x) & x>max(input$Habitat_range))))%>%
+                    st_as_sf(as_points=T, long=T)%>%
+                    st_drop_geometry()%>%
+                    as_tibble()%>%
+                    rename(High=Prediction)
+                
+                out<-full_join(Low, Med, by="Date")%>%
+                    full_join(High, by="Date")%>%
+                    complete(Date=parse_date_time(Data_dates(), "%Y-%m-%d"))%>%
+                    mutate(Month=month(Date),
+                           Year=year(Date))%>%
+                    pivot_longer(cols = all_of(c("Low", "Med", "High")), names_to="Suitability", values_to="N_cells")%>%
+                    mutate(Suitability=recode(Suitability, Low=input$Habitat_range_low, Med=input$Habitat_range_med, High=input$Habitat_range_high),
+                           Suitability=factor(Suitability, levels=c(input$Habitat_range_high, input$Habitat_range_med, input$Habitat_range_low)))%>%
+                    group_by(Date)%>%
+                    mutate(Total_cells=sum(N_cells))%>%
+                    ungroup()%>%
+                    mutate(Freq=if_else(Total_cells==0 | is.na(Total_cells), NA_real_, N_cells/Total_cells))
+                return(out)
+            }
+            
+        }else{
+            
+            if(input$Facet=="Region"){
+                Points<-Points()%>%
+                    group_by(Region)%>%
+                    summarise(geometry=st_union(geometry), .groups="drop")
+                TempData()%>%
+                    select(Prediction)%>%
+                    aggregate(by=Points, mean, na.rm=T)%>%
+                    st_as_sf(long=F)%>%
+                    st_drop_geometry()%>%
+                    mutate(Region=Points$Region)%>%
+                    pivot_longer(cols=c(-Region), names_to="Date", values_to="Prediction")%>%
+                    left_join(TempData()%>%
+                                  select(SE)%>%
+                                  mutate(SE=SE^2)%>%
+                                  aggregate(by=Points, function(x) sqrt(sum(x, na.rm=T)/(length(x)^2)))%>%
+                                  st_as_sf(long=F)%>%
+                                  st_drop_geometry()%>%
+                                  mutate(Region=Points$Region)%>%
+                                  pivot_longer(cols=c(-Region), names_to="Date", values_to="SE"), by=c("Region", "Date"))%>%
+                    mutate(Prediction=if_else(is.nan(Prediction), NA_real_, Prediction),
+                           SE=na_if(SE, 0)
+                    )%>%
+                    mutate(Date=parse_date_time(Date, "%Y-%m-%d"))%>%
+                    complete(Date=parse_date_time(Data_dates(), "%Y-%m-%d"), Region=unique(Points()$Region))%>%
+                    mutate(Month=month(Date),
+                           Year=year(Date))
+            } else{
+                TempData()%>%
+                    aggregate(by=st_union(Points()), mean, na.rm=T)%>%
+                    st_as_sf(as_points=T, long=T)%>%
+                    st_drop_geometry()%>%
+                    as_tibble()%>%
+                    mutate(across(c(Prediction, SE), ~if_else(is.nan(.x), NA_real_, .x)))%>%
+                    mutate(Var=SE^2)%>%
+                    complete(Date=parse_date_time(Data_dates(), "%Y-%m-%d"))%>%
+                    mutate(Month=month(Date),
+                           Year=year(Date),
+                           SE=na_if(SE, 0))
+                
+            }
         }
     })
     
@@ -1085,52 +1229,100 @@ server <- function(input, output, session) {
     time_series_plot<-reactive({
         req(timeseries_data_month())
         
-        str_model <- paste0("<tr><td>Mean: &nbsp</td><td>%s</td></tr>",
-                            "<tr><td>Lower SE: &nbsp</td><td>%s</td></tr>", 
-                            "<tr><td>Upper SE: &nbsp</td><td>%s</td></tr>")
-        
-        Data<-timeseries_data_month()%>%
-            rowwise()%>%
-            mutate(tooltip=sprintf(str_model, round(Prediction, 2), round(Prediction-SE, 2), round(Prediction+SE, 2)))%>%
-            ungroup()%>%
-            mutate(ID=1:n(),
-                   tooltip=paste0( "<table>", tooltip, "</table>" ))%>%
-            {if(input$Facet=="Month"){
-                mutate(., Group=Month)
-            } else{
-                if(input$Facet=="Region"){
-                    mutate(., Group=Region)
+        if(input$Habitat){
+            
+            str_model <- paste0("<tr><td>Year: &nbsp</td><td>%s</td></tr>",
+                                "<tr><td>Suitability: &nbsp</td><td>%s</td></tr>",
+                                "<tr><td>Proportion of raster cells: &nbsp</td><td>%s</td></tr>")
+            
+            Data<-timeseries_data_month()%>%
+                rowwise()%>%
+                mutate(tooltip=sprintf(str_model, Year, Suitability, round(Freq, 2)))%>%
+                ungroup()%>%
+                mutate(ID=1:n(),
+                       tooltip=paste0( "<table>", tooltip, "</table>" ))
+            
+            ggplot(Data, aes(y=Freq, fill=Suitability, order=Suitability, tooltip=tooltip, data_id=ID))+
+                {if(input$Facet=="Month"){
+                    geom_col_interactive(aes(x=Year))
                 }else{
-                    mutate(., Group=1)
-                }
-            }}
-        
-        ggplot(Data, aes(x=Date, y=Prediction, ymin=Prediction-SE, ymax=Prediction+SE, group=Group))+
-            geom_ribbon(alpha=0.4, fill="firebrick3")+
-            geom_line(color="firebrick3", 
-                      size=if_else(input$Facet=="Region" & input$Regions_all, 0.3, 0.5))+
-            geom_pointrange_interactive(aes(tooltip=tooltip, data_id=ID), color="firebrick3", alpha=0.5, 
-                                        size=if_else(input$Facet=="Region" & input$Regions_all, 0.001, 0.2), 
-                                        shape=ifelse(input$Facet=="Region" & input$Regions_all, ".", 16))+
-            {if(input$Facet=="Month"){
-                facet_wrap(~month(Date, label=T))
-            }}+
-            {if(input$Facet=="Region"){
-                if(input$Regions_all){
-                    facet_geo(~Region, grid=mygrid, labeller=label_wrap_gen())
+                    geom_col_interactive(aes(x=Date))
+                }}+
+                scale_fill_manual(values=c("#CE4257", "#FFE74C", "#111D4A"), drop=F, na.translate = FALSE, 
+                                  guide = guide_legend(direction="horizontal", title.position = "top",
+                                                       title.hjust=0.5, label.position="bottom", reverse=T))+
+                {if(input$Facet=="Month"){
+                    facet_wrap(~month(Date, label=T))
+                }}+
+                {if(input$Facet=="Region"){
+                    if(input$Regions_all){
+                        facet_geo(~Region, grid=mygrid, labeller=label_wrap_gen())
+                    } else{
+                        facet_wrap(~Region)
+                    }
+                }}+
+                coord_cartesian(expand = FALSE)+
+                ylab("Proportion of raster cells")+
+                theme_bw()+
+                theme(strip.background=element_blank(), panel.grid=element_blank(),
+                      legend.position="top", legend.key.width = unit(50, "native"), 
+                      legend.justification="center", axis.text.x=element_text(angle=45, hjust=1))+
+                {if(input$Facet=="Region" & input$Regions_all){
+                    theme(text=element_text(size=4), panel.spacing = unit(0.2, units="lines"),
+                          axis.ticks=element_line(size=0.1), axis.ticks.length = unit(0.2, units="lines"))
                 } else{
-                    facet_wrap(~Region)
-                }
-            }}+
-            ylab("Temperature ± SE (°C)")+
-            theme_bw()+
-            theme(strip.background=element_blank())+
-            {if(input$Facet=="Region" & input$Regions_all){
-                theme(text=element_text(size=4), panel.spacing = unit(0.2, units="lines"),
-                      axis.ticks=element_line(size=0.1), axis.ticks.length = unit(0.2, units="lines"))
-            } else{
-                theme(text=element_text(size=18))
-            }}
+                    theme(text=element_text(size=14))
+                }}
+            
+        }else{
+            
+            str_model <- paste0("<tr><td>Mean: &nbsp</td><td>%s</td></tr>",
+                                "<tr><td>Lower SE: &nbsp</td><td>%s</td></tr>", 
+                                "<tr><td>Upper SE: &nbsp</td><td>%s</td></tr>")
+            
+            Data<-timeseries_data_month()%>%
+                rowwise()%>%
+                mutate(tooltip=sprintf(str_model, round(Prediction, 2), round(Prediction-SE, 2), round(Prediction+SE, 2)))%>%
+                ungroup()%>%
+                mutate(ID=1:n(),
+                       tooltip=paste0( "<table>", tooltip, "</table>" ))%>%
+                {if(input$Facet=="Month"){
+                    mutate(., Group=Month)
+                } else{
+                    if(input$Facet=="Region"){
+                        mutate(., Group=Region)
+                    }else{
+                        mutate(., Group=1)
+                    }
+                }}
+            
+            ggplot(Data, aes(x=Date, y=Prediction, ymin=Prediction-SE, ymax=Prediction+SE, group=Group))+
+                geom_ribbon(alpha=0.4, fill="firebrick3")+
+                geom_line(color="firebrick3", 
+                          size=if_else(input$Facet=="Region" & input$Regions_all, 0.3, 0.5))+
+                geom_pointrange_interactive(aes(tooltip=tooltip, data_id=ID), color="firebrick3", alpha=0.5, 
+                                            size=if_else(input$Facet=="Region" & input$Regions_all, 0.001, 0.2), 
+                                            shape=ifelse(input$Facet=="Region" & input$Regions_all, ".", 16))+
+                {if(input$Facet=="Month"){
+                    facet_wrap(~month(Date, label=T))
+                }}+
+                {if(input$Facet=="Region"){
+                    if(input$Regions_all){
+                        facet_geo(~Region, grid=mygrid, labeller=label_wrap_gen())
+                    } else{
+                        facet_wrap(~Region)
+                    }
+                }}+
+                ylab("Temperature ± SE (°C)")+
+                theme_bw()+
+                theme(strip.background=element_blank())+
+                {if(input$Facet=="Region" & input$Regions_all){
+                    theme(text=element_text(size=4), panel.spacing = unit(0.2, units="lines"),
+                          axis.ticks=element_line(size=0.1), axis.ticks.length = unit(0.2, units="lines"))
+                } else{
+                    theme(text=element_text(size=18))
+                }}
+        }
         
     })
     
@@ -1197,7 +1389,8 @@ server <- function(input, output, session) {
             clearShapes()%>%
             clearControls()%>%
             addFeatures(data=all_stations_plot(), fillColor=~pal_N3()(log(N)), color="black", fillOpacity = ~opac, 
-                        label=lapply(paste0("<h5 align='center'>", all_stations_plot()$StationID, "</h5>", "<h6 align='center' style='color:red'>N: ", format(all_stations_plot()$N, big.mark   = ","), "</h6>"), htmltools::HTML), 
+                        label=lapply(paste0("<h5 align='center'>", all_stations_plot()$StationID, "</h5>", "<h6 align='center' style='color:red'>N: ", 
+                                            format(all_stations_plot()$N, big.mark   = ","), "</h6>"), htmltools::HTML), 
                         layerId = ~StationID, weight=~opac*2)%>%
             addLegend(data=all_stations_plot(), position="topright", pal = pal_N3_rev(), values = ~log(N), opacity=1, 
                       labFormat = labelFormat(transform = function(x) sort(round(exp(x)), decreasing = TRUE)), title="Number of raw</br>temperature records</br>(log scale)")
