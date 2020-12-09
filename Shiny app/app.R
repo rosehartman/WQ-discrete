@@ -17,6 +17,7 @@ require(leaflet.extras)
 require(geofacet)
 require(ggiraph)
 require(scales)
+require(readr)
 
 rastered_predsSE<-readRDS("Rasterized modelld predictions.Rds")
 Temp_min<-floor(min(rastered_predsSE$Prediction, na.rm=T)*10)/10
@@ -1083,11 +1084,6 @@ server <- function(input, output, session) {
     timeseries_data<-reactive({
         req(Points())
         if(input$Habitat){
-            suitability_ag<-function(x){
-                case_when(x<min(input$Habitat_range) ~ input$Habitat_range_low,
-                          x>=min(input$Habitat_range) & x <=max(input$Habitat_range) ~ input$Habitat_range_med,
-                          x>max(input$Habitat_range) ~ input$Habitat_range_high)
-            }
             
             if(input$Facet=="Region"){
                 Points<-Points()%>%
@@ -1096,7 +1092,7 @@ server <- function(input, output, session) {
                 
                 Low<-TempData()%>%
                     select(Prediction)%>%
-                    aggregate(by=Points, function(x) length(which(!is.na(x) & x<min(input$Habitat_range))))%>%
+                    aggregate(by=Points, function(x) length(which(!is.na(x) & x<min(input$Habitat_range))), join=st_within, as_points=F)%>%
                     st_as_sf(long=F)%>%
                     st_drop_geometry()%>%
                     mutate(Region=Points$Region)%>%
@@ -1104,7 +1100,7 @@ server <- function(input, output, session) {
                 
                 Med<-TempData()%>%
                     select(Prediction)%>%
-                    aggregate(by=Points, function(x) length(which(!is.na(x) & x>=min(input$Habitat_range) & x <=max(input$Habitat_range))))%>%
+                    aggregate(by=Points, function(x) length(which(!is.na(x) & x>=min(input$Habitat_range) & x <=max(input$Habitat_range))), join=st_within, as_points=F)%>%
                     st_as_sf(long=F)%>%
                     st_drop_geometry()%>%
                     mutate(Region=Points$Region)%>%
@@ -1112,7 +1108,7 @@ server <- function(input, output, session) {
                 
                 High<-TempData()%>%
                     select(Prediction)%>%
-                    aggregate(by=Points, function(x) length(which(!is.na(x) & x>max(input$Habitat_range))))%>%
+                    aggregate(by=Points, function(x) length(which(!is.na(x) & x>max(input$Habitat_range))), join=st_within, as_points=F)%>%
                     st_as_sf(long=F)%>%
                     st_drop_geometry()%>%
                     mutate(Region=Points$Region)%>%
@@ -1136,21 +1132,21 @@ server <- function(input, output, session) {
             }else{
                 Low<-TempData()%>%
                     select(Prediction)%>%
-                    aggregate(by=st_union(Points()), function(x) length(which(!is.na(x) & x<min(input$Habitat_range))))%>%
+                    aggregate(by=st_union(Points()), function(x) length(which(!is.na(x) & x<min(input$Habitat_range))), join=st_within, as_points=F)%>%
                     st_as_sf(as_points=T, long=T)%>%
                     st_drop_geometry()%>%
                     as_tibble()%>%
                     rename(Low=Prediction)
                 Med<-TempData()%>%
                     select(Prediction)%>%
-                    aggregate(by=st_union(Points()), function(x) length(which(!is.na(x) & x>=min(input$Habitat_range) & x <=max(input$Habitat_range))))%>%
+                    aggregate(by=st_union(Points()), function(x) length(which(!is.na(x) & x>=min(input$Habitat_range) & x <=max(input$Habitat_range))), join=st_within, as_points=F)%>%
                     st_as_sf(as_points=T, long=T)%>%
                     st_drop_geometry()%>%
                     as_tibble()%>%
                     rename(Med=Prediction)
                 High<-TempData()%>%
                     select(Prediction)%>%
-                    aggregate(by=st_union(Points()), function(x) length(which(!is.na(x) & x>max(input$Habitat_range))))%>%
+                    aggregate(by=st_union(Points()), function(x) length(which(!is.na(x) & x>max(input$Habitat_range))), join=st_within, as_points=F)%>%
                     st_as_sf(as_points=T, long=T)%>%
                     st_drop_geometry()%>%
                     as_tibble()%>%
@@ -1179,7 +1175,7 @@ server <- function(input, output, session) {
                     summarise(geometry=st_union(geometry), .groups="drop")
                 TempData()%>%
                     select(Prediction)%>%
-                    aggregate(by=Points, mean, na.rm=T)%>%
+                    aggregate(by=Points, mean, na.rm=T, join=st_within, as_points=F)%>%
                     st_as_sf(long=F)%>%
                     st_drop_geometry()%>%
                     mutate(Region=Points$Region)%>%
@@ -1187,7 +1183,7 @@ server <- function(input, output, session) {
                     left_join(TempData()%>%
                                   select(SE)%>%
                                   mutate(SE=SE^2)%>%
-                                  aggregate(by=Points, function(x) sqrt(sum(x, na.rm=T)/(length(x)^2)))%>%
+                                  aggregate(by=Points, function(x) sqrt(sum(x, na.rm=T)/(length(x)^2)), join=st_within, as_points=F)%>%
                                   st_as_sf(long=F)%>%
                                   st_drop_geometry()%>%
                                   mutate(Region=Points$Region)%>%
@@ -1201,7 +1197,7 @@ server <- function(input, output, session) {
                            Year=year(Date))
             } else{
                 TempData()%>%
-                    aggregate(by=st_union(Points()), mean, na.rm=T)%>%
+                    aggregate(by=st_union(Points()), mean, na.rm=T, join=st_within, as_points=F)%>%
                     st_as_sf(as_points=T, long=T)%>%
                     st_drop_geometry()%>%
                     as_tibble()%>%
