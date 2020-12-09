@@ -1197,12 +1197,19 @@ server <- function(input, output, session) {
                            Year=year(Date))
             } else{
                 TempData()%>%
+                    select(Prediction)%>%
                     aggregate(by=st_union(Points()), mean, na.rm=T, join=st_within, as_points=F)%>%
                     st_as_sf(as_points=T, long=T)%>%
                     st_drop_geometry()%>%
                     as_tibble()%>%
+                    left_join(TempData()%>%
+                                  select(SE)%>%
+                                  mutate(SE=SE^2)%>%
+                                  aggregate(by=st_union(Points()), function(x) sqrt(sum(x, na.rm=T)/(length(x)^2)), join=st_within, as_points=F)%>%
+                                  st_as_sf(as_points=T, long=T)%>%
+                                  st_drop_geometry()%>%
+                                  as_tibble(), by="Date")%>%
                     mutate(across(c(Prediction, SE), ~if_else(is.nan(.x), NA_real_, .x)))%>%
-                    mutate(Var=SE^2)%>%
                     complete(Date=parse_date_time(Data_dates(), "%Y-%m-%d"))%>%
                     mutate(Month=month(Date),
                            Year=year(Date),
