@@ -5,6 +5,7 @@ require(tidybayes)
 require(dplyr)
 require(stringr)
 require(dtplyr)
+require(tidyr)
 require(broom)
 require(brms)
 require(mgcv)
@@ -280,7 +281,8 @@ ggplot(CC_gam8d7b_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
 #AIC: 201249.1
 #BIC: 201375.1
 
-
+#########################################Try to keep continuous time-series together, don't necessarly split by calendar year
+# As this does, since it may split a seasonal survey in half
 Data_CC4.2 <- Data_CC4%>%
   group_by(YearStation)%>%
   mutate(Start=if_else(Date_num2==min(Date_num2), TRUE, FALSE))%>%
@@ -354,10 +356,40 @@ sp <- SpatialPoints(coords=data.frame(Longitude=Data_CC4.2$Longitude, Latitude=D
 sp2<-STIDF(sp, time=Data_CC4.2$Date, data=data.frame(Residuals=resid_norm_CC_gam8d7b_AR6))
 CC_gam8d7b_AR6_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=4, tlags=(30/7)*1:10)
 
-ggplot(CC_gam8d7b_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
+ggplot(CC_gam8d7b_AR6_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
   geom_line()+
   geom_point()
 
+
+
+Data_CC4.3 <- Data_CC4%>%
+  arrange(Station, Date)%>%
+  group_by(Station)%>%
+  mutate(Lag=Date-lag(Date, order_by = Date))%>%
+  ungroup()%>%
+  mutate(Start=if_else(is.na(Lag) | Lag>3600*24*60, TRUE, FALSE),
+         Series_ID=1:n(),
+         Series_ID=if_else(Start, Series_ID, NA_integer_),
+         Series_ID=as.integer(as.factor(Series_ID)))%>%
+  fill(Series_ID, .direction="down")
+
+CC_gam8d7b_NOAR5 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                          te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
+                          s(Time_num_s, k=5), family=scat, data = Data_CC4.3, method="fREML", discrete=T, nthreads=2)
+r6 <- start_value_rho(CC_gam8d7b_NOAR5, plot=TRUE)
+
+CC_gam8d7b_AR7 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                        te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
+                        s(Time_num_s, k=5), family=scat, rho=r6, AR.start=Start, data = Data_CC4.3, method="fREML", discrete=T, nthreads=2)
+
+resid_norm_CC_gam8d7b_AR7<-resid_gam(CC_gam8d7b_AR7, incl_na=TRUE)
+sp <- SpatialPoints(coords=data.frame(Longitude=Data_CC4.3$Longitude, Latitude=Data_CC4.3$Latitude))
+sp2<-STIDF(sp, time=Data_CC4.3$Date, data=data.frame(Residuals=resid_norm_CC_gam8d7b_AR7))
+CC_gam8d7b_AR7_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=4, tlags=(30/7)*1:10)
+
+ggplot(CC_gam8d7b_AR7_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
+  geom_line()+
+  geom_point()
 
 
 CC_gam8d10<-gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(15, 13)) + 

@@ -62,7 +62,7 @@ gamsim<-function(model, data=newdata, years=1970:2020, year_slope=0.02, year_sd=
       left_join(year_add, by="Year")%>%
       mutate(pred=mu+add)
     
-    sims <- family_fun(mu=Data$pred, wt=rep(1, Data$pred), scale=Scale)
+    sims <- family_fun(mu=Data$pred, wt=rep(1, length(Data$pred)), scale=Scale)
     set.seed(NULL)
     return(list(sims=sims, year_add=year_add$add))
   }
@@ -91,6 +91,17 @@ sim_data<-gamsim(modelld14a)
 
 #Create two versions of simulated data with balanced and unbalanced sampling regimes
 
+## Shuffle locations in each region first, then pull the number needed for each month, year, region to ensure
+# Most are sampled continuously
+set.seed(1)
+Shuffled_locations<-newdata%>%
+  left_join(max_effort, by="SubRegion")%>%
+  group_by(SubRegion)%>%
+  summarise(Locations=list(sample(unique(Location), max(c(4, Max)))), .groups="drop")%>%
+  rename(SubRegion2=SubRegion)
+set.seed(NULL)
+
+
 # For balanced dataset, reduce number of locations to that of the mean number of samples per region
 # From the source dataset 
 
@@ -103,26 +114,22 @@ Data_effort%>%
 # mean of about ~4 stations sampled per month, region, and year.
 # Use this number to create balanced dataset
 
-set.seed(1)
+
 sim_data_balanced<-sim_data$sims%>%
   group_by(SubRegion)%>%
-  filter(Location%in%sample(unique(Location), 4, replace=FALSE))%>%
+  filter(Location%in%filter(Shuffled_locations, SubRegion2==unique(SubRegion))$Locations[[1]][1:4])%>%
   ungroup()
 
 # Create unbalanced version of simulated dataset by selecting the same number of "stations" for 
 # each month, year, and region as were actually sampled in the source dataset
 
 sim_data_unbalanced<-sim_data$sims%>%
-  group_by(Year, SubRegion, Month)%>%
-  mutate(N_cells=n())%>%
-  ungroup%>%
   left_join(Data_effort, by=c("Month", "Year", "SubRegion"))%>%
   mutate(N=replace_na(N, 0))%>%
   group_by(Year, SubRegion, Month)%>%
-  filter(Location%in%sample(unique(Location), min(N, N_cells), replace=FALSE))%>%
+  filter(Location%in%filter(Shuffled_locations, SubRegion2==unique(SubRegion))$Locations[[1]][1:unique(N)])%>%
+  filter(N!=0)%>%
   ungroup()
-
-set.seed(NULL)
 
 year_sims<-sim_data$year_add%>%
   pivot_longer(cols=all_of(paste("sim", 1:10, sep="_")), names_to="Simulation", values_to="add")
@@ -139,22 +146,18 @@ sim_data_NULL<-gamsim(modelld14a, year_slope=0)
 
 # Balanced dataset
 
-set.seed(1)
 sim_data_NULL_balanced<-sim_data_NULL$sims%>%
   group_by(SubRegion)%>%
-  filter(Location%in%sample(unique(Location), 4, replace=FALSE))%>%
+  filter(Location%in%filter(Shuffled_locations, SubRegion2==unique(SubRegion))$Locations[[1]][1:4])%>%
   ungroup()
 
 # Unbalanced dataset
-
 sim_data_NULL_unbalanced<-sim_data_NULL$sims%>%
-  group_by(Year, SubRegion, Month)%>%
-  mutate(N_cells=n())%>%
-  ungroup%>%
   left_join(Data_effort, by=c("Month", "Year", "SubRegion"))%>%
   mutate(N=replace_na(N, 0))%>%
   group_by(Year, SubRegion, Month)%>%
-  filter(Location%in%sample(unique(Location), min(N, N_cells), replace=FALSE))%>%
+  filter(Location%in%filter(Shuffled_locations, SubRegion2==unique(SubRegion))$Locations[[1]][1:unique(N)])%>%
+  filter(N!=0)%>%
   ungroup()
 
 year_sims_NULL<-sim_data_NULL$year_add%>%
