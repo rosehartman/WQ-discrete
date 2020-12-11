@@ -231,6 +231,7 @@ Data_CC4<-Data%>%
          mday_15_diff=abs(mday(Date)-15))%>% # Find how far each date is from the 15th of the month
   group_by(Station, Month, Year)%>%
   filter(mday_15_diff==min(mday_15_diff))%>%
+  filter(Date==min(Date))%>% # Deal with 2 dates equidistant from the 15th of the month
   filter(Noon_diff==min(Noon_diff))%>%
   ungroup()%>%
   lazy_dt()%>%
@@ -243,6 +244,10 @@ Data_CC4<-Data%>%
   mutate(YearStation=paste(Year, Station),
          Date_num2=as.numeric(Date)/(3600*24*30), # Create a numeric date variable in units of ~ 1 month. 
          Month_fac=factor(Month)) 
+
+#saveRDS(Data_CC4, "Temperature analysis/Data_CC4.Rds")
+
+Data_CC4<-readRDS("Temperature analysis/Data_CC4.Rds")
 
 # Fit overall smoothing model to this reduced dataset to identify optimal k parameters
 
@@ -274,6 +279,86 @@ ggplot(CC_gam8d7b_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
 
 #AIC: 201249.1
 #BIC: 201375.1
+
+
+Data_CC4.2 <- Data_CC4%>%
+  group_by(YearStation)%>%
+  mutate(Start=if_else(Date_num2==min(Date_num2), TRUE, FALSE))%>%
+  arrange(YearStation, Date_num2)
+
+CC_gam8d7b_NOAR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                     te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
+                     s(Time_num_s, k=5), data = Data_CC4.2, method="fREML", discrete=T, nthreads=2)
+
+r1 <- start_value_rho(CC_gam8d7b_NOAR, plot=TRUE)
+
+CC_gam8d7b_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                         te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
+                         s(Time_num_s, k=5), rho=r1, AR.start=Start, data = Data_CC4.2, method="fREML", discrete=T, nthreads=2)
+
+r2<-max(acf(resid(CC_gam8d7b_NOAR), plot=FALSE)$acf[-1])
+
+CC_gam8d7b_AR2 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                       te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
+                       s(Time_num_s, k=5), rho=r2, AR.start=Start, data = Data_CC4.2, method="fREML", discrete=T, nthreads=2)
+
+CC_gam8d7b_AR3 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                       te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
+                        te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 13)), 
+                      rho=r1, AR.start=Start, data = Data_CC4.2, method="fREML", discrete=T, nthreads=2)
+
+CC_gam8d7b_NOAR2 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                         te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
+                          te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 13)), 
+                        data = Data_CC4.2, method="fREML", discrete=T, nthreads=2)
+
+r3 <- start_value_rho(CC_gam8d7b_NOAR2, plot=TRUE)
+
+CC_gam8d7b_AR4 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                        te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
+                        te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 13)), 
+                      rho=r3, AR.start=Start, data = Data_CC4.2, method="fREML", discrete=T, nthreads=2)
+
+CC_gam8d7b_NOAR3 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Time_num_s, Julian_day_s, d=c(2, 1, 1), bs=c("tp", "tp", "cc"), k=c(25, 5, 13)) + 
+                        te(Latitude_s, Longitude_s, Julian_day_s, d=c(2, 1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s),
+                      data = Data_CC4.2, method="fREML", discrete=T, nthreads=2)
+
+r4 <- start_value_rho(CC_gam8d7b_NOAR3, plot=TRUE)
+
+CC_gam8d7b_AR5 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Time_num_s, Julian_day_s, d=c(2, 1, 1), bs=c("tp", "tp", "cc"), k=c(25, 5, 13)) + 
+                        te(Latitude_s, Longitude_s, Julian_day_s, d=c(2, 1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s),
+                      rho=r4, AR.start=Start, data = Data_CC4.2, method="fREML", discrete=T, nthreads=2)
+par(mfrow=c(3,3), cex=1.1)
+acf_resid(CC_gam8d7b_NOAR)
+acf_resid(CC_gam8d7b_AR)
+acf_resid(CC_gam8d7b_AR2)
+acf_resid(CC_gam8d7b_AR3)
+acf_resid(CC_gam8d7b_NOAR2)
+acf_resid(CC_gam8d7b_AR4)
+acf_resid(CC_gam8d7b_NOAR3)
+acf_resid(CC_gam8d7b_AR5)
+#CC_gam8d7b_AR is best: simplest and best ACF pattern without problems with model
+
+# Now trying with scat distribution
+CC_gam8d7b_NOAR4 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                         te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
+                         s(Time_num_s, k=5), family=scat, data = Data_CC4.2, method="fREML", discrete=T, nthreads=2)
+r5 <- start_value_rho(CC_gam8d7b_NOAR4, plot=TRUE)
+
+CC_gam8d7b_AR6 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                        te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
+                        s(Time_num_s, k=5), family=scat, rho=r5, AR.start=Start, data = Data_CC4.2, method="fREML", discrete=T, nthreads=2)
+
+resid_norm_CC_gam8d7b_AR6<-resid_gam(CC_gam8d7b_AR6, incl_na=TRUE)
+sp <- SpatialPoints(coords=data.frame(Longitude=Data_CC4.2$Longitude, Latitude=Data_CC4.2$Latitude))
+sp2<-STIDF(sp, time=Data_CC4.2$Date, data=data.frame(Residuals=resid_norm_CC_gam8d7b_AR6))
+CC_gam8d7b_AR6_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=4, tlags=(30/7)*1:10)
+
+ggplot(CC_gam8d7b_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
+  geom_line()+
+  geom_point()
+
+
 
 CC_gam8d10<-gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(15, 13)) + 
                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(15, 13), by=Year_s) + 

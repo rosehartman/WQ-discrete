@@ -196,9 +196,21 @@ modelld14a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_da
 #AIC: 120739.6
 #BIC: 162099.7
 
-modellea <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 20), by=Year_fac) + 
-                  te(Time_num_s, Julian_day_s, bs=c("cr", "cc"), k=c(5, 12)), family=scat,
-                data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=5)
+modelld15a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(20, 13), by=Year_fac) + 
+                    te(Time_num_s, Julian_day_s, bs=c("cr", "cc"), k=c(5, 13)),
+                  data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=5)
+#AIC: 134736
+#BIC: 160746
+
+modellea <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(20, 13), by=Year_fac) + 
+                  te(Time_num_s, Julian_day_s, bs=c("cr", "cc"), k=c(5, 13)), family=scat,
+                data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=3)
+#AIC: 126403.2
+#BIC: 156933.8
+
+modellea2 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 13), by=Year_fac) + 
+                  te(Time_num_s, Julian_day_s, bs=c("cr", "cc"), k=c(5, 13)), family=scat,
+                data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=3)
 
 # Final model -------------------------------------------------------------
 
