@@ -15,76 +15,9 @@ require(lubridate)
 require(hms)
 require(sf)
 require(scales)
-
-mygrid <- data.frame(
-  name = c("Upper Sacramento River Ship Channel", "Cache Slough and Lindsey Slough", "Lower Sacramento River Ship Channel", "Liberty Island", "Suisun Marsh", "Middle Sacramento River", "Lower Cache Slough", "Steamboat and Miner Slough", "Upper Mokelumne River", "Lower Mokelumne River", "Georgiana Slough", "Sacramento River near Ryde", "Sacramento River near Rio Vista", "Grizzly Bay", "West Suisun Bay", "Mid Suisun Bay", "Honker Bay", "Confluence", "Lower Sacramento River", "San Joaquin River at Twitchell Island", "San Joaquin River at Prisoners Pt", "Disappointment Slough", "Lower San Joaquin River", "Franks Tract", "Holland Cut", "San Joaquin River near Stockton", "Mildred Island", "Middle River", "Old River", "Upper San Joaquin River", "Grant Line Canal and Old River", "Victoria Canal"),
-  row = c(2, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 7, 7, 8, 8, 8),
-  col = c(7, 4, 6, 5, 2, 8, 6, 7, 9, 9, 8, 7, 6, 2, 1, 2, 3, 4, 5, 6, 8, 9, 5, 6, 7, 9, 8, 8, 7, 9, 8, 7),
-  code = c(" 1", " 1", " 2", " 3", " 8", " 4", " 5", " 6", " 7", " 9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "30", "29", "31"),
-  stringsAsFactors = FALSE
-)
+require(itsadug)
 
 Data<-readRDS("Temperature analysis/Discrete Temp Data.Rds")
-newdata_year<-readRDS("Temperature analysis/Prediction Data.Rds")
-modellc4_predictions<-readRDS("Temperature analysis/modellc4_predictions.Rds")
-
-
-# Using model-produced data  ----------------------------------------------------
-
-newdata<-newdata_year%>%
-  mutate(Prediction=modellc4_predictions$fit)%>%
-  mutate(SE=modellc4_predictions$se.fit,
-         L95=Prediction-SE*1.96,
-         U95=Prediction+SE*1.96)%>%
-  mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-")))) # Create Date variable from Julian Day and Year
-
-Data_effort <- Data%>%
-  st_drop_geometry()%>%
-  group_by(SubRegion, Month, Year)%>%
-  summarise(N=n(), .groups="drop")
-
-newdata_year2<-newdata%>%
-  select(-N)%>%
-  mutate(Month=month(Date))%>%
-  left_join(Data_effort, by=c("SubRegion", "Month", "Year"))%>% 
-  filter(!is.na(N))
-
-Data_year<-Data%>%
-  filter(hour(Time)<14 & hour(Time)>10)%>%
-  lazy_dt()%>%
-  group_by(Year, Month, Season, SubRegion)%>%
-  summarize(SD=sd(Temperature), Temperature=mean(Temperature))%>%
-  ungroup()%>%
-  as_tibble()
-
-newdata_sum<-newdata_year2%>%
-  mutate(Var=SE^2,
-         Month=month(Date))%>%
-  lazy_dt()%>%
-  group_by(Year, Month, SubRegion)%>%
-  summarise(Temperature=mean(Prediction), SE=sqrt(sum(Var)/(n()^2)))%>%
-  ungroup()%>%
-  as_tibble()%>%
-  mutate(L95=Temperature-1.96*SE,
-         U95=Temperature+1.96*SE)
-
-CC_models<-newdata_sum%>%
-  nest_by(Month, SubRegion)%>%
-  mutate(model=list(lm(Temperature~Year, data=data)))%>%
-  summarise(N=nrow(data), broom::tidy(model), .groups="drop")%>%
-  filter(term=="Year")
-map_CC<-function(month){
-  ggplot(filter(newdata_sum, Month==month))+
-    geom_point(aes(x=Year, y=Temperature))+
-    geom_smooth(aes(x=Year, y=Temperature), method="lm", formula=y ~ x)+
-    {if(nrow(filter(CC_models, p.value<0.05 & Month==month))>0){
-      geom_text(data=filter(CC_models, p.value<0.05 & Month==month), aes(x=2018, y=max(filter(newdata_sum, Month==month)$Temperature)-1, label=if_else(p.value<0.01, "**", "*")), color="firebrick3", size=6)
-    }}+
-    facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
-    theme_bw()+
-    theme(panel.grid=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
-}
-
 
 # Bayesian mixed models ---------------------------------------------------
 
@@ -250,118 +183,8 @@ Data_CC4<-Data%>%
 
 Data_CC4<-readRDS("Temperature analysis/Data_CC4.Rds")
 
-# Fit overall smoothing model to this reduced dataset to identify optimal k parameters
-
-is.even <- function(x) as.integer(x) %% 2 == 0
-
-
-model_CC4 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
-                   s(Time_num_s, k=5),
-                 data = filter(Data_CC4, is.even(Year))%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
-
-model_CC4b <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
-                   s(Time_num_s, k=5), family=scat,
-                 data = filter(Data_CC4, is.even(Year))%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
-
-
-
-CC_gam8d7b <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
-                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
-                    s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
-                  data = Data_CC4, method="REML")
-resid_norm_CC_gam8d7b<-residuals(CC_gam8d7b$lme,type="normalized")
-sp <- SpatialPoints(coords=data.frame(Longitude=Data_CC4$Longitude, Latitude=Data_CC4$Latitude))
-sp2<-STIDF(sp, time=Data_CC4$Date, data=data.frame(Residuals=resid_norm_CC_gam8d7b))
-CC_gam8d7b_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=4, tlags=(30/7)*1:10)
-
-ggplot(CC_gam8d7b_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
-  geom_line()+
-  geom_point()
-
-#AIC: 201249.1
-#BIC: 201375.1
-
-#########################################Try to keep continuous time-series together, don't necessarly split by calendar year
-# As this does, since it may split a seasonal survey in half
-Data_CC4.2 <- Data_CC4%>%
-  group_by(YearStation)%>%
-  mutate(Start=if_else(Date_num2==min(Date_num2), TRUE, FALSE))%>%
-  arrange(YearStation, Date_num2)
-
-CC_gam8d7b_NOAR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
-                     te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
-                     s(Time_num_s, k=5), data = Data_CC4.2, method="fREML", discrete=T, nthreads=2)
-
-r1 <- start_value_rho(CC_gam8d7b_NOAR, plot=TRUE)
-
-CC_gam8d7b_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
-                         te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
-                         s(Time_num_s, k=5), rho=r1, AR.start=Start, data = Data_CC4.2, method="fREML", discrete=T, nthreads=2)
-
-r2<-max(acf(resid(CC_gam8d7b_NOAR), plot=FALSE)$acf[-1])
-
-CC_gam8d7b_AR2 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
-                       te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
-                       s(Time_num_s, k=5), rho=r2, AR.start=Start, data = Data_CC4.2, method="fREML", discrete=T, nthreads=2)
-
-CC_gam8d7b_AR3 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
-                       te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
-                        te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 13)), 
-                      rho=r1, AR.start=Start, data = Data_CC4.2, method="fREML", discrete=T, nthreads=2)
-
-CC_gam8d7b_NOAR2 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
-                         te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
-                          te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 13)), 
-                        data = Data_CC4.2, method="fREML", discrete=T, nthreads=2)
-
-r3 <- start_value_rho(CC_gam8d7b_NOAR2, plot=TRUE)
-
-CC_gam8d7b_AR4 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
-                        te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
-                        te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 13)), 
-                      rho=r3, AR.start=Start, data = Data_CC4.2, method="fREML", discrete=T, nthreads=2)
-
-CC_gam8d7b_NOAR3 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Time_num_s, Julian_day_s, d=c(2, 1, 1), bs=c("tp", "tp", "cc"), k=c(25, 5, 13)) + 
-                        te(Latitude_s, Longitude_s, Julian_day_s, d=c(2, 1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s),
-                      data = Data_CC4.2, method="fREML", discrete=T, nthreads=2)
-
-r4 <- start_value_rho(CC_gam8d7b_NOAR3, plot=TRUE)
-
-CC_gam8d7b_AR5 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Time_num_s, Julian_day_s, d=c(2, 1, 1), bs=c("tp", "tp", "cc"), k=c(25, 5, 13)) + 
-                        te(Latitude_s, Longitude_s, Julian_day_s, d=c(2, 1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s),
-                      rho=r4, AR.start=Start, data = Data_CC4.2, method="fREML", discrete=T, nthreads=2)
-par(mfrow=c(3,3), cex=1.1)
-acf_resid(CC_gam8d7b_NOAR)
-acf_resid(CC_gam8d7b_AR)
-acf_resid(CC_gam8d7b_AR2)
-acf_resid(CC_gam8d7b_AR3)
-acf_resid(CC_gam8d7b_NOAR2)
-acf_resid(CC_gam8d7b_AR4)
-acf_resid(CC_gam8d7b_NOAR3)
-acf_resid(CC_gam8d7b_AR5)
-#CC_gam8d7b_AR is best: simplest and best ACF pattern without problems with model
-
-# Now trying with scat distribution
-CC_gam8d7b_NOAR4 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
-                         te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
-                         s(Time_num_s, k=5), family=scat, data = Data_CC4.2, method="fREML", discrete=T, nthreads=2)
-r5 <- start_value_rho(CC_gam8d7b_NOAR4, plot=TRUE)
-
-CC_gam8d7b_AR6 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
-                        te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
-                        s(Time_num_s, k=5), family=scat, rho=r5, AR.start=Start, data = Data_CC4.2, method="fREML", discrete=T, nthreads=2)
-
-resid_norm_CC_gam8d7b_AR6<-resid_gam(CC_gam8d7b_AR6, incl_na=TRUE)
-sp <- SpatialPoints(coords=data.frame(Longitude=Data_CC4.2$Longitude, Latitude=Data_CC4.2$Latitude))
-sp2<-STIDF(sp, time=Data_CC4.2$Date, data=data.frame(Residuals=resid_norm_CC_gam8d7b_AR6))
-CC_gam8d7b_AR6_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=4, tlags=(30/7)*1:10)
-
-ggplot(CC_gam8d7b_AR6_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
-  geom_line()+
-  geom_point()
-
-
-
+# Split time-series into groupings of contiguous months within each station.
+# Split into separate time-series after a gap of 60 days or greater
 Data_CC4.3 <- Data_CC4%>%
   arrange(Station, Date)%>%
   group_by(Station)%>%
@@ -373,16 +196,22 @@ Data_CC4.3 <- Data_CC4%>%
          Series_ID=as.integer(as.factor(Series_ID)))%>%
   fill(Series_ID, .direction="down")
 
+# First fit model with AR term to find optimal AR rho parameter
+
 CC_gam8d7b_NOAR5 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
                           te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
                           s(Time_num_s, k=5), family=scat, data = Data_CC4.3, method="fREML", discrete=T, nthreads=2)
 r6 <- start_value_rho(CC_gam8d7b_NOAR5, plot=TRUE)
+
+#########Best Model####################
 
 CC_gam8d7b_AR7 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
                         te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
                         s(Time_num_s, k=5), family=scat, rho=r6, AR.start=Start, data = Data_CC4.3, method="fREML", discrete=T, nthreads=2)
 #AIC: 200051.6
 #BIC: 202901.6
+
+#########Best Model####################
 
 
 resid_norm_CC_gam8d7b_AR7<-resid_gam(CC_gam8d7b_AR7, incl_na=TRUE)
@@ -394,6 +223,13 @@ ggplot(CC_gam8d7b_AR7_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDis
   geom_line()+
   geom_point()
 
+gam.check(CC_gam8d7b_AR7)
+# s(Time_num_s) is OK (p=0.460)
+# te(Julian_day_s,Latitude_s,Longitude_s):Year_s is OK: significant p-value but edf is 82.9 compared ot k' of 300.0
+# te(Julian_day_s,Latitude_s,Longitude_s) may be able to be improved (edf=223.3 and k'=299.0)
+
+# Check if higher k on te(Julian_day_s,Latitude_s,Longitude_s) would help improve model
+
 CC_gam8d7b_AR8 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(50, 13)) + 
                         te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
                         s(Time_num_s, k=5), family=scat, rho=r6, AR.start=Start, data = Data_CC4.3, method="fREML", discrete=T, nthreads=2)
@@ -401,125 +237,6 @@ CC_gam8d7b_AR8 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=
 #BIC: 203599.9
 
 ###CC_gam8d7b_AR8 has a lower AIC but predicted slope values are almost identical to CC_gam8d7b_AR7, so using CC_gam8d7b_AR7 as the final model
-
-CC_gam8d10<-gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(15, 13)) + 
-                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(15, 13), by=Year_s) + 
-                   s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
-                 data = Data_CC4, method="REML")
-#AIC: 201429.3
-#BIC: 201555.3
-
-CC_gam8d11 <- gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(50, 13)) + 
-                     te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(50, 13), by=Year_s) + 
-                     s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
-                   data = Data_CC4, method="REML")
-#AIC: 201049.7
-#BIC: 201175.7
-
-CC_gam8d12<-gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(8, 7)) + 
-                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(8, 7), by=Year_s) + 
-                   s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
-                 data = Data_CC4, method="REML")
-
-#Fit model
-
-CC_gam8d13<-gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(50, 13)) + 
-                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(80, 13), by=Year_s) + 
-                   s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
-                 data = Data_CC4, method="REML")
-
-# Predicted Slope and Intercept outputs from this model are indistinguishable from CC_gam8d11
-# Predicted Intercept outputs of CC_gam8d13, CC_gam8d11, and CC_gam8d7b are indistinguishable and almost indistinguishable from CC_gam8d10
-
-CC_gam8d14<-gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(15, 13)) + 
-                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(50, 13), by=Year_s) + 
-                   s(Time_num_s, k=5), correlation = corCAR1(form=~Date_num2|Station),
-                 data = Data_CC4, method="REML")
-
-# then predict over a range of locations and months using type="terms" or type="iterms" to get value of the Year slope for each location and month
-
-
-# Inspect residuals for suitability of k-value ----------------------------
-
-resd_CC_gam8d7b<-residuals(CC_gam8d7b$lme,type="normalized")
-
-CC_gam8d7b_residA <- bam(resd_CC_gam8d7b ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cs", "cc"), k=c(50, 13)),
-                    gamma=1.4, data = Data_CC4, method="fREML", discrete=T, nthreads=3)
-summary(CC_gam8d7b_residA)
-gam.check(CC_gam8d7b_residA)
-#Very low R2 (0.01) and no visible correlation between fitted values and response, so increased k-value here is not improving model fit.
-
-CC_gam8d7b_residB <- bam(resd_CC_gam8d7b ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cs", "cc"), k=c(50, 13), by=Year_s),
-                         gamma=1.4, data = Data_CC4, method="fREML", discrete=T, nthreads=3)
-summary(CC_gam8d7b_residB)
-gam.check(CC_gam8d7b_residB)
-#Very low R2 (0.002) and no visible correlation between fitted values and response, so increased k-value here is not improving model fit.
-
-
-
-
-resd_CC_gam8d10<-residuals(CC_gam8d10$lme,type="normalized")
-
-CC_gam8d10_residA <- bam(resd_CC_gam8d10 ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cs", "cc"), k=c(25, 13)),
-                         gamma=1.4, data = Data_CC4, method="fREML", discrete=T, nthreads=3)
-summary(CC_gam8d10_residA)
-gam.check(CC_gam8d10_residA)
-#Very low R2 (0.01) and no visible correlation between fitted values and response, so increased k-value here is not improving model fit.
-
-CC_gam8d10_residB <- bam(resd_CC_gam8d10 ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cs", "cc"), k=c(25, 13), by=Year_s),
-                         gamma=1.4, data = Data_CC4, method="fREML", discrete=T, nthreads=3)
-summary(CC_gam8d10_residB)
-gam.check(CC_gam8d10_residB)
-#Very low R2 (0.001) and no visible correlation between fitted values and response, so increased k-value here is not improving model fit.
-
-
-
-resd_CC_gam8d12<-residuals(CC_gam8d12$lme,type="normalized")
-
-CC_gam8d12_residA <- bam(resd_CC_gam8d12 ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cs", "cc"), k=c(15, 13)),
-                         gamma=1.4, data = Data_CC4, method="fREML", discrete=T, nthreads=3)
-summary(CC_gam8d12_residA)
-gam.check(CC_gam8d12_residA)
-#Very low R2 (0.01) and no visible correlation between fitted values and response, so increased k-value here is not improving model fit.
-
-CC_gam8d12_residB <- bam(resd_CC_gam8d12 ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cs", "cc"), k=c(15, 13), by=Year_s),
-                         gamma=1.4, data = Data_CC4, method="fREML", discrete=T, nthreads=3)
-summary(CC_gam8d12_residB)
-gam.check(CC_gam8d12_residB)
-#Very low R2 (0.001) and no visible correlation between fitted values and response, so increased k-value here is not improving model fit.
-
-
-CC_gam8d12_residC <- bam(resd_CC_gam8d12 ~ s(Latitude_s, Longitude_s, bs="tp", k=15),
-                         gamma=1.4, data = Data_CC4, method="fREML", discrete=T, nthreads=3)
-summary(CC_gam8d12_residC)
-gam.check(CC_gam8d12_residC)
-
-
-CC_gam8d12_residD <- bam(resd_CC_gam8d12 ~ s(Julian_day_s, bs="cc", k=13),
-                         gamma=1.4, data = Data_CC4, method="fREML", discrete=T, nthreads=3)
-summary(CC_gam8d12_residD)
-gam.check(CC_gam8d12_residD)
-
-
-CC_gam8d12_residE <- bam(resd_CC_gam8d12 ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cs", "cc"), k=c(25, 13))+
-                           te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cs", "cc"), k=c(25, 13), by=Year_s),
-                         gamma=1.4, data = Data_CC4, method="fREML", discrete=T, nthreads=3)
-summary(CC_gam8d12_residE)
-gam.check(CC_gam8d12_residE)
-
-
-CC_gam8d12_residF <- bam(resd_CC_gam8d12 ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cs", "cc"), k=c(50, 13))+
-                           te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cs", "cc"), k=c(50, 13), by=Year_s),
-                         gamma=1.4, data = Data_CC4, method="fREML", discrete=T, nthreads=3)
-summary(CC_gam8d12_residF)
-gam.check(CC_gam8d12_residF)
-
-
-CC_gam8d12_residG <- bam(resd_CC_gam8d12 ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cs", "cc"), k=c(50, 13))+
-                           te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cs", "cc"), k=c(80, 13), by=Year_s),
-                         gamma=1.4, data = Data_CC4, method="fREML", discrete=T, nthreads=3)
-summary(CC_gam8d12_residG)
-gam.check(CC_gam8d12_residG)
 
 newdata<-readRDS("Temperature analysis/Prediction Data.Rds")
 CC_newdata<-newdata%>%
@@ -532,20 +249,16 @@ CC_newdata<-newdata%>%
          Year_fac="2000",
          Month=as.integer(as.factor(Julian_day)))
 
-saveRDS(CC_newdata, "Temperature analysis/Climate Change Prediction Data.Rds")
+#saveRDS(CC_newdata, "Temperature analysis/Climate Change Prediction Data.Rds")
+CC_newdata<-readDS("Temperature analysis/Climate Change Prediction Data.Rds")
 # For filtering the newdata after predictions
 
-CC_effort<-newdata%>%
-  st_drop_geometry()%>%
-  as_tibble()%>%
-  mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
-         Month=month(Date))%>%
-  select(SubRegion, Year, Month)%>%
-  distinct()%>%
-  group_by(Month, SubRegion)%>%
-  summarise(N=n(), .groups="drop")
+CC_pred<-predict(CC_gam8d7b_AR7, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
 
-CC_pred<-predict(CC_gam8d7b_AR8, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
+
+Delta<-st_read("Delta Subregions")%>%
+  select(SubRegion)%>%
+  filter(SubRegion%in%unique(Data_CC4$SubRegion))
 
 newdata_CC_pred<-CC_newdata%>%
   mutate(Slope=CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
@@ -557,36 +270,41 @@ newdata_CC_pred<-CC_newdata%>%
          Month=month(Date, label = T),
          Slope_l95=Slope-Slope_se*qnorm(0.995),
          Slope_u95=Slope+Slope_se*qnorm(0.995))%>%
-  mutate(Sig=if_else(Slope_u95>0 & Slope_l95<0, "ns", "*"))
+  mutate(Sig=if_else(Slope_u95>0 & Slope_l95<0, "ns", "*"))%>%
+  filter(Sig=="*")%>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)%>%
+  st_transform(crs=st_crs(Delta))
 
-p_CC_gam<-ggplot(filter(newdata_CC_pred, Sig=="*"), aes(x=Longitude, y=Latitude, color=Slope))+
-  geom_point()+
-  facet_wrap(~Month)+
-  scale_color_gradient2(high = muted("red"), low = muted("blue"), breaks=(-6:7)/100, guide=guide_colorbar(barheight=20))+
+# Function to rasterize all dates. Creates a 3D raster Latitude x Longitude x Date 
+Rasterize_all <- function(data, var, out_crs=4326, n=100){
+  var<-rlang::enquo(var)
+  rlang::as_name(var)
+  preds<-map(unique(data$Date), function(x) st_rasterize(data%>%
+                                                           filter(Date==x)%>%
+                                                           dplyr::select(!!var), 
+                                                         template=st_as_stars(st_bbox(Delta), dx=diff(st_bbox(Delta)[c(1, 3)])/n, dy=diff(st_bbox(Delta)[c(2, 4)])/n, values = NA_real_))%>%
+               st_warp(crs=out_crs))
+  
+  # Then bind all dates together into 1 raster
+  out <- exec(c, !!!preds, along=list(Date=unique(data$Date)))
+  return(out)
+}
+
+newdata_CC_pred_rast<-Rasterize_all(newdata_CC_pred, Slope)
+
+p_CC_gam<-ggplot()+
+  geom_stars(data=newdata_CC_pred_rast)+
+  facet_wrap(~month(Date, label=T))+
+  scale_fill_viridis_c(breaks=(-6:7)/100, guide=guide_colorbar(barheight=20), na.value="white")+
+  ylab("Latitude")+
+  xlab("Longitude")+
+  coord_sf()+
   theme_bw()+
-  theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
+  theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
 
-ggsave(p_CC_gam, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/CC_gam8d2.png",
+ggsave(p_CC_gam, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/CC_gam 12.14.20.png",
        device="png", width=7, height=5, units="in")
 
-# Autocorrelation
-require(gstat)
-require(sp)
-require(spacetime)
-
-sp <- SpatialPoints(coords=data.frame(Longitude=Data$Longitude, Latitude=Data$Latitude))
-sp2<-STIDF(sp, time=Data$Date, data=data.frame(Residuals=residuals(CC_brm2, type="pearson")[,1]))
-CC_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=3)
-
-sp_EMP <- SpatialPoints(coords=data.frame(Longitude=filter(Data, Source=="EMP")$Longitude, Latitude=filter(Data, Source=="EMP")$Latitude))
-sp2_EMP<-STIDF(sp_EMP, time=filter(Data, Source=="EMP")$Date, data=data.frame(Residuals=residuals(CC_brm_EMP, type="pearson")[,1]))
-CC_vario_EMP<-variogramST(Residuals~1, data=sp2_EMP, tunit="weeks", cores=3, tlags=1:10*4)
-
-save(CC_vario, CC_vario_EMP, CC_brm, CC_brm2, CC_brm3, CC_brm4, CC_brm_EMP, file="CC models.Rds")
-
-ggplot(CC_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
-  geom_line()+
-  geom_point()
 
 # Visualize raw climate change signal -------------------------------------
 
