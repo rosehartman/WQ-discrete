@@ -381,6 +381,9 @@ r6 <- start_value_rho(CC_gam8d7b_NOAR5, plot=TRUE)
 CC_gam8d7b_AR7 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
                         te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
                         s(Time_num_s, k=5), family=scat, rho=r6, AR.start=Start, data = Data_CC4.3, method="fREML", discrete=T, nthreads=2)
+#AIC: 200051.6
+#BIC: 202901.6
+
 
 resid_norm_CC_gam8d7b_AR7<-resid_gam(CC_gam8d7b_AR7, incl_na=TRUE)
 sp <- SpatialPoints(coords=data.frame(Longitude=Data_CC4.3$Longitude, Latitude=Data_CC4.3$Latitude))
@@ -391,6 +394,13 @@ ggplot(CC_gam8d7b_AR7_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDis
   geom_line()+
   geom_point()
 
+CC_gam8d7b_AR8 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(50, 13)) + 
+                        te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
+                        s(Time_num_s, k=5), family=scat, rho=r6, AR.start=Start, data = Data_CC4.3, method="fREML", discrete=T, nthreads=2)
+#AIC: 199646.3
+#BIC: 203599.9
+
+###CC_gam8d7b_AR8 has a lower AIC but predicted slope values are almost identical to CC_gam8d7b_AR7, so using CC_gam8d7b_AR7 as the final model
 
 CC_gam8d10<-gamm(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(15, 13)) + 
                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(15, 13), by=Year_s) + 
@@ -535,12 +545,12 @@ CC_effort<-newdata%>%
   group_by(Month, SubRegion)%>%
   summarise(N=n(), .groups="drop")
 
-CC_pred<-predict(CC_gam8d14$gam, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
+CC_pred<-predict(CC_gam8d7b_AR8, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
 
 newdata_CC_pred<-CC_newdata%>%
-  mutate(Slope=CC_pred$fit[,"te(Latitude_s,Longitude_s,Julian_day_s):Year_s"],
-         Slope_se=CC_pred$se.fit[,"te(Latitude_s,Longitude_s,Julian_day_s):Year_s"],
-         Intercept=CC_pred$fit[,"te(Latitude_s,Longitude_s,Julian_day_s)"]+CC_pred$fit[,"s(Time_num_s)"])%>%
+  mutate(Slope=CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
+         Slope_se=CC_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
+         Intercept=CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s)"]+CC_pred$fit[,"s(Time_num_s)"])%>%
   mutate(across(c(Slope, Slope_se), ~(.x/Year_s)/sd(Data$Year)))%>%
   mutate(Slope_se=abs(Slope_se))%>%
   mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
