@@ -28,28 +28,7 @@ max_effort<-Data_effort%>%
   group_by(SubRegion)%>%
   summarise(Max=max(N), .groups="drop")
 
-require(brms)
-
-model_var<-brm(Temperature ~ (1|Year_fac) + (1| Month) + (1|Station), data=Data_CC4,
-               family=gaussian(),
-               prior=prior(normal(0,5), class="Intercept")+
-                 prior(cauchy(0,5), class="sigma")+
-                 prior(cauchy(0,5), class="sd"),
-               control=list(adapt_delta=0.85, max_treedepth=15),
-               iter=8e3, warmup=2e3, cores=3, chains=3)
-# Pull value of Year_fac sd from variance model to use below.
-
-
-model_sum<-summary(model)
-year_sd<-model_sum$p.coeff[!names(model_sum$p.coeff) %in% c("(Intercept)", "Year_fac1970", "Year_fac1972", "Year_fac1974")]
-
 Slope_summary<-readRDS("Temperature analysis/Slope summary.Rds")
-
-newdata<-readRDS("Temperature analysis/Prediction Data.Rds")%>%
-  filter(Year==2018)%>% # Pick year with lots of data (EDSM in effect) and almost all subregions represented (except Grant Line which ended in 1995)
-  st_drop_geometry()%>%
-  select(-Season, -N, -Time_num)%>%
-  mutate(Month=as.integer(as.factor(Julian_day)))
 
 newdata_stations<-Data_CC4%>%
   select(Station, Latitude, Longitude)%>%
@@ -66,54 +45,51 @@ newdata_stations<-Data_CC4%>%
   st_drop_geometry()%>%
   mutate(Month=as.integer(as.factor(Julian_day)))%>%
   mutate(across(c(Julian_day, Latitude, Longitude), list(s=~(.-mean(.))/sd(.))))%>%
-  mutate(Time_num_s=unique(newdata$Time_num_s),
-         Year=unique(newdata$Year),
-         Year_s=unique(newdata$Year_s),
-         Year_fac=unique(newdata$Year_fac))%>%
+  mutate(Time_num_s=(12*60*60-mean(Data$Time_num))/sd(Data$Time_num),
+         Year=2018,
+         Year_s=(Year-mean(Data$Year))/sd(Data$Year),
+         Year_fac=factor(Year))%>%
   left_join(Slope_summary%>%
               select(Month, SubRegion, Slope, Slope_se), 
             by=c("Month", "SubRegion"))
 
 # Define function to simulate gam data ------------------------------------
 
-gamsim<-function(model, data=newdata, years=1970:2020, year_slope=0.02, year_sd=0.2, nsim=10, seeds=1:nsim){
+gamsim<-function(model, data=newdata_stations, null=FALSE, years=1970:2020, slope_mean=unique(Slope_summary$Slope_mean), nsim=10, seeds=1:nsim){
   mu<-predict(model, newdata=data, type="response", discrete=T, n.threads=4)
   scale <- model[["sig2"]]
   data<-mutate(data, mu=mu)
   data<-map_dfr(years, ~mutate(data, Year=.x))%>%
     mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
-           Year_s=(Year-mean(years))/sd(years))
+           Year_s=(Year-mean(years))/sd(years),
+           Slope_year=Year-min(Year))
   
   # Extract distributional function
   family_fun<-fix.family.rd(family(model))[["rd"]]
   
-  sim_fun<-function(Data=data, Years=years, Year_slope=year_slope, Year_sd=year_sd, Nsim=nsim, Scale=scale, seed){
+  sim_fun<-function(Data=data, Null=null, Years=years, Slope_mean=slope_mean, Nsim=nsim, Scale=scale, seed){
     set.seed(seed)
-    year_add<-tibble(Year=Years, add=rnorm(n=Year, mean=(Year-min(Year))*Year_slope, sd=Year_sd))
     
     Data<-Data%>%
-      complete(Year=Years)%>%
-      left_join(year_add, by="Year")%>%
-      mutate(pred=mu+add) #############################################Maybe move the rnorm for add to this step so each data point gets some random deviation 
+      mutate(add=rnorm(n=n(), mean=if_else(Null, 0, Slope_year*Slope), sd=Slope_se))%>%
+      mutate(pred=mu+add)
     
     sims <- family_fun(mu=Data$pred, wt=rep(1, length(Data$pred)), scale=Scale)
     set.seed(NULL)
-    return(list(sims=sims, year_add=year_add$add))
+    return(tibble(sims=sims, add=Data$add, pred=Data$pred))
   }
   
   out<-map(1:nsim, ~sim_fun(seed=seeds[.x]))
   
   sims<-map(out, ~.x[["sims"]])
+  adds<-map(out, ~.x[["add"]])
+  preds<-map(out, ~.x[["pred"]])
   names(sims)<-paste("sim", 1:nsim, sep="_")
-  sims<-bind_cols(data, sims)
+  names(adds)<-paste("add", 1:nsim, sep="_")
+  names(preds)<-paste("pred", 1:nsim, sep="_")
+  sims<-bind_cols(data, sims, adds, preds)
   
-  year_add<-map(out, ~.x[["year_add"]])
-  names(year_add)<-paste("sim", 1:nsim, sep="_")
-  year_add<-bind_cols(list(Year=years), year_add)
-  
-  #Try returning data with 1 column per simulation
-  
-  return(list(sims=sims, year_add=year_add))
+  return(sims)
   
 }
 
@@ -244,9 +220,7 @@ station_effort<-Data_CC4%>%
   select(Station, Month, Year)%>%
   mutate(Keep=TRUE)
 
-sim_stations<-gamsim(modellea, data=newdata_stations)
-
-sim_data_stations<-sim_stations$sims%>%
+sim_data_stations<-gamsim(modellea, null=FALSE)%>%
   left_join(station_effort, by=c("Station", "Month", "Year"))%>%
   mutate(Keep=replace_na(Keep, FALSE))%>%
   filter(Keep)%>%
@@ -260,12 +234,47 @@ sim_data_stations<-sim_stations$sims%>%
          Series_ID=as.integer(as.factor(Series_ID)))%>%
   fill(Series_ID, .direction="down")
 
-sim_stations_NULL<-gamsim(modelld14a, data=newdata_stations, year_slope=0, seeds=2^(1:10))
-
-sim_data_stations_NULL<-sim_stations_NULL$sims%>%
+sim_data_stations_NULL<-gamsim(modellea, null=TRUE)%>%
   left_join(station_effort, by=c("Station", "Month", "Year"))%>%
   mutate(Keep=replace_na(Keep, FALSE))%>%
   filter(Keep)%>%
+  arrange(Station, Date)%>%
+  group_by(Station)%>%
+  mutate(Lag=Date-lag(Date, order_by = Date))%>%
+  ungroup()%>%
+  mutate(Start=if_else(is.na(Lag) | Lag>3600*24*60, TRUE, FALSE),
+         Series_ID=1:n(),
+         Series_ID=if_else(Start, Series_ID, NA_integer_),
+         Series_ID=as.integer(as.factor(Series_ID)))%>%
+  fill(Series_ID, .direction="down")
+
+set.seed(1)
+Shuffled_stations<-newdata_stations%>%
+  group_by(SubRegion)%>%
+  mutate(N_stations=n_distinct(Station))%>%
+  summarise(Stations=list(sample(unique(Station), min(c(4, N_stations)))), .groups="drop")%>%
+  rename(SubRegion2=SubRegion)
+set.seed(NULL)
+
+sim_data_stations_balanced<-gamsim(modellea, null=FALSE)%>%
+  group_by(SubRegion)%>%
+  filter(Station%in%filter(Shuffled_stations, SubRegion2==unique(SubRegion))$Stations[[1]][1:4])%>%
+  ungroup()%>%
+  arrange(Station, Date)%>%
+  group_by(Station)%>%
+  mutate(Lag=Date-lag(Date, order_by = Date))%>%
+  ungroup()%>%
+  mutate(Start=if_else(is.na(Lag) | Lag>3600*24*60, TRUE, FALSE),
+         Series_ID=1:n(),
+         Series_ID=if_else(Start, Series_ID, NA_integer_),
+         Series_ID=as.integer(as.factor(Series_ID)))%>%
+  fill(Series_ID, .direction="down")
+
+
+sim_data_stations_NULL_balanced<-gamsim(modellea, null=TRUE)%>%
+  group_by(SubRegion)%>%
+  filter(Station%in%filter(Shuffled_stations, SubRegion2==unique(SubRegion))$Stations[[1]][1:4])%>%
+  ungroup()%>%
   arrange(Station, Date)%>%
   group_by(Station)%>%
   mutate(Lag=Date-lag(Date, order_by = Date))%>%
@@ -355,28 +364,28 @@ sim_tester<-function(data, sim){
            Slope_se=CC_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"])%>%
     mutate(across(c(Slope, Slope_se), ~(.x/Year_s)/sd(1970:2020)))%>%
     mutate(Slope_se=abs(Slope_se))%>%
-    mutate(Slope_l95=Slope-Slope_se*qnorm(0.9995),
-           Slope_u95=Slope+Slope_se*qnorm(0.9995))%>%
+    mutate(Slope_l95=Slope-Slope_se*qnorm(0.995),
+           Slope_u95=Slope+Slope_se*qnorm(0.995))%>%
     mutate(Sig=if_else(Slope_u95>0 & Slope_l95<0, "ns", "*"))
   out<-list()
   
   if(all(newdata_CC_pred$Sig=="ns")){
     message("No significant climate change signals detected")
   } else{
-    newdata_CC_pred<-newdata_CC_pred%>%
+    newdata_CC_pred2<-newdata_CC_pred%>%
       filter(Sig=="*")%>%
       st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)%>%
       st_transform(crs=st_crs(Delta))
     
-    newdata_CC_pred_rast<-Rasterize_all(newdata_CC_pred, Slope)
+    newdata_CC_pred_rast<-Rasterize_all(newdata_CC_pred2, Slope)
     
-    Slope_mean<-round(mean(newdata_CC_pred$Slope, na.rm=T),4)
-    Slope_median<-round(median(newdata_CC_pred$Slope, na.rm=T),4)
+    Slope_mean<-round(mean(newdata_CC_pred2$Slope, na.rm=T),4)
+    Slope_median<-round(median(newdata_CC_pred2$Slope, na.rm=T),4)
     
     p<-ggplot()+
       geom_stars(data=newdata_CC_pred_rast)+
       facet_wrap(~month(Date, label=T))+
-      scale_fill_viridis_c(limits=c(0, 0.03), guide=guide_colorbar(barheight=20), na.value="white")+
+      scale_fill_viridis_c(guide=guide_colorbar(barheight=20), na.value="white")+
       ylab("Latitude")+
       xlab("Longitude")+
       ggtitle(paste(sim, "Mean:", Slope_mean, "Median:", Slope_median))+
@@ -411,9 +420,47 @@ sim_results_unbalanced_NULL_extracted<-map_dbl(sims, ~median(sim_results_unbalan
 # Stations
 
 ## Slope = 0.02
-sim_results_stationsb<-map(sims, ~sim_tester(sim_data_stations, .x))
-sim_results_stations_extractedb<-map_dbl(sims, ~median(sim_results_stationsb[[.x]]$slopes))
+sim_results_stations<-map(sims, ~sim_tester(sim_data_stations, .x))
+sim_results_stations_extracted<-map_dbl(sims, ~median(sim_results_stations[[.x]]$slopes))
+
+sim_results_stations_slopes<-bind_cols(CC_newdata, map(sim_results_stations, ~.x[["slopes"]]))%>%
+  left_join(Slope_summary%>%
+              select(Month, SubRegion, Slope, Slope_se)%>%
+              mutate(Month=month(Month, label=T)), 
+            by=c("Month", "SubRegion"))%>%
+  pivot_longer(cols=all_of(sims), names_to="Simulation", values_to="Slope_sim")
+
+ggplot(sim_results_stations_slopes, aes(x=Slope, y=Slope_sim, color=Simulation))+
+  geom_point()+
+  geom_abline(slope=1, intercept=0)+
+  facet_wrap(~Simulation)+
+  theme_bw()
 
 ## Slope = 0
-sim_results_stations_NULLb<-map(sims, ~sim_tester(sim_data_stations_NULL, .x))
-sim_results_stations_NULL_extractedb<-map_dbl(sims, ~median(sim_results_stations_NULLb[[.x]]$slopes))
+sim_results_stations_NULL<-map(sims, ~sim_tester(sim_data_stations_NULL, .x))
+sim_results_stations_NULL_extracted<-map_dbl(sims, ~median(sim_results_stations_NULL[[.x]]$slopes))
+
+# Stations balanced
+
+## Slope = 0.02
+sim_results_stations_balanced<-map(sims, ~sim_tester(sim_data_stations_balanced, .x))
+sim_results_stations_balanced_extracted<-map_dbl(sims, ~median(sim_results_stations_balanced[[.x]]$slopes))
+
+sim_results_stations_balanced_slopes<-bind_cols(CC_newdata, map(sim_results_stations_balanced, ~.x[["slopes"]]))%>%
+  left_join(Slope_summary%>%
+              select(Month, SubRegion, Slope, Slope_se)%>%
+              mutate(Month=month(Month, label=T)), 
+            by=c("Month", "SubRegion"))%>%
+  pivot_longer(cols=all_of(sims), names_to="Simulation", values_to="Slope_sim")%>%
+  mutate(Simulation=factor(Simulation, levels=sims))
+
+ggplot(sim_results_stations_balanced_slopes, aes(x=Slope, y=Slope_sim, color=Simulation))+
+  geom_point()+
+  geom_abline(slope=1, intercept=0)+
+  facet_wrap(~Simulation, nrow=2)+
+  theme_bw()+
+  theme(legend.position="none")
+
+## Slope = 0
+sim_results_stations_NULL_balanced<-map(sims, ~sim_tester(sim_data_stations_NULL_balanced, .x))
+sim_results_stations_NULL_balanced_extracted<-map_dbl(sims, ~median(sim_results_stations_NULL_balanced[[.x]]$slopes))
