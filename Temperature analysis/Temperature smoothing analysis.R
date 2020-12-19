@@ -82,7 +82,7 @@ Data<-Data%>%
   mutate(Group=if_else(is.even(Year), 1, 2))%>%
   mutate_at(vars(Date_num, Longitude, Latitude, Time_num, Year, Julian_day), list(s=~(.-mean(., na.rm=T))/sd(., na.rm=T))) # Create centered and standardized versions of covariates
 
-saveRDS(Data, file="Temperature analysis/Discrete Temp Data.Rds")
+#saveRDS(Data, file="Temperature analysis/Discrete Temp Data.Rds")
 Data<-readRDS("Temperature analysis/Discrete Temp Data.Rds")
 
 # Model selection ---------------------------------------------------------
@@ -211,6 +211,14 @@ modellea <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_
 modellea2 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 13), by=Year_fac) + 
                   te(Time_num_s, Julian_day_s, bs=c("cr", "cc"), k=c(5, 13)), family=scat,
                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=3)
+# 4: In bgam.fitd(G, mf, gp, scale, nobs.extra = 0, rho = rho, coef = coef,  :
+#                  algorithm did not converge
+
+
+
+modellea3 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 13), by=Year_fac) + 
+                   s(Time_num_s, bs="cr", k=5), family=scat,
+                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=2)
 
 # Final model -------------------------------------------------------------
 
