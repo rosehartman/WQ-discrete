@@ -365,7 +365,7 @@ p_D2_gam<-ggplot()+
   geom_stars(data=newdata_D2_pred_rast)+
   facet_wrap(~month(Date, label=T), drop=F)+
   scale_fill_continuous_diverging(palette="Blue-Red 3", breaks=seq(-12, 6, by=2)/10, na.value = "white",
-                                  name="Temperature change\nper change in\ntotal runoff (°C/monthly sd[cfs])", guide=guide_colorbar(barheight=20))+
+                                  name="Temperature change\nper change in\ntotal inflow (°C/monthly sd[cfs])", guide=guide_colorbar(barheight=20))+
   ylab("Latitude")+
   xlab("Longitude")+
   coord_sf()+

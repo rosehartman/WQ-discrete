@@ -18,6 +18,7 @@ require(stars)
 require(purrr)
 require(scales)
 require(itsadug)
+require(colorspace)
 
 Data<-readRDS("Temperature analysis/Discrete Temp Data.Rds")
 
@@ -388,6 +389,129 @@ p_check<-(p_qq|p_pred_resid)/(p_hist|p_fitted_resid)
 
 ggsave(p_check, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/CC_gam8d7b_AR7 model validation.png",
        device="png", width=10, height=7, units="in")
+
+
+# Fit separate models to each 20 year period ------------------------------
+
+Data<-readRDS("Temperature analysis/Discrete Temp Data.Rds")
+
+Year_mean<-mean(Data$Year)
+Year_sd<-sd(Data$Year)
+Data_CC4<-readRDS("Temperature analysis/Data_CC4.Rds")
+
+
+Delta<-st_read("Delta Subregions")%>%
+  select(SubRegion)%>%
+  filter(SubRegion%in%unique(Data_CC4$SubRegion))
+
+start_years<-set_names(seq(1970, 1995, by=5))
+period_length<-25
+
+model_fitter<-function(start_year){
+  
+  data<-Data_CC4%>%
+    filter(Year>=start_year & Year<(start_year+period_length))%>%
+    mutate(Year_s=Year_s-mean(Year_s))%>%
+    arrange(Station, Date)%>%
+    group_by(Station)%>%
+    mutate(Lag=Date-lag(Date, order_by = Date))%>%
+    ungroup()%>%
+    mutate(Start=if_else(is.na(Lag) | Lag>3600*24*60, TRUE, FALSE),
+           Series_ID=1:n(),
+           Series_ID=if_else(Start, Series_ID, NA_integer_),
+           Series_ID=as.integer(as.factor(Series_ID)))%>%
+    fill(Series_ID, .direction="down")
+  
+  noAR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                     te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
+                     s(Time_num_s, k=5), family=scat, data = data, method="fREML", discrete=T, nthreads=2)
+  r <- start_value_rho(noAR, plot=TRUE)
+  
+  AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                          te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
+                          s(Time_num_s, k=5), family=scat, rho=r, AR.start=Start, data = data, method="fREML", discrete=T, nthreads=2)
+  
+  message(paste(start_year, "finished"))
+  return(AR)
+}
+
+models_period<-map(start_years, model_fitter)
+
+newdata<-readRDS("Temperature analysis/Prediction Data.Rds")
+CC_newdata_period<-newdata%>%
+  st_drop_geometry()%>%
+  as_tibble()%>%
+  select(-Year_fac, -Year, -Year_s, -N,)%>%
+  distinct()%>%
+  mutate(Month=as.integer(as.factor(Julian_day)))
+
+model_predictor<-function(start_year){
+  CC_newdata<-CC_newdata_period%>%
+    mutate(Year=start_year,
+           Year_s=1)
+  
+  CC_pred<-predict(models_period[[as.character(start_year)]], newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=2)
+  
+  newdata_CC_pred<-CC_newdata%>%
+    mutate(Slope=CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
+           Slope_se=CC_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
+           Intercept=CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s)"]+CC_pred$fit[,"s(Time_num_s)"])%>%
+    mutate(across(c(Slope, Slope_se), ~(.x/Year_s)/Year_sd))%>%
+    mutate(Slope_se=abs(Slope_se))%>%
+    mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
+           Month=month(Date, label = T),
+           Slope_l95=Slope-Slope_se*qnorm(0.995),
+           Slope_u95=Slope+Slope_se*qnorm(0.995))%>%
+    mutate(Sig=if_else(Slope_u95>0 & Slope_l95<0, "ns", "*"))%>%
+    filter(Sig=="*")%>%
+    st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)%>%
+    st_transform(crs=st_crs(Delta))
+  
+  return(newdata_CC_pred)
+}
+
+preds_period<-map_dfr(start_years, model_predictor)
+
+preds_period_rast<-Rasterize_all(preds_period, Slope)
+
+p_period<-ggplot()+
+  geom_stars(data=preds_period_rast)+
+  facet_grid(month(Date)~year(Date), drop=F, labeller=as_labeller(c(set_names(as.character(month(1:12, label=T)), 1:12), set_names(paste0(start_years, "-", start_years+25), start_years))))+
+  scale_fill_continuous_diverging(palette="Blue-Red 3", name="Temperature change\nper year (°C)", guide=guide_colorbar(barheight=20), na.value="white")+
+  ylab("Latitude")+
+  xlab("Longitude")+
+  coord_sf()+
+  theme_bw()+
+  theme(strip.background=element_blank(), text=element_text(size=8), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank(),
+        panel.spacing=unit(0, "lines"))
+
+ggsave(p_period, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Climate change signal over time rasters.png",
+       device="png", width=7, height=7, units="in")
+
+###Maybe instead of rasters just plot the slope over time for each region
+
+preds_period_sum<-preds_period%>%
+  group_by(Year, SubRegion, Month)%>%
+  summarise(Slope=mean(Slope), .groups="drop")%>%
+  complete(Month, SubRegion, Year)%>%
+  mutate(Years=paste0(Year, "-", Year+25))
+
+mygrid <- data.frame(
+  name = c("Upper Sacramento River Ship Channel", "Cache Slough and Lindsey Slough", "Lower Sacramento River Ship Channel", "Liberty Island", "Suisun Marsh", "Middle Sacramento River", "Lower Cache Slough", "Steamboat and Miner Slough", "Upper Mokelumne River", "Lower Mokelumne River", "Georgiana Slough", "Sacramento River near Ryde", "Sacramento River near Rio Vista", "Grizzly Bay", "West Suisun Bay", "Mid Suisun Bay", "Honker Bay", "Confluence", "Lower Sacramento River", "San Joaquin River at Twitchell Island", "San Joaquin River at Prisoners Pt", "Disappointment Slough", "Lower San Joaquin River", "Franks Tract", "Holland Cut", "San Joaquin River near Stockton", "Mildred Island", "Middle River", "Old River", "Upper San Joaquin River", "Grant Line Canal and Old River", "Victoria Canal"),
+  row = c(2, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 7, 7, 8, 8, 8),
+  col = c(7, 4, 6, 5, 2, 8, 6, 7, 9, 9, 8, 7, 6, 2, 1, 2, 3, 4, 5, 6, 8, 9, 5, 6, 7, 9, 8, 8, 7, 9, 8, 7),
+  code = c(" 1", " 1", " 2", " 3", " 8", " 4", " 5", " 6", " 7", " 9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "30", "29", "31"),
+  stringsAsFactors = FALSE
+)
+
+ggplot(preds_period_sum)+
+  geom_line(aes(x=Years, y=Slope, color=Month, group=Month))+
+  geom_point(aes(x=Years, y=Slope, color=Month))+
+  geom_hline(yintercept = 0, linetype=2)+
+  facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
+  #scale_color_brewer(palette="Paired")+
+  theme_bw()+
+  theme(panel.grid=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
 
 # Visualize raw climate change signal -------------------------------------
 
