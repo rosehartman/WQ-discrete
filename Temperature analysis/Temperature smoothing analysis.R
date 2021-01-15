@@ -224,6 +224,10 @@ modellea4 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day
                    s(Time_num_s, bs="cr", k=5), family=scat,
                  data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
 
+
+modellea3_full <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 13), by=Year_fac) + 
+                   s(Time_num_s, bs="cr", k=5), family=scat,
+                 data = Data, method="fREML", discrete=T, nthreads=8)
 # Final model -------------------------------------------------------------
 
 require(googleComputeEngineR)
