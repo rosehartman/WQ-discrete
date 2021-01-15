@@ -35,18 +35,24 @@ Data <- wq()%>%
   filter(Temperature !=0)%>% #Remove 0 temps
   mutate(Temperature_bottom=if_else(Temperature_bottom>30, NA_real_, Temperature_bottom))%>% #Remove bad bottom temps
   filter(hour(Datetime)>=5 & hour(Datetime)<=20)%>% # Only keep data between 5AM and 8PM
+  mutate(Datetime = with_tz(Datetime, tz="America/Phoenix"), #Convert to a timezone without daylight savings time
+         Date = with_tz(Date, tz="America/Phoenix"),
+         Time=as_hms(Datetime), # Create variable for time-of-day, not date. 
+         Noon_diff=abs(hms(hours=12)-Time))%>% # Calculate difference from noon for each data point for later filtering
+  group_by(Station, Source, Date)%>%
+  filter(Noon_diff==min(Noon_diff))%>% # Select only 1 data point per station and date, choose data closest to noon
+  filter(Time==min(Time))%>% # When points are equidistant from noon, select earlier point
+  ungroup()%>%
+  distinct(Date, Station, Source, .keep_all = TRUE)%>% # Finally, remove the ~10 straggling datapoints from the same time and station
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)%>% # Convert to sf object
   st_transform(crs=st_crs(Delta))%>% # Change to crs of Delta
   st_join(Delta, join=st_intersects)%>% # Add subregions
   filter(!is.na(SubRegion))%>% # Remove any data outside our subregions of interest
-  mutate(Datetime = with_tz(Datetime, tz="America/Phoenix"), #Convert to a timezone without daylight savings time
-         Date = with_tz(Date, tz="America/Phoenix"),
-         Julian_day = yday(Date), # Create julian day variable
+  mutate(Julian_day = yday(Date), # Create julian day variable
          Month_fac=factor(Month), # Create month factor variable
          Source_fac=factor(Source),
          Year_fac=factor(Year))%>% 
-  mutate(Date_num = as.numeric(Date), # Create numeric version of date for models
-         Time = as_hms(Datetime))%>% # Create variable for time-of-day, not date. 
+  mutate(Date_num = as.numeric(Date))%>%  # Create numeric version of date for models
   mutate(Time_num=as.numeric(Time)) # Create numeric version of time for models (=seconds since midnight)
 
 
@@ -223,11 +229,13 @@ modellea3 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day
 modellea4 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(50, 13), by=Year_fac) + 
                    s(Time_num_s, bs="cr", k=5), family=scat,
                  data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
+# Error: cannot allocate vector of size 928.8 Mb
 
 
 modellea3_full <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 13), by=Year_fac) + 
                    s(Time_num_s, bs="cr", k=5), family=scat,
                  data = Data, method="fREML", discrete=T, nthreads=8)
+
 # Final model -------------------------------------------------------------
 
 require(googleComputeEngineR)
