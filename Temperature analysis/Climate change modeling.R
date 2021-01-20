@@ -20,6 +20,80 @@ require(scales)
 require(itsadug)
 require(colorspace)
 
+
+# TODO
+
+### 1) remake variogram plots
+
+# Create overall dataset --------------------------
+
+is.even <- function(x) as.integer(x) %% 2 == 0
+
+## Load Delta Shapefile from Brian
+Delta<-st_read("Delta Subregions")%>%
+  filter(!SubRegion%in%c("South Bay", "San Francisco Bay", "San Pablo Bay", "Upper Yolo Bypass", 
+                         "Upper Napa River", "Lower Napa River", "Carquinez Strait"))%>% # Remove regions outside our domain of interest
+  dplyr::select(SubRegion)
+
+## Load data
+Data <- wq()%>%
+  filter(!is.na(Temperature) & !is.na(Datetime) & !is.na(Latitude) & !is.na(Longitude) & !is.na(Date))%>% #Remove any rows with NAs in our key variables
+  filter(Temperature !=0)%>% #Remove 0 temps
+  mutate(Temperature_bottom=if_else(Temperature_bottom>30, NA_real_, Temperature_bottom))%>% #Remove bad bottom temps
+  filter(hour(Datetime)>=5 & hour(Datetime)<=20)%>% # Only keep data between 5AM and 8PM
+  mutate(Datetime = with_tz(Datetime, tz="America/Phoenix"), #Convert to a timezone without daylight savings time
+         Date = with_tz(Date, tz="America/Phoenix"),
+         Time=as_hms(Datetime), # Create variable for time-of-day, not date. 
+         Noon_diff=abs(hms(hours=12)-Time))%>% # Calculate difference from noon for each data point for later filtering
+  group_by(Station, Source, Date)%>%
+  filter(Noon_diff==min(Noon_diff))%>% # Select only 1 data point per station and date, choose data closest to noon
+  filter(Time==min(Time))%>% # When points are equidistant from noon, select earlier point
+  ungroup()%>%
+  distinct(Date, Station, Source, .keep_all = TRUE)%>% # Finally, remove the ~10 straggling datapoints from the same time and station
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)%>% # Convert to sf object
+  st_transform(crs=st_crs(Delta))%>% # Change to crs of Delta
+  st_join(Delta, join=st_intersects)%>% # Add subregions
+  filter(!is.na(SubRegion))%>% # Remove any data outside our subregions of interest
+  mutate(Julian_day = yday(Date), # Create julian day variable
+         Month_fac=factor(Month), # Create month factor variable
+         Source_fac=factor(Source),
+         Year_fac=factor(Year))%>% 
+  mutate(Date_num = as.numeric(Date))%>%  # Create numeric version of date for models
+  mutate(Time_num=as.numeric(Time)) # Create numeric version of time for models (=seconds since midnight)
+
+
+## Pull station locations for major monitoring programs
+### This will be used to set a boundary for this analysis focused on well-sampled regions.
+WQ_stations<-Data%>%
+  st_drop_geometry()%>%
+  filter(Source%in%c("FMWT", "STN", "SKT", "20mm", "EMP", "Suisun"))%>%
+  group_by(StationID, Source, Latitude, Longitude)%>%
+  summarise(N=n(), .groups="drop")%>% # Calculate how many times each station was sampled
+  filter(N>50 & !StationID%in%c("20mm 918", "STN 918"))%>% # Only keep stations sampled >50 times when deciding which regions to retain. 
+  # "20mm 918", "STN 918" are far south of the rest of the well-sampled sites and are not sampled year round, so we're removing them to exclude that far southern region
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)%>% # Convert to sf object
+  st_transform(crs=st_crs(Delta))%>%
+  st_join(Delta) # Add subregions
+
+## Remove any subregions that do not contain at least one of these >50 samples stations from the major monitoring programs
+Delta <- Delta%>%
+  filter(SubRegion%in%unique(WQ_stations$SubRegion) | SubRegion=="Georgiana Slough") # Retain Georgiana Slough because it's surrounded by well-sampled regions
+
+## Now filter data to only include this final set of subregions, and any stations outside the convex hull formed by the >50 samples stations from the major monitoring programs
+Data<-Data%>%
+  filter(SubRegion%in%unique(Delta$SubRegion))%>%
+  st_join(WQ_stations%>%
+            st_union()%>%
+            st_convex_hull()%>% # Draws a hexagram or pentagram or similar around the outer-most points
+            st_as_sf()%>%
+            mutate(IN=TRUE),
+          join=st_intersects)%>%
+  filter(IN)%>%
+  dplyr::select(-IN)%>%
+  mutate(Group=if_else(is.even(Year), 1, 2))%>%
+  mutate_at(vars(Date_num, Longitude, Latitude, Time_num, Year, Julian_day), list(s=~(.-mean(., na.rm=T))/sd(., na.rm=T))) # Create centered and standardized versions of covariates
+
+#saveRDS(Data, file="Temperature analysis/Discrete Temp Data.Rds")
 Data<-readRDS("Temperature analysis/Discrete Temp Data.Rds")
 
 # Bayesian mixed models ---------------------------------------------------
@@ -212,29 +286,29 @@ r6 <- start_value_rho(CC_gam8d7b_NOAR5, plot=TRUE)
 CC_gam8d7b_AR7 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
                         te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
                         s(Time_num_s, k=5), family=scat, rho=r6, AR.start=Start, data = Data_CC4.3, method="fREML", discrete=T, nthreads=2)
-#AIC: 200051.6
-#BIC: 202901.6
+#AIC: 199986.6
+#BIC: 202820.8
 
 #########Best Model####################
 
 
 resid_norm_CC_gam8d7b_AR7<-resid_gam(CC_gam8d7b_AR7, incl_na=TRUE)
-sp <- SpatialPoints(coords=data.frame(Longitude=Data_CC4.3$Longitude, Latitude=Data_CC4.3$Latitude))
+sp<-SpatialPoints(coords=data.frame(Longitude=Data_CC4.3$Longitude, Latitude=Data_CC4.3$Latitude), proj4string = CRS("+init=epsg:4326"))
 sp2<-STIDF(sp, time=Data_CC4.3$Date, data=data.frame(Residuals=resid_norm_CC_gam8d7b_AR7))
-CC_gam8d7b_AR7_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=4, tlags=(30/7)*1:10)
+CC_gam8d7b_AR7_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=2, tlags=(30/7)*1:10)
 
 p_time<-ggplot(CC_gam8d7b_AR7_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
   geom_line()+
   geom_point()+
   scale_color_viridis_c(name="Distance")+
-  xlab("Time difference")+
+  xlab("Time difference (weeks)")+
   theme_bw()+
   theme(legend.justification = "left")
 
 p_space<-ggplot(CC_gam8d7b_AR7_vario, aes(x=dist, y=gamma, color=timelag, group=timelag))+
   geom_line()+
   geom_point()+
-  scale_color_viridis_c(name="Time difference")+
+  scale_color_viridis_c(name="Time difference (weeks)")+
   xlab("Distance")+
   theme_bw()+
   theme(legend.justification = "left")
@@ -251,15 +325,7 @@ gam.check(CC_gam8d7b_AR7)
 # te(Julian_day_s,Latitude_s,Longitude_s):Year_s is OK: significant p-value but edf is 82.9 compared ot k' of 300.0
 # te(Julian_day_s,Latitude_s,Longitude_s) may be able to be improved (edf=223.3 and k'=299.0)
 
-# Check if higher k on te(Julian_day_s,Latitude_s,Longitude_s) would help improve model
 
-CC_gam8d7b_AR8 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(50, 13)) + 
-                        te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
-                        s(Time_num_s, k=5), family=scat, rho=r6, AR.start=Start, data = Data_CC4.3, method="fREML", discrete=T, nthreads=2)
-#AIC: 199646.3
-#BIC: 203599.9
-
-###CC_gam8d7b_AR8 has a lower AIC but predicted slope values are almost identical to CC_gam8d7b_AR7, so using CC_gam8d7b_AR7 as the final model
 
 newdata<-readRDS("Temperature analysis/Prediction Data.Rds")
 CC_newdata<-newdata%>%
@@ -317,7 +383,7 @@ Slope_summary<-CC_newdata%>%
          Slope_mult=Slope/Slope_mean,
          Slope_se_mean=mean(Slope_se), 
          Slope_se_mult=Slope/Slope_se_mean)
-saveRDS(Slope_summary, "Temperature analysis/Slope summary.Rds")
+#saveRDS(Slope_summary, "Temperature analysis/Slope summary.Rds")
 
 # Function to rasterize all dates. Creates a 3D raster Latitude x Longitude x Date 
 Rasterize_all <- function(data, var, out_crs=4326, n=100){
@@ -346,16 +412,60 @@ p_CC_gam<-ggplot()+
   theme_bw()+
   theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
 
-ggsave(p_CC_gam, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/CC_gam 12.14.20b.png",
+ggsave(p_CC_gam, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Climate change signal.png",
        device="png", width=7, height=5, units="in")
 
+
+# Now try a model with higher spatial K value -----------------------------
+
+# Check if higher k on te(Julian_day_s,Latitude_s,Longitude_s) would help improve model
+
+CC_gam8d7b_AR8 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(50, 13)) + 
+                        te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
+                        s(Time_num_s, k=5), family=scat, rho=r6, AR.start=Start, data = Data_CC4.3, method="fREML", discrete=T, nthreads=2)
+#AIC: 199626.8
+#BIC: 203545
+
+CC_pred_AR8<-predict(CC_gam8d7b_AR8, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
+
+newdata_CC_pred_AR8<-CC_newdata%>%
+  mutate(Slope=CC_pred_AR8$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
+         Slope_se=CC_pred_AR8$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
+         Intercept=CC_pred_AR8$fit[,"te(Julian_day_s,Latitude_s,Longitude_s)"]+CC_pred_AR8$fit[,"s(Time_num_s)"])%>%
+  mutate(across(c(Slope, Slope_se), ~(.x/Year_s)/sd(Data$Year)))%>%
+  mutate(Slope_se=abs(Slope_se))%>%
+  mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
+         Month=month(Date, label = T),
+         Slope_l95=Slope-Slope_se*qnorm(0.995),
+         Slope_u95=Slope+Slope_se*qnorm(0.995))%>%
+  mutate(Sig=if_else(Slope_u95>0 & Slope_l95<0, "ns", "*"))%>%
+  filter(Sig=="*")%>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)%>%
+  st_transform(crs=st_crs(Delta))
+
+newdata_CC_pred_rast_AR8<-Rasterize_all(newdata_CC_pred_AR8, Slope)
+
+p_CC_gam_AR8<-ggplot()+
+  geom_stars(data=newdata_CC_pred_rast_AR8)+
+  facet_wrap(~month(Date, label=T), drop=F)+
+  scale_fill_viridis_c(breaks=(-6:7)/100, name="Temperature change\nper year (°C)", guide=guide_colorbar(barheight=20), na.value="white")+
+  ylab("Latitude")+
+  xlab("Longitude")+
+  coord_sf()+
+  theme_bw()+
+  theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
+
+ggsave(p_CC_gam_AR8, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Climate change signal_higherk.png",
+       device="png", width=7, height=5, units="in")
+
+###CC_gam8d7b_AR8 has a lower AIC but higher AIC and  predicted slope values are almost identical to CC_gam8d7b_AR7, so using CC_gam8d7b_AR7 as the final model
 
 # Recreate gam check plots ------------------------------------------------
 
 #QQ plot
 resids <- resid_gam(CC_gam8d7b_AR7, incl_na=TRUE)
 quantiles<-qq.gam(CC_gam8d7b_AR7)
-qq_data<-as_tibble(qqplot(test, resids, plot.it=FALSE))
+qq_data<-as_tibble(qqplot(quantiles, resids, plot.it=FALSE))
 
 p_qq<-ggplot(qq_data, aes(x=x, y=y))+
   geom_abline(intercept=0, slope=1, color="firebrick3", size=1)+
@@ -387,7 +497,7 @@ require(patchwork)
 
 p_check<-(p_qq|p_pred_resid)/(p_hist|p_fitted_resid)
 
-ggsave(p_check, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/CC_gam8d7b_AR7 model validation.png",
+ggsave(p_check, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Climate change model validation.png",
        device="png", width=10, height=7, units="in")
 
 
@@ -485,7 +595,7 @@ p_period<-ggplot()+
   theme(strip.background=element_blank(), text=element_text(size=8), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank(),
         panel.spacing=unit(0, "lines"))
 
-ggsave(p_period, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Climate change signal over time rasters.png",
+ggsave(p_period, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Climate change signal over time rasters.png",
        device="png", width=7, height=7, units="in")
 
 ###Maybe instead of rasters just plot the slope over time for each region

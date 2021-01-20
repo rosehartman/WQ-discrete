@@ -8,13 +8,23 @@ require(ggplot2)
 require(mgcv)
 require(itsadug)
 require(lubridate)
-# New method: Try simulating data (using the gratia simulate or predicted_sampled functions) from the global smoothing model to use for testing the model performance.
+require(patchwork)
+
+# Stop plotting scientific notation
+options(scipen=999)
+
+# TODO
+# 1) Finish graphing simulation results
+# 2) Find a way to add significance to slope_summary and test if a significant slope is recovered?
+
+# Simulate data from a spatio-seasonal smoothing model to use for testing the model performance.
 # Simulate with a balanced and imbalanced sampling design to examing that impact
 # Also try simulating with all years vs. just years with similar average water temps to ensure model can differentiate real from spurious trends.
 
 # First calculate year-to-year variability
 # Start in 1975 when sampling became more regular across different regions
 Data_CC4<-readRDS("Temperature analysis/Data_CC4.Rds")
+Data<-readRDS("Temperature analysis/Discrete Temp Data.Rds")
 
 Delta<-st_read("Delta Subregions")%>%
   select(SubRegion)%>%
@@ -53,6 +63,11 @@ newdata_stations<-Data_CC4%>%
               select(Month, SubRegion, Slope, Slope_se), 
             by=c("Month", "SubRegion"))
 
+# Fit model to use for spatial seasonal patterns
+model_2018 <- bam(Temperature ~ te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 13)) + 
+                    s(Time_num_s, bs="cr", k=5), family=scat,
+                  data = filter(Data, Year==2018), method="fREML", discrete=T, nthreads=2)
+
 # Define function to simulate gam data ------------------------------------
 
 gamsim<-function(model, data=newdata_stations, null=FALSE, years=1970:2020, slope_mean=unique(Slope_summary$Slope_mean), nsim=10, seeds=1:nsim){
@@ -71,7 +86,7 @@ gamsim<-function(model, data=newdata_stations, null=FALSE, years=1970:2020, slop
     set.seed(seed)
     
     Data<-Data%>%
-      mutate(add=rnorm(n=n(), mean=if_else(Null, 0, Slope_year*Slope), sd=Slope_se))%>%
+      mutate(add=rnorm(n=n(), mean=ifelse(rep(Null, n()), 0, Slope_year*Slope), sd=Slope_se))%>%
       mutate(pred=mu+add)
     
     sims <- family_fun(mu=Data$pred, wt=rep(1, length(Data$pred)), scale=Scale)
@@ -94,26 +109,50 @@ gamsim<-function(model, data=newdata_stations, null=FALSE, years=1970:2020, slop
 }
 
 
-# Simulate for 0.02 degree increase per year ------------------------------
+# Simulate for actual station locations ------------------------------
 
-#load("~/WQ-discrete/Temperature analysis/Models/Smoothing models 3.0.RData")
-sim_data<-gamsim(modelld14a)
+## Unbalanced design reflecting actual sampling desing ---------------
 
-#Create two versions of simulated data with balanced and unbalanced sampling regimes
-
-## Shuffle locations in each region first, then pull the number needed for each month, year, region to ensure
-# Most are sampled continuously
-set.seed(1)
-Shuffled_locations<-newdata%>%
-  left_join(max_effort, by="SubRegion")%>%
-  group_by(SubRegion)%>%
-  summarise(Locations=list(sample(unique(Location), max(c(4, Max)))), .groups="drop")%>%
-  rename(SubRegion2=SubRegion)
-set.seed(NULL)
+### First calculate sampling effort for each station
+station_effort<-Data_CC4%>%
+  select(Station, Month, Year)%>%
+  mutate(Keep=TRUE)
 
 
-# For balanced dataset, reduce number of locations to that of the mean number of samples per region
-# From the source dataset 
+
+### Climate change signal
+sim_data_stations<-gamsim(model_2018, null=FALSE)%>%
+  left_join(station_effort, by=c("Station", "Month", "Year"))%>%
+  mutate(Keep=replace_na(Keep, FALSE))%>%
+  filter(Keep)%>%
+  arrange(Station, Date)%>%
+  group_by(Station)%>%
+  mutate(Lag=Date-lag(Date, order_by = Date))%>%
+  ungroup()%>%
+  mutate(Start=if_else(is.na(Lag) | Lag>3600*24*60, TRUE, FALSE),
+         Series_ID=1:n(),
+         Series_ID=if_else(Start, Series_ID, NA_integer_),
+         Series_ID=as.integer(as.factor(Series_ID)))%>%
+  fill(Series_ID, .direction="down")
+
+### Null model (no climate change)
+sim_data_stations_NULL<-gamsim(model_2018, null=TRUE)%>%
+  left_join(station_effort, by=c("Station", "Month", "Year"))%>%
+  mutate(Keep=replace_na(Keep, FALSE))%>%
+  filter(Keep)%>%
+  arrange(Station, Date)%>%
+  group_by(Station)%>%
+  mutate(Lag=Date-lag(Date, order_by = Date))%>%
+  ungroup()%>%
+  mutate(Start=if_else(is.na(Lag) | Lag>3600*24*60, TRUE, FALSE),
+         Series_ID=1:n(),
+         Series_ID=if_else(Start, Series_ID, NA_integer_),
+         Series_ID=as.integer(as.factor(Series_ID)))%>%
+  fill(Series_ID, .direction="down")
+
+## Balanced design ---------------------------------------------------
+
+### For balanced dataset, reduce number of locations to that of the mean number of samples per region from the source dataset 
 
 Data_effort%>%
   group_by(SubRegion)%>%
@@ -121,133 +160,9 @@ Data_effort%>%
   pull(Mean)%>%
   mean()
 
-# mean of about ~4 stations sampled per month, region, and year.
-# Use this number to create balanced dataset
+### mean of about ~4 stations sampled per month, region, and year. Use this number to create balanced dataset
 
-
-sim_data_balanced<-sim_data$sims%>%
-  group_by(SubRegion)%>%
-  filter(Location%in%filter(Shuffled_locations, SubRegion2==unique(SubRegion))$Locations[[1]][1:4])%>%
-  ungroup()%>%
-  arrange(Location, Date)%>%
-  group_by(Location)%>%
-  mutate(Lag=Date-lag(Date, order_by = Date))%>%
-  ungroup()%>%
-  mutate(Start=if_else(is.na(Lag) | Lag>3600*24*60, TRUE, FALSE),
-         Series_ID=1:n(),
-         Series_ID=if_else(Start, Series_ID, NA_integer_),
-         Series_ID=as.integer(as.factor(Series_ID)))%>%
-  fill(Series_ID, .direction="down")
-
-# Create unbalanced version of simulated dataset by selecting the same number of "stations" for 
-# each month, year, and region as were actually sampled in the source dataset
-
-sim_data_unbalanced<-sim_data$sims%>%
-  left_join(Data_effort, by=c("Month", "Year", "SubRegion"))%>%
-  mutate(N=replace_na(N, 0))%>%
-  group_by(Year, SubRegion, Month)%>%
-  filter(Location%in%filter(Shuffled_locations, SubRegion2==unique(SubRegion))$Locations[[1]][1:unique(N)])%>%
-  filter(N!=0)%>%
-  ungroup()%>%
-  arrange(Location, Date)%>%
-  group_by(Location)%>%
-  mutate(Lag=Date-lag(Date, order_by = Date))%>%
-  ungroup()%>%
-  mutate(Start=if_else(is.na(Lag) | Lag>3600*24*60, TRUE, FALSE),
-         Series_ID=1:n(),
-         Series_ID=if_else(Start, Series_ID, NA_integer_),
-         Series_ID=as.integer(as.factor(Series_ID)))%>%
-  fill(Series_ID, .direction="down")
-
-year_sims<-sim_data$year_add%>%
-  pivot_longer(cols=all_of(paste("sim", 1:10, sep="_")), names_to="Simulation", values_to="add")
-
-ggplot(year_sims, aes(x=Year, y=add, color=Simulation))+
-  geom_line()+
-  facet_wrap(~Simulation)+
-  theme_bw()
-
-
-# Now do the same thing for the null model (no climate change sign --------
-
-sim_data_NULL<-gamsim(modelld14a, year_slope=0)
-
-## Balanced dataset
-
-sim_data_NULL_balanced<-sim_data_NULL$sims%>%
-  group_by(SubRegion)%>%
-  filter(Location%in%filter(Shuffled_locations, SubRegion2==unique(SubRegion))$Locations[[1]][1:4])%>%
-  ungroup()%>%
-  arrange(Location, Date)%>%
-  group_by(Location)%>%
-  mutate(Lag=Date-lag(Date, order_by = Date))%>%
-  ungroup()%>%
-  mutate(Start=if_else(is.na(Lag) | Lag>3600*24*60, TRUE, FALSE),
-         Series_ID=1:n(),
-         Series_ID=if_else(Start, Series_ID, NA_integer_),
-         Series_ID=as.integer(as.factor(Series_ID)))%>%
-  fill(Series_ID, .direction="down")
-
-## Unbalanced dataset
-sim_data_NULL_unbalanced<-sim_data_NULL$sims%>%
-  left_join(Data_effort, by=c("Month", "Year", "SubRegion"))%>%
-  mutate(N=replace_na(N, 0))%>%
-  group_by(Year, SubRegion, Month)%>%
-  filter(Location%in%filter(Shuffled_locations, SubRegion2==unique(SubRegion))$Locations[[1]][1:unique(N)])%>%
-  filter(N!=0)%>%
-  ungroup()%>%
-  arrange(Location, Date)%>%
-  group_by(Location)%>%
-  mutate(Lag=Date-lag(Date, order_by = Date))%>%
-  ungroup()%>%
-  mutate(Start=if_else(is.na(Lag) | Lag>3600*24*60, TRUE, FALSE),
-         Series_ID=1:n(),
-         Series_ID=if_else(Start, Series_ID, NA_integer_),
-         Series_ID=as.integer(as.factor(Series_ID)))%>%
-  fill(Series_ID, .direction="down")
-
-year_sims_NULL<-sim_data_NULL$year_add%>%
-  pivot_longer(cols=all_of(paste("sim", 1:10, sep="_")), names_to="Simulation", values_to="add")
-
-ggplot(year_sims_NULL, aes(x=Year, y=add, color=Simulation))+
-  geom_line()+
-  facet_wrap(~Simulation)+
-  theme_bw()
-
-# Simulate for actual station locations
-
-station_effort<-Data_CC4%>%
-  select(Station, Month, Year)%>%
-  mutate(Keep=TRUE)
-
-sim_data_stations<-gamsim(modellea, null=FALSE)%>%
-  left_join(station_effort, by=c("Station", "Month", "Year"))%>%
-  mutate(Keep=replace_na(Keep, FALSE))%>%
-  filter(Keep)%>%
-  arrange(Station, Date)%>%
-  group_by(Station)%>%
-  mutate(Lag=Date-lag(Date, order_by = Date))%>%
-  ungroup()%>%
-  mutate(Start=if_else(is.na(Lag) | Lag>3600*24*60, TRUE, FALSE),
-         Series_ID=1:n(),
-         Series_ID=if_else(Start, Series_ID, NA_integer_),
-         Series_ID=as.integer(as.factor(Series_ID)))%>%
-  fill(Series_ID, .direction="down")
-
-sim_data_stations_NULL<-gamsim(modellea, null=TRUE)%>%
-  left_join(station_effort, by=c("Station", "Month", "Year"))%>%
-  mutate(Keep=replace_na(Keep, FALSE))%>%
-  filter(Keep)%>%
-  arrange(Station, Date)%>%
-  group_by(Station)%>%
-  mutate(Lag=Date-lag(Date, order_by = Date))%>%
-  ungroup()%>%
-  mutate(Start=if_else(is.na(Lag) | Lag>3600*24*60, TRUE, FALSE),
-         Series_ID=1:n(),
-         Series_ID=if_else(Start, Series_ID, NA_integer_),
-         Series_ID=as.integer(as.factor(Series_ID)))%>%
-  fill(Series_ID, .direction="down")
-
+### Select 4 stations from each subregion. If Subregion has <4 unique station locations, just use all stations
 set.seed(1)
 Shuffled_stations<-newdata_stations%>%
   group_by(SubRegion)%>%
@@ -256,7 +171,9 @@ Shuffled_stations<-newdata_stations%>%
   rename(SubRegion2=SubRegion)
 set.seed(NULL)
 
-sim_data_stations_balanced<-gamsim(modellea, null=FALSE)%>%
+
+### Climate change signal
+sim_data_stations_balanced<-gamsim(model_2018, null=FALSE)%>%
   group_by(SubRegion)%>%
   filter(Station%in%filter(Shuffled_stations, SubRegion2==unique(SubRegion))$Stations[[1]][1:4])%>%
   ungroup()%>%
@@ -270,8 +187,8 @@ sim_data_stations_balanced<-gamsim(modellea, null=FALSE)%>%
          Series_ID=as.integer(as.factor(Series_ID)))%>%
   fill(Series_ID, .direction="down")
 
-
-sim_data_stations_NULL_balanced<-gamsim(modellea, null=TRUE)%>%
+### Null model (no climate change)
+sim_data_stations_NULL_balanced<-gamsim(model_2018, null=TRUE)%>%
   group_by(SubRegion)%>%
   filter(Station%in%filter(Shuffled_stations, SubRegion2==unique(SubRegion))$Stations[[1]][1:4])%>%
   ungroup()%>%
@@ -285,46 +202,14 @@ sim_data_stations_NULL_balanced<-gamsim(modellea, null=TRUE)%>%
          Series_ID=as.integer(as.factor(Series_ID)))%>%
   fill(Series_ID, .direction="down")
 
-# Modeling simulated data
+# Modeling simulated data -------------------------------
 
-test_noAR<-bam(sim_1 ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(10, 12)) + 
-        te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(10, 12), by=Year_s), 
-        family=scat, data = sim_data_balanced, method="fREML", discrete=T, nthreads=2)
-
-r <- start_value_rho(test_noAR, plot=TRUE)
-
-test_AR<-bam(sim_1 ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(10, 12)) + 
-                 te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(10, 12), by=Year_s), 
-               family=scat, rho=r, AR.start=Start, data = sim_data_balanced, method="fREML", discrete=T, nthreads=4)
-
-test_noAR2<-bam(sim_2 ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(10, 12)) + 
-                 te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(10, 12), by=Year_s), 
-               family=scat, data = sim_data_balanced, method="fREML", discrete=T, nthreads=4)
-
-r2 <- start_value_rho(test_noAR2, plot=TRUE)
-
-test_AR2<-bam(sim_2 ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(10, 12)) + 
-               te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(10, 12), by=Year_s), 
-             family=scat, rho=r2, AR.start=Start, data = sim_data_balanced, method="fREML", discrete=T, nthreads=4)
-
-test_noAR_NULL<-bam(sim_2 ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(10, 12)) + 
-                  te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(10, 12), by=Year_s), 
-                family=scat, data = sim_data_NULL_balanced, method="fREML", discrete=T, nthreads=4)
-
-r_NULL <- start_value_rho(test_noAR_NULL, plot=TRUE)
-
-test_AR_NULL<-bam(sim_2 ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(10, 12)) + 
-                te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(10, 12), by=Year_s), 
-              family=scat, rho=r_NULL, AR.start=Start, data = sim_data_NULL_balanced, method="fREML", discrete=T)
-
+## First load prediction data for climate change data 
 CC_newdata<-readRDS("Temperature analysis/Climate Change Prediction Data.Rds")%>%
   mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
          Month=month(Date, label = T))
-# For filtering the newdata after predictions
 
-CC_pred<-predict(test_AR_NULL, newdata=CC_newdata2, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
-
-# Function to rasterize all dates. Creates a 3D raster Latitude x Longitude x Date 
+## Function to rasterize all dates. Creates a 3D raster Latitude x Longitude x Date 
 Rasterize_all <- function(data, var, out_crs=4326, n=100){
   var<-rlang::enquo(var)
   rlang::as_name(var)
@@ -339,25 +224,26 @@ Rasterize_all <- function(data, var, out_crs=4326, n=100){
   return(out)
 }
 
+## Function to fit models on simulated data
 sim_tester<-function(data, sim){
   
   withCallingHandlers({
   
   model_noAR<-bam(data[[sim]] ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 12)) + 
                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 12), by=Year_s), 
-                 family=scat, data = data, method="fREML", discrete=T, nthreads=4)
+                 family=scat, data = data, method="fREML", discrete=T, nthreads=2)
   
   r <- start_value_rho(model_noAR, plot=TRUE)
   
   model_AR<-bam(data[[sim]] ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 12)) + 
                  te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 12), by=Year_s), 
-                family=scat, rho=r, AR.start=Start, data = data, method="fREML", discrete=T, nthreads=4)
+                family=scat, rho=r, AR.start=Start, data = data, method="fREML", discrete=T, nthreads=2)
   }, warning = function(w) {
     if (startsWith(conditionMessage(w), "step failure in theta estimation"))
       invokeRestart("muffleWarning")
   })
   
-  CC_pred<-predict(model_AR, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
+  CC_pred<-predict(model_AR, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=2)
   
   newdata_CC_pred<-CC_newdata%>%
     mutate(Slope=CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
@@ -394,73 +280,120 @@ sim_tester<-function(data, sim){
       theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
     out$plot<-p
   }
-  out$slopes<-newdata_CC_pred$Slope
+  out$slopes<-select(newdata_CC_pred, Slope, Sig)
   return(out)
 }
+
+## Create function to process model results (if any slopes are significant)
+sim_test_processer<-function(sim_results, data_type, model_type){
+  
+  Slope<-map(sim_results, ~.x[["slopes"]][["Slope"]])
+  
+  Sig<-map(sim_results, ~.x[["slopes"]][["Sig"]])
+  Sig<-bind_cols(tibble(ID=1:length(Sig[[1]])), Sig)%>%
+    pivot_longer(cols=all_of(sims), names_to="Simulation", values_to="Sig")
+  
+  title<-if_else(data_type=="unbalanced", "Unbalanced (realistic) sampling design", "Balanced sampling design")
+  sim_results_stations_slopes<-bind_cols(CC_newdata, Slope)%>%
+    mutate(ID=1:n())%>%
+    left_join(Slope_summary%>%
+                select(Month, SubRegion, Slope, Slope_se)%>%
+                mutate(Month=month(Month, label=T)), 
+              by=c("Month", "SubRegion"))%>%
+    pivot_longer(cols=all_of(sims), names_to="Simulation", values_to="Slope_estimated")%>%
+    left_join(Sig, by=c("ID", "Simulation"))%>%
+    rename(Slope_true=Slope)%>%
+    mutate(Simulation=factor(recode(Simulation, !!!set_names(paste("Simulation", 1:10), sims)), levels=paste("Simulation", 1:10)))
+  
+  p1<-ggplot(sim_results_stations_slopes, aes(x=Slope_true, y=Slope_estimated, color=Sig))+
+    geom_point(alpha=0.2)+
+    {if(model_type=="NULL"){
+      geom_hline(yintercept=0)
+    }else{
+      geom_abline(slope=1, intercept=0)
+    }}+
+    scale_color_viridis_d(direction=-1, name="Significance",
+                       guide=guide_legend(override.aes=list(alpha=1)))+
+    facet_wrap(~Simulation, nrow=2)+
+    ggtitle(title)+
+    xlab("'True' Slope")+
+    ylab("Model-estimated slope")+
+    theme_bw()+
+    theme(strip.background = element_blank(), plot.title = element_text(hjust = 0.5))
+  
+  Sig_sum<-sim_results_stations_slopes%>%
+    group_by(Month, SubRegion, Simulation, Slope_se, Slope_true)%>%
+    summarise(Significant=length(which(Sig=="*")), Nonsignificant=length(which(Sig=="ns")), .groups="drop")%>%
+    mutate(Sig=Significant/(Significant+Nonsignificant))
+  
+  p2<-ggplot()+
+    {if(model_type=="NULL"){
+      geom_point(data=Sig_sum, aes(x=Slope_se, y=Sig, color=Sig))
+      }else{
+        geom_point(data=Sig_sum, aes(x=Slope_se, y=Slope_true, color=Sig))
+      }}+
+    scale_color_viridis_c(name="Proportion\nsignificant slopes")+
+    facet_wrap(~Simulation, nrow=2)+
+    xlab("'True' Slope standard error")+
+    {if(model_type=="NULL"){
+      ylab("Proportion significant slopes")
+    }else{
+      ylab("'True' slope")
+    }}+
+    ggtitle(title)+
+    theme_bw()+
+    theme(strip.background = element_blank(), plot.title = element_text(hjust = 0.5))
+  
+  return(list(Estimation=p1, Significance=p2))
+}
+
+## Create list of all simulation scenarios
 sims<-set_names(paste("sim", 1:10, sep="_"))
 
-# Slope = 0.02
-## Balanced
-sim_results_balanced<-map(sims, ~sim_tester(sim_data_balanced, .x))
-sim_results_balanced_extracted<-map_dbl(sims, ~median(sim_results_balanced[[.x]]$slopes))
+## Fit models to simulated data -------------------------------
 
-## Unbalanced
-sim_results_unbalanced<-map(sims, ~sim_tester(sim_data_unbalanced, .x))
-sim_results_unbalanced_extracted<-map_dbl(sims, ~median(sim_results_unbalanced[[.x]]$slopes))
+### Unbalanced (realistic) sampling design -------------------
 
-# Slope = 0
-## Balanced
-sim_results_balanced_NULL<-map(sims, ~sim_tester(sim_data_NULL_balanced, .x))
-sim_results_balanced_NULL_extracted<-map_dbl(sims, ~median(sim_results_balanced_NULL[[.x]]$slopes))
-
-## Unbalanced
-sim_results_unbalanced_NULL<-map(sims, ~sim_tester(sim_data_NULL_unbalanced, .x))
-sim_results_unbalanced_NULL_extracted<-map_dbl(sims, ~median(sim_results_unbalanced_NULL[[.x]]$slopes))
-
-# Stations
-
-## Slope = 0.02
+#### Climate change
 sim_results_stations<-map(sims, ~sim_tester(sim_data_stations, .x))
-sim_results_stations_extracted<-map_dbl(sims, ~median(sim_results_stations[[.x]]$slopes))
 
-sim_results_stations_slopes<-bind_cols(CC_newdata, map(sim_results_stations, ~.x[["slopes"]]))%>%
-  left_join(Slope_summary%>%
-              select(Month, SubRegion, Slope, Slope_se)%>%
-              mutate(Month=month(Month, label=T)), 
-            by=c("Month", "SubRegion"))%>%
-  pivot_longer(cols=all_of(sims), names_to="Simulation", values_to="Slope_sim")
+p_sim_unbalanced_CC<-sim_test_processer(sim_results_stations, "unbalanced", "CC")
 
-ggplot(sim_results_stations_slopes, aes(x=Slope, y=Slope_sim, color=Simulation))+
-  geom_point()+
-  geom_abline(slope=1, intercept=0)+
-  facet_wrap(~Simulation)+
-  theme_bw()
-
-## Slope = 0
+#### Null model
 sim_results_stations_NULL<-map(sims, ~sim_tester(sim_data_stations_NULL, .x))
-sim_results_stations_NULL_extracted<-map_dbl(sims, ~median(sim_results_stations_NULL[[.x]]$slopes))
 
-# Stations balanced
+p_sim_unbalanced_NULL<-sim_test_processer(sim_results_stations_NULL, "unbalanced", "NULL")
 
-## Slope = 0.02
+### Unbalanced sampling design -------------------
+
+#### Climate change
 sim_results_stations_balanced<-map(sims, ~sim_tester(sim_data_stations_balanced, .x))
-sim_results_stations_balanced_extracted<-map_dbl(sims, ~median(sim_results_stations_balanced[[.x]]$slopes))
 
-sim_results_stations_balanced_slopes<-bind_cols(CC_newdata, map(sim_results_stations_balanced, ~.x[["slopes"]]))%>%
-  left_join(Slope_summary%>%
-              select(Month, SubRegion, Slope, Slope_se)%>%
-              mutate(Month=month(Month, label=T)), 
-            by=c("Month", "SubRegion"))%>%
-  pivot_longer(cols=all_of(sims), names_to="Simulation", values_to="Slope_sim")%>%
-  mutate(Simulation=factor(Simulation, levels=sims))
-
-ggplot(sim_results_stations_balanced_slopes, aes(x=Slope, y=Slope_sim, color=Simulation))+
-  geom_point()+
-  geom_abline(slope=1, intercept=0)+
-  facet_wrap(~Simulation, nrow=2)+
-  theme_bw()+
-  theme(legend.position="none")
+p_sim_balanced_CC<-sim_test_processer(sim_results_stations_balanced, "balanced", "CC")
 
 ## Slope = 0
 sim_results_stations_NULL_balanced<-map(sims, ~sim_tester(sim_data_stations_NULL_balanced, .x))
-sim_results_stations_NULL_balanced_extracted<-map_dbl(sims, ~median(sim_results_stations_NULL_balanced[[.x]]$slopes))
+
+p_sim_balanced_NULL<-sim_test_processer(sim_results_stations_NULL_balanced, "unbalanced", "NULL")
+
+## Create final graphs ----------------------------------------
+p_sim_CC_estimation<-p_sim_unbalanced_CC$Estimation/p_sim_balanced_CC$Estimation+plot_annotation(tag_levels="A")+plot_layout(guides="collect")
+
+ggsave(p_sim_CC_estimation, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Slope_sim_CC.png",
+       device="png", width=10, height=10, units="in")
+
+p_sim_NULL_estimation<-p_sim_unbalanced_NULL$Estimation/p_sim_balanced_NULL$Estimation+plot_annotation(tag_levels="A")+plot_layout(guides="collect")
+
+ggsave(p_sim_NULL_estimation, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Slope_sim_NULL.png",
+       device="png", width=10, height=10, units="in")
+
+p_sim_CC_significance<-p_sim_unbalanced_CC$Significance/p_sim_balanced_CC$Significance+plot_annotation(tag_levels="A")+plot_layout(guides="collect")
+
+ggsave(p_sim_CC_significance, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Slope_sim_CC_Sig.png",
+       device="png", width=10, height=10, units="in")
+
+p_sim_NULL_significance<-p_sim_unbalanced_NULL$Significance/p_sim_balanced_NULL$Significance+plot_annotation(tag_levels="A")
+
+ggsave(p_sim_NULL_significance, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Slope_sim_NULL_Sig.png",
+       device="png", width=10, height=10, units="in")
+
