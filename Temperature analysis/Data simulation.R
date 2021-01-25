@@ -13,10 +13,6 @@ require(patchwork)
 # Stop plotting scientific notation
 options(scipen=999)
 
-# TODO
-# 1) Finish graphing simulation results
-# 2) Find a way to add significance to slope_summary and test if a significant slope is recovered?
-
 # Simulate data from a spatio-seasonal smoothing model to use for testing the model performance.
 # Simulate with a balanced and imbalanced sampling design to examing that impact
 # Also try simulating with all years vs. just years with similar average water temps to ensure model can differentiate real from spurious trends.

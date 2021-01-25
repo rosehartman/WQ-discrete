@@ -291,32 +291,97 @@ CC_gam8d7b_AR7 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=
 
 #########Best Model####################
 
+# Try higher Rho
+CC_gam8d7b_AR7B <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                        te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
+                        s(Time_num_s, k=5), family=scat, rho=r6*2, AR.start=Start, data = Data_CC4.3, method="fREML", discrete=T, nthreads=4)
+#AIC: 192436.7
 
-resid_norm_CC_gam8d7b_AR7<-resid_gam(CC_gam8d7b_AR7, incl_na=TRUE)
-sp<-SpatialPoints(coords=data.frame(Longitude=Data_CC4.3$Longitude, Latitude=Data_CC4.3$Latitude), proj4string = CRS("+init=epsg:4326"))
-sp2<-STIDF(sp, time=Data_CC4.3$Date, data=data.frame(Residuals=resid_norm_CC_gam8d7b_AR7))
-CC_gam8d7b_AR7_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=2, tlags=(30/7)*1:10)
+resid_norm_CC_gam8d7b_AR7<-resid_gam(CC_gam8d7b_AR7, incl_na=TRUE, return_all=T)
 
-p_time<-ggplot(CC_gam8d7b_AR7_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
+Data_vario<-Data_CC4.3%>%
+  mutate(Resid=resid_norm_CC_gam8d7b_AR7$norm_res,
+         Resid_uncorrected=resid_norm_CC_gam8d7b_AR7$res)
+
+Data_coords<-Data_vario%>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326)%>%
+  st_transform(crs=26910)%>%
+  st_coordinates()%>%
+  as_tibble()%>%
+  mutate(across(c(X,Y), ~(.x-mean(.x))/1000))
+
+Data_vario<-bind_cols(Data_vario%>%
+                        select(Date, Resid, Resid_uncorrected), Data_coords)
+sp<-SpatialPoints(coords=data.frame(X=Data_vario$X, Y=Data_vario$Y))
+sp2<-STIDF(sp, time=Data_vario$Date, 
+           data=data.frame(Residuals=Data_vario$Resid, Residuals_uncorrected=Data_vario$Resid_uncorrected))
+CC_gam8d7b_AR7_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=4, tlags=(30/7)*0:10)
+CC_gam8d7b_AR7_vario_uncorrected<-variogramST(Residuals_uncorrected~1, data=sp2, tunit="weeks", cores=5, tlags=(30/7)*0:10)
+
+CC_gam8d7b_AR7_vario_plot<-CC_gam8d7b_AR7_vario%>%
+  mutate(monthlag=as.integer(as.factor(timelag))-0.5)
+
+CC_gam8d7b_AR7_vario_uncorrected_plot<-CC_gam8d7b_AR7_vario_uncorrected%>%
+  mutate(monthlag=as.integer(as.factor(timelag))-0.5)
+
+p_time<-ggplot(CC_gam8d7b_AR7_vario_plot, aes(x=monthlag, y=gamma, color=spacelag, group=spacelag))+
   geom_line()+
   geom_point()+
-  scale_color_viridis_c(name="Distance")+
-  xlab("Time difference (weeks)")+
+  scale_color_viridis_c(name="Distance (km)")+
+  scale_x_continuous(breaks=c(2,4,6,8,10))+
+  xlab("Time difference (months)")+
   theme_bw()+
   theme(legend.justification = "left")
 
-p_space<-ggplot(CC_gam8d7b_AR7_vario, aes(x=dist, y=gamma, color=timelag, group=timelag))+
+p_space<-ggplot(CC_gam8d7b_AR7_vario_plot, aes(x=spacelag, y=gamma, color=monthlag, group=monthlag))+
   geom_line()+
   geom_point()+
-  scale_color_viridis_c(name="Time difference (weeks)")+
-  xlab("Distance")+
+  scale_color_viridis_c(breaks=c(2,4,6,8,10), name="Time difference\n(months)")+
+  xlab("Distance (km)")+
   theme_bw()+
   theme(legend.justification = "left")
 
 p_variogram<-p_time/p_space
 
-ggsave(p_variogram, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/CC_gam8d7b_AR7 variogram.png",
+ggsave(p_variogram, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/variogram.png",
        device="png", width=8, height=5, units="in")
+
+
+# Trying higher rho
+resid_norm_CC_gam8d7b_AR7B<-resid_gam(CC_gam8d7b_AR7B, incl_na=TRUE, return_all=T)
+
+Data_varioB<-Data_CC4.3%>%
+  mutate(Resid=resid_norm_CC_gam8d7b_AR7B$norm_res,
+         Resid_uncorrected=resid_norm_CC_gam8d7b_AR7B$res)
+
+Data_coordsB<-Data_varioB%>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326)%>%
+  st_transform(crs=26910)%>%
+  st_coordinates()%>%
+  as_tibble()%>%
+  mutate(across(c(X,Y), ~(.x-mean(.x))/1000))
+
+Data_varioB<-bind_cols(Data_varioB%>%
+                        select(Date, Resid, Resid_uncorrected), Data_coordsB)
+spB<-SpatialPoints(coords=data.frame(X=Data_varioB$X, Y=Data_varioB$Y))
+sp2B<-STIDF(spB, time=Data_varioB$Date, 
+           data=data.frame(Residuals=Data_varioB$Resid, Residuals_uncorrected=Data_varioB$Resid_uncorrected))
+CC_gam8d7b_AR7B_vario<-variogramST(Residuals~1, data=sp2B, tunit="weeks", cores=5, tlags=(30/7)*0:10)
+
+CC_gam8d7b_AR7B_vario_plot<-CC_gam8d7b_AR7B_vario%>%
+  mutate(monthlag=as.integer(as.factor(timelag))-0.5)
+
+ggplot(CC_gam8d7b_AR7B_vario_plot, aes(x=monthlag, y=gamma, color=spacelag, group=spacelag))+
+  geom_line()+
+  geom_point()+
+  scale_color_viridis_c(name="Distance (km)")+
+  scale_x_continuous(breaks=c(2,4,6,8,10))+
+  ylim(0.6, 1.2)+
+  xlab("Time difference (months)")+
+  theme_bw()+
+  theme(legend.justification = "left")
+
+## Now gamma is too high for time points > 1 lag. So sticking with original Rho
   
 #timelag is the average of successive specified tlags. It must be computing correlation between tlags. 
 
