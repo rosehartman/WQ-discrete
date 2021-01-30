@@ -9,7 +9,6 @@ require(mgcv)
 require(itsadug)
 require(lubridate)
 require(patchwork)
-
 # Stop plotting scientific notation
 options(scipen=999)
 
@@ -57,16 +56,17 @@ newdata_stations<-Data_CC4%>%
          Year_fac=factor(Year))%>%
   left_join(Slope_summary%>%
               select(Month, SubRegion, Slope, Slope_se), 
-            by=c("Month", "SubRegion"))
+            by=c("Month", "SubRegion"))%>%
+  filter(!is.na(Slope))
 
 # Fit model to use for spatial seasonal patterns
 model_2018 <- bam(Temperature ~ te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 13)) + 
                     s(Time_num_s, bs="cr", k=5), family=scat,
-                  data = filter(Data, Year==2018), method="fREML", discrete=T, nthreads=2)
+                  data = filter(Data, Year==2018), method="fREML", discrete=T, nthreads=4)
 
 # Define function to simulate gam data ------------------------------------
 
-gamsim<-function(model, data=newdata_stations, null=FALSE, years=1970:2020, slope_mean=unique(Slope_summary$Slope_mean), nsim=10, seeds=1:nsim){
+gamsim<-function(model, data=newdata_stations, null=FALSE, years=1970:2020, nsim=10, seeds=1:nsim){
   mu<-predict(model, newdata=data, type="response", discrete=T, n.threads=4)
   scale <- model[["sig2"]]
   data<-mutate(data, mu=mu)
@@ -78,11 +78,11 @@ gamsim<-function(model, data=newdata_stations, null=FALSE, years=1970:2020, slop
   # Extract distributional function
   family_fun<-fix.family.rd(family(model))[["rd"]]
   
-  sim_fun<-function(Data=data, Null=null, Years=years, Slope_mean=slope_mean, Nsim=nsim, Scale=scale, seed){
+  sim_fun<-function(Data=data, Null=null, Nsim=nsim, Scale=scale, seed){
     set.seed(seed)
     
     Data<-Data%>%
-      mutate(add=rnorm(n=n(), mean=ifelse(rep(Null, n()), 0, Slope_year*Slope), sd=Slope_se))%>%
+      mutate(add=rnorm(n=n(), mean=ifelse(rep(Null, n()), rep(0, n()), Slope_year*Slope), sd=Slope_se))%>%
       mutate(pred=mu+add)
     
     sims <- family_fun(mu=Data$pred, wt=rep(1, length(Data$pred)), scale=Scale)
@@ -224,31 +224,31 @@ Rasterize_all <- function(data, var, out_crs=4326, n=100){
 sim_tester<-function(data, sim){
   
   withCallingHandlers({
-  
-  model_noAR<-bam(data[[sim]] ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 12)) + 
-                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 12), by=Year_s), 
-                 family=scat, data = data, method="fREML", discrete=T, nthreads=2)
-  
-  r <- start_value_rho(model_noAR, plot=TRUE)
-  
-  model_AR<-bam(data[[sim]] ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 12)) + 
-                 te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 12), by=Year_s), 
-                family=scat, rho=r, AR.start=Start, data = data, method="fREML", discrete=T, nthreads=2)
+    
+    model_noAR<-bam(data[[sim]] ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 12)) + 
+                      te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 12), by=Year_s), 
+                    family=scat, data = data, method="fREML", discrete=T, nthreads=4)
+    
+    r <- start_value_rho(model_noAR, plot=TRUE)
+    
+    model_AR<-bam(data[[sim]] ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 12)) + 
+                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 12), by=Year_s), 
+                  family=scat, rho=r, AR.start=Start, data = data, method="fREML", discrete=T, nthreads=4)
   }, warning = function(w) {
     if (startsWith(conditionMessage(w), "step failure in theta estimation"))
       invokeRestart("muffleWarning")
   })
   
-  CC_pred<-predict(model_AR, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=2)
+  CC_pred<-predict(model_AR, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
   
   newdata_CC_pred<-CC_newdata%>%
     mutate(Slope=CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
            Slope_se=CC_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"])%>%
     mutate(across(c(Slope, Slope_se), ~(.x/Year_s)/sd(1970:2020)))%>%
     mutate(Slope_se=abs(Slope_se))%>%
-    mutate(Slope_l95=Slope-Slope_se*qnorm(0.995),
-           Slope_u95=Slope+Slope_se*qnorm(0.995))%>%
-    mutate(Sig=if_else(Slope_u95>0 & Slope_l95<0, "ns", "*"))
+    mutate(Slope_l99=Slope-Slope_se*qnorm(0.9995),
+           Slope_u99=Slope+Slope_se*qnorm(0.9995))%>%
+    mutate(Sig=if_else(Slope_u99>0 & Slope_l99<0, "ns", "*"))
   out<-list()
   
   if(all(newdata_CC_pred$Sig=="ns")){
@@ -301,41 +301,47 @@ sim_test_processer<-function(sim_results, data_type, model_type){
     rename(Slope_true=Slope)%>%
     mutate(Simulation=factor(recode(Simulation, !!!set_names(paste("Simulation", 1:10), sims)), levels=paste("Simulation", 1:10)))
   
-  p1<-ggplot(sim_results_stations_slopes, aes(x=Slope_true, y=Slope_estimated, color=Sig))+
-    geom_point(alpha=0.2)+
+  p1<-ggplot(data=sim_results_stations_slopes)+
     {if(model_type=="NULL"){
-      geom_hline(yintercept=0)
+      list(geom_point(aes(x=Slope_se, y=Slope_estimated, color=Sig), alpha=0.2),
+        geom_hline(yintercept=0))
     }else{
-      geom_abline(slope=1, intercept=0)
+      list(geom_point(aes(x=Slope_true, y=Slope_estimated, color=Sig), alpha=0.2),
+        geom_abline(slope=1, intercept=0))
     }}+
+    geom_blank(data=tibble(Sig=c("*", "ns")), aes(color=Sig))+
     scale_color_viridis_d(direction=-1, name="Significance",
-                       guide=guide_legend(override.aes=list(alpha=1)))+
+                          guide=guide_legend(override.aes=list(alpha=1)))+
     facet_wrap(~Simulation, nrow=2)+
     ggtitle(title)+
-    xlab("'True' Slope")+
-    ylab("Model-estimated slope")+
+    {if(model_type=="NULL"){
+      xlab("'True' Slope (Temperature change per year [°C]) standard error")
+    }else{
+      xlab("'True' Slope (Temperature change per year [°C])")
+    }}+
+    ylab("Model-estimated slope (Temperature change per year [°C])")+
     theme_bw()+
-    theme(strip.background = element_blank(), plot.title = element_text(hjust = 0.5))
+    {if(model_type=="NULL"){
+      theme(strip.background = element_blank(), plot.title = element_text(hjust = 0.5), legend.position = "none")
+    }else{
+      theme(strip.background = element_blank(), plot.title = element_text(hjust = 0.5))
+    }}
+    
+  
+  if(model_type=="NULL"){
+    return(p1)
+  }
   
   Sig_sum<-sim_results_stations_slopes%>%
     group_by(Month, SubRegion, Simulation, Slope_se, Slope_true)%>%
-    summarise(Significant=length(which(Sig=="*")), Nonsignificant=length(which(Sig=="ns")), .groups="drop")%>%
-    mutate(Sig=Significant/(Significant+Nonsignificant))
+    summarise(Sig=length(which(Sig=="*"))/n(), .groups="drop")
   
   p2<-ggplot()+
-    {if(model_type=="NULL"){
-      geom_point(data=Sig_sum, aes(x=Slope_se, y=Sig, color=Sig))
-      }else{
-        geom_point(data=Sig_sum, aes(x=Slope_se, y=Slope_true, color=Sig))
-      }}+
-    scale_color_viridis_c(name="Proportion\nsignificant slopes")+
+    geom_point(data=Sig_sum, aes(x=Slope_se, y=Slope_true, color=Sig))+
+    scale_color_viridis_c(name="Proportion\nsignificant slopes", limits=c(0,1))+
     facet_wrap(~Simulation, nrow=2)+
-    xlab("'True' Slope standard error")+
-    {if(model_type=="NULL"){
-      ylab("Proportion significant slopes")
-    }else{
-      ylab("'True' slope")
-    }}+
+    xlab("'True' Slope (Temperature change per year [°C]) standard error")+
+    ylab("'True' slope (Temperature change per year [°C])")+
     ggtitle(title)+
     theme_bw()+
     theme(strip.background = element_blank(), plot.title = element_text(hjust = 0.5))
@@ -370,7 +376,7 @@ p_sim_balanced_CC<-sim_test_processer(sim_results_stations_balanced, "balanced",
 ## Slope = 0
 sim_results_stations_NULL_balanced<-map(sims, ~sim_tester(sim_data_stations_NULL_balanced, .x))
 
-p_sim_balanced_NULL<-sim_test_processer(sim_results_stations_NULL_balanced, "unbalanced", "NULL")
+p_sim_balanced_NULL<-sim_test_processer(sim_results_stations_NULL_balanced, "balanced", "NULL")
 
 ## Create final graphs ----------------------------------------
 p_sim_CC_estimation<-p_sim_unbalanced_CC$Estimation/p_sim_balanced_CC$Estimation+plot_annotation(tag_levels="A")+plot_layout(guides="collect")
@@ -378,7 +384,7 @@ p_sim_CC_estimation<-p_sim_unbalanced_CC$Estimation/p_sim_balanced_CC$Estimation
 ggsave(p_sim_CC_estimation, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Slope_sim_CC.png",
        device="png", width=10, height=10, units="in")
 
-p_sim_NULL_estimation<-p_sim_unbalanced_NULL$Estimation/p_sim_balanced_NULL$Estimation+plot_annotation(tag_levels="A")+plot_layout(guides="collect")
+p_sim_NULL_estimation<-p_sim_unbalanced_NULL/p_sim_balanced_NULL+plot_annotation(tag_levels="A")+plot_layout(guides="collect")
 
 ggsave(p_sim_NULL_estimation, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Slope_sim_NULL.png",
        device="png", width=10, height=10, units="in")
@@ -387,9 +393,3 @@ p_sim_CC_significance<-p_sim_unbalanced_CC$Significance/p_sim_balanced_CC$Signif
 
 ggsave(p_sim_CC_significance, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Slope_sim_CC_Sig.png",
        device="png", width=10, height=10, units="in")
-
-p_sim_NULL_significance<-p_sim_unbalanced_NULL$Significance/p_sim_balanced_NULL$Significance+plot_annotation(tag_levels="A")
-
-ggsave(p_sim_NULL_significance, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Slope_sim_NULL_Sig.png",
-       device="png", width=10, height=10, units="in")
-
