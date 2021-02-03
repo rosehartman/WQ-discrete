@@ -12,6 +12,7 @@ require(patchwork)
 require(geofacet)
 require(dtplyr)
 require(scales)
+require(parallel)
 
 ### TODO
 
@@ -234,10 +235,39 @@ modellea4 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day
                  data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
 # Error: cannot allocate vector of size 928.8 Mb
 
+cl <- makeCluster(8) 
+modellea3_full <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 13), by=Year_fac) + 
+                   s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE),
+                 data = Data, method="fREML", discrete=F, cluster=cl)
+# Ran out of memory after first step
 
 modellea3_full <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 13), by=Year_fac) + 
-                   s(Time_num_s, bs="cr", k=5), family=scat,
-                 data = Data, method="fREML", discrete=T, nthreads=8)
+                        s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE),
+                      data = Data, method="fREML", discrete=T, cluster=cl)
+# Got to second step but no parallel processing
+
+modellea3_full <- gam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 13), by=Year_fac) + 
+                        s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE, nthreads=8),
+                      data = Data, method="REML")
+
+modellea3_full <- gamm(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 13), by=Year_fac) + 
+                        s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE, nthreads=8),
+                      data = Data, method="REML")
+# Error: cannot allocate vector of size 624 Kb 
+
+
+# Try fixing scat arguments
+modellea3_full <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 13), by=Year_fac) + 
+                        s(Time_num_s, bs="cr", k=5), family=scat(theta=c(3, 0.5200804)), control=list(trace=TRUE),
+                      data = Data, method="fREML", discrete=T, nthreads=8)
+# This works!
+
+
+# Trying to set the scat parameters as starting values instead of fixed values to see if this works better
+modellea3_full2 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 13), by=Year_fac) + 
+                        s(Time_num_s, bs="cr", k=5), family=scat(theta=c(-3, -0.5200804)), control=list(trace=TRUE),
+                      data = Data, method="fREML", discrete=T, nthreads=8)
+# Taking forever
 
 # Final model -------------------------------------------------------------
 
