@@ -291,32 +291,97 @@ CC_gam8d7b_AR7 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=
 
 #########Best Model####################
 
+# Try higher Rho
+CC_gam8d7b_AR7B <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                        te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
+                        s(Time_num_s, k=5), family=scat, rho=r6*2, AR.start=Start, data = Data_CC4.3, method="fREML", discrete=T, nthreads=4)
+#AIC: 192436.7
 
-resid_norm_CC_gam8d7b_AR7<-resid_gam(CC_gam8d7b_AR7, incl_na=TRUE)
-sp<-SpatialPoints(coords=data.frame(Longitude=Data_CC4.3$Longitude, Latitude=Data_CC4.3$Latitude), proj4string = CRS("+init=epsg:4326"))
-sp2<-STIDF(sp, time=Data_CC4.3$Date, data=data.frame(Residuals=resid_norm_CC_gam8d7b_AR7))
-CC_gam8d7b_AR7_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=2, tlags=(30/7)*1:10)
+resid_norm_CC_gam8d7b_AR7<-resid_gam(CC_gam8d7b_AR7, incl_na=TRUE, return_all=T)
 
-p_time<-ggplot(CC_gam8d7b_AR7_vario, aes(x=timelag, y=gamma, color=avgDist, group=avgDist))+
+Data_vario<-Data_CC4.3%>%
+  mutate(Resid=resid_norm_CC_gam8d7b_AR7$norm_res,
+         Resid_uncorrected=resid_norm_CC_gam8d7b_AR7$res)
+
+Data_coords<-Data_vario%>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326)%>%
+  st_transform(crs=26910)%>%
+  st_coordinates()%>%
+  as_tibble()%>%
+  mutate(across(c(X,Y), ~(.x-mean(.x))/1000))
+
+Data_vario<-bind_cols(Data_vario%>%
+                        select(Date, Resid, Resid_uncorrected), Data_coords)
+sp<-SpatialPoints(coords=data.frame(X=Data_vario$X, Y=Data_vario$Y))
+sp2<-STIDF(sp, time=Data_vario$Date, 
+           data=data.frame(Residuals=Data_vario$Resid, Residuals_uncorrected=Data_vario$Resid_uncorrected))
+CC_gam8d7b_AR7_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=4, tlags=(30/7)*0:10)
+CC_gam8d7b_AR7_vario_uncorrected<-variogramST(Residuals_uncorrected~1, data=sp2, tunit="weeks", cores=5, tlags=(30/7)*0:10)
+
+CC_gam8d7b_AR7_vario_plot<-CC_gam8d7b_AR7_vario%>%
+  mutate(monthlag=as.integer(as.factor(timelag))-0.5)
+
+CC_gam8d7b_AR7_vario_uncorrected_plot<-CC_gam8d7b_AR7_vario_uncorrected%>%
+  mutate(monthlag=as.integer(as.factor(timelag))-0.5)
+
+p_time<-ggplot(CC_gam8d7b_AR7_vario_plot, aes(x=monthlag, y=gamma, color=spacelag, group=spacelag))+
   geom_line()+
   geom_point()+
-  scale_color_viridis_c(name="Distance")+
-  xlab("Time difference (weeks)")+
+  scale_color_viridis_c(name="Distance (km)")+
+  scale_x_continuous(breaks=c(2,4,6,8,10))+
+  xlab("Time difference (months)")+
   theme_bw()+
   theme(legend.justification = "left")
 
-p_space<-ggplot(CC_gam8d7b_AR7_vario, aes(x=dist, y=gamma, color=timelag, group=timelag))+
+p_space<-ggplot(CC_gam8d7b_AR7_vario_plot, aes(x=spacelag, y=gamma, color=monthlag, group=monthlag))+
   geom_line()+
   geom_point()+
-  scale_color_viridis_c(name="Time difference (weeks)")+
-  xlab("Distance")+
+  scale_color_viridis_c(breaks=c(2,4,6,8,10), name="Time difference\n(months)")+
+  xlab("Distance (km)")+
   theme_bw()+
   theme(legend.justification = "left")
 
 p_variogram<-p_time/p_space
 
-ggsave(p_variogram, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/CC_gam8d7b_AR7 variogram.png",
+ggsave(p_variogram, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/variogram.png",
        device="png", width=8, height=5, units="in")
+
+
+# Trying higher rho
+resid_norm_CC_gam8d7b_AR7B<-resid_gam(CC_gam8d7b_AR7B, incl_na=TRUE, return_all=T)
+
+Data_varioB<-Data_CC4.3%>%
+  mutate(Resid=resid_norm_CC_gam8d7b_AR7B$norm_res,
+         Resid_uncorrected=resid_norm_CC_gam8d7b_AR7B$res)
+
+Data_coordsB<-Data_varioB%>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326)%>%
+  st_transform(crs=26910)%>%
+  st_coordinates()%>%
+  as_tibble()%>%
+  mutate(across(c(X,Y), ~(.x-mean(.x))/1000))
+
+Data_varioB<-bind_cols(Data_varioB%>%
+                        select(Date, Resid, Resid_uncorrected), Data_coordsB)
+spB<-SpatialPoints(coords=data.frame(X=Data_varioB$X, Y=Data_varioB$Y))
+sp2B<-STIDF(spB, time=Data_varioB$Date, 
+           data=data.frame(Residuals=Data_varioB$Resid, Residuals_uncorrected=Data_varioB$Resid_uncorrected))
+CC_gam8d7b_AR7B_vario<-variogramST(Residuals~1, data=sp2B, tunit="weeks", cores=5, tlags=(30/7)*0:10)
+
+CC_gam8d7b_AR7B_vario_plot<-CC_gam8d7b_AR7B_vario%>%
+  mutate(monthlag=as.integer(as.factor(timelag))-0.5)
+
+ggplot(CC_gam8d7b_AR7B_vario_plot, aes(x=monthlag, y=gamma, color=spacelag, group=spacelag))+
+  geom_line()+
+  geom_point()+
+  scale_color_viridis_c(name="Distance (km)")+
+  scale_x_continuous(breaks=c(2,4,6,8,10))+
+  ylim(0.6, 1.2)+
+  xlab("Time difference (months)")+
+  theme_bw()+
+  theme(legend.justification = "left")
+
+## Now gamma is too high for time points > 1 lag. So sticking with original Rho
   
 #timelag is the average of successive specified tlags. It must be computing correlation between tlags. 
 
@@ -326,6 +391,10 @@ gam.check(CC_gam8d7b_AR7)
 # te(Julian_day_s,Latitude_s,Longitude_s) may be able to be improved (edf=223.3 and k'=299.0)
 
 
+# Find SubRegion and Month combinations with representation in the data
+Data_CC4_effort<-Data_CC4%>%
+  distinct(SubRegion, Month)%>%
+  mutate(Keep=TRUE) 
 
 newdata<-readRDS("Temperature analysis/Prediction Data.Rds")
 CC_newdata<-newdata%>%
@@ -336,7 +405,10 @@ CC_newdata<-newdata%>%
   mutate(Year=2000,
          Year_s=(Year-mean(Data$Year))/sd(Data$Year),
          Year_fac="2000",
-         Month=as.integer(as.factor(Julian_day)))
+         Month=as.integer(as.factor(Julian_day)))%>%
+  left_join(Data_CC4_effort, by=c("Month", "SubRegion"))%>%
+  filter(Keep)%>% # Only retain SubRegion and Month combinations with representation in the data
+  select(-Keep)
 
 #saveRDS(CC_newdata, "Temperature analysis/Climate Change Prediction Data.Rds")
 CC_newdata<-readRDS("Temperature analysis/Climate Change Prediction Data.Rds")
@@ -357,9 +429,9 @@ newdata_CC_pred<-CC_newdata%>%
   mutate(Slope_se=abs(Slope_se))%>%
   mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
          Month=month(Date, label = T),
-         Slope_l95=Slope-Slope_se*qnorm(0.995),
-         Slope_u95=Slope+Slope_se*qnorm(0.995))%>%
-  mutate(Sig=if_else(Slope_u95>0 & Slope_l95<0, "ns", "*"))%>%
+         Slope_l99=Slope-Slope_se*qnorm(0.9995),
+         Slope_u99=Slope+Slope_se*qnorm(0.9995))%>%
+  mutate(Sig=if_else(Slope_u99>0 & Slope_l99<0, "ns", "*"))%>%
   filter(Sig=="*")%>%
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)%>%
   st_transform(crs=st_crs(Delta))
@@ -374,11 +446,11 @@ Slope_summary<-CC_newdata%>%
   mutate(Slope_se=abs(Slope_se))%>%
   mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
          Month=month(Date),
-         Slope_l95=Slope-Slope_se*qnorm(0.995),
-         Slope_u95=Slope+Slope_se*qnorm(0.995))%>%
-  mutate(Sig=if_else(Slope_u95>0 & Slope_l95<0, "ns", "*"))%>%
+         Slope_l99=Slope-Slope_se*qnorm(0.9995),
+         Slope_u99=Slope+Slope_se*qnorm(0.9995),
+         Sig=if_else(Slope_u99>0 & Slope_l99<0, "ns", "*"))%>%
   group_by(Month, SubRegion)%>%
-  summarise(Slope=mean(Slope), Slope_se=mean(Slope_se), .groups="drop")%>%
+  summarise(Slope=mean(Slope), Slope_se=mean(Slope_se), Sig_prop=length(which(Sig=="*"))/n(), .groups="drop")%>%
   mutate(Slope_mean=mean(Slope), 
          Slope_mult=Slope/Slope_mean,
          Slope_se_mean=mean(Slope_se), 
@@ -402,10 +474,20 @@ Rasterize_all <- function(data, var, out_crs=4326, n=100){
 
 newdata_CC_pred_rast<-Rasterize_all(newdata_CC_pred, Slope)
 
+# Create background raster of all locations
+base<-CC_newdata%>%
+  mutate(Date=parse_date_time(paste(Year, Month, "15", sep="-"), "%Y-%m-%d"))%>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326)%>%
+  st_transform(crs=st_crs(Delta))%>%
+  Rasterize_all(Location)%>%
+  st_as_sf(long=T)%>%
+  filter(!is.na(Location))
+
 p_CC_gam<-ggplot()+
+  geom_sf(data=base, color="gray90", fill="gray90")+
   geom_stars(data=newdata_CC_pred_rast)+
   facet_wrap(~month(Date, label=T), drop=F)+
-  scale_fill_viridis_c(breaks=(-6:7)/100, name="Temperature change\nper year (°C)", guide=guide_colorbar(barheight=20), na.value="white")+
+  scale_fill_viridis_c(breaks=(-6:7)/100, name="Temperature change\nper year (°C)", guide=guide_colorbar(barheight=20), na.value=NA)+
   ylab("Latitude")+
   xlab("Longitude")+
   coord_sf()+
@@ -415,6 +497,21 @@ p_CC_gam<-ggplot()+
 ggsave(p_CC_gam, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Climate change signal.png",
        device="png", width=7, height=5, units="in")
 
+# Plot slope summary for each region and month
+p_slope_sum<-ggplot(Slope_summary)+
+  geom_pointrange(aes(x=month(Month, label=T), y=Slope, ymax=Slope+Slope_se, ymin=Slope-Slope_se, fill=Sig_prop, color=Sig_prop))+
+  facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen(width=15))+
+  geom_hline(yintercept=0)+
+  scale_x_discrete(labels=c("Jan", "", "Mar", "", "May", "", "July", "", "Sep", "", "Nov", ""))+
+  scale_color_viridis_c(name="Proportion\nsignificant slopes", limits=c(0,1), aesthetics = c("fill", "color"))+
+  xlab("Month")+
+  ylab("Temperature change\nper year (°C)")+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle=45, hjust=1), text=element_text(size=16), legend.position=c(0.4, 0.7), 
+        legend.background = element_rect(color="black"), panel.background = element_rect(color="black"), legend.margin=margin(10,10,15,10))
+
+ggsave(p_slope_sum, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Climate change slopes.png",
+       device="png", width=15, height=18, units="in")
 
 # Now try a model with higher spatial K value -----------------------------
 
@@ -436,9 +533,9 @@ newdata_CC_pred_AR8<-CC_newdata%>%
   mutate(Slope_se=abs(Slope_se))%>%
   mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
          Month=month(Date, label = T),
-         Slope_l95=Slope-Slope_se*qnorm(0.995),
-         Slope_u95=Slope+Slope_se*qnorm(0.995))%>%
-  mutate(Sig=if_else(Slope_u95>0 & Slope_l95<0, "ns", "*"))%>%
+         Slope_l99=Slope-Slope_se*qnorm(0.9995),
+         Slope_u99=Slope+Slope_se*qnorm(0.9995))%>%
+  mutate(Sig=if_else(Slope_u99>0 & Slope_l99<0, "ns", "*"))%>%
   filter(Sig=="*")%>%
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)%>%
   st_transform(crs=st_crs(Delta))
@@ -446,9 +543,10 @@ newdata_CC_pred_AR8<-CC_newdata%>%
 newdata_CC_pred_rast_AR8<-Rasterize_all(newdata_CC_pred_AR8, Slope)
 
 p_CC_gam_AR8<-ggplot()+
+  geom_sf(data=base, color="gray90", fill="gray90")+
   geom_stars(data=newdata_CC_pred_rast_AR8)+
   facet_wrap(~month(Date, label=T), drop=F)+
-  scale_fill_viridis_c(breaks=(-6:7)/100, name="Temperature change\nper year (°C)", guide=guide_colorbar(barheight=20), na.value="white")+
+  scale_fill_viridis_c(breaks=(-6:7)/100, name="Temperature change\nper year (°C)", guide=guide_colorbar(barheight=20), na.value=NA)+
   ylab("Latitude")+
   xlab("Longitude")+
   coord_sf()+
@@ -463,6 +561,7 @@ ggsave(p_CC_gam_AR8, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discr
 # Recreate gam check plots ------------------------------------------------
 
 #QQ plot
+CC_gam8d7b_AR7_sum<-summary(CC_gam8d7b_AR7)
 resids <- resid_gam(CC_gam8d7b_AR7, incl_na=TRUE)
 quantiles<-qq.gam(CC_gam8d7b_AR7)
 qq_data<-as_tibble(qqplot(quantiles, resids, plot.it=FALSE))
@@ -490,18 +589,19 @@ fitted<-predict(CC_gam8d7b_AR7, type = "response")
 
 p_fitted_resid<-ggplot(data=tibble(Fitted=fitted, Response=Data_CC4.3$Temperature), aes(x=Fitted, y=Response))+
   geom_point(size=0.5)+
+  annotate("label", x=10, y=30, label=paste0("R^2 == ", round(CC_gam8d7b_AR7_sum$r.sq, 4)), parse=T)+
   xlab("Fitted values")+
   theme_bw()
 
 require(patchwork)
 
-p_check<-(p_qq|p_pred_resid)/(p_hist|p_fitted_resid)
+p_check<-(p_qq|p_pred_resid)/(p_hist|p_fitted_resid)+plot_annotation(tag_levels="A")
 
 ggsave(p_check, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Climate change model validation.png",
        device="png", width=10, height=7, units="in")
 
 
-# Fit separate models to each 20 year period ------------------------------
+# Fit separate models to each 25 year period ------------------------------
 
 Data<-readRDS("Temperature analysis/Discrete Temp Data.Rds")
 
@@ -547,16 +647,29 @@ model_fitter<-function(start_year){
 
 models_period<-map(start_years, model_fitter)
 
+# Find out which regions and months have data in each 25 year period
+Data_period_effort<-Data_CC4%>%
+  group_by(SubRegion, Month)%>%
+  summarise(Sampled_1970=length(which(Year>=1970 & Year<1995)),
+            Sampled_1975=length(which(Year>=1975 & Year<2000)),
+            Sampled_1980=length(which(Year>=1980 & Year<2005)),
+            Sampled_1985=length(which(Year>=1985 & Year<2010)),
+            Sampled_1990=length(which(Year>=1990 & Year<2015)),
+            Sampled_1995=length(which(Year>=1995 & Year<2020)), .groups="drop")%>%
+  mutate(across(all_of(paste("Sampled", start_years, sep="_")), ~if_else(.x>1, TRUE, FALSE)))
+
 newdata<-readRDS("Temperature analysis/Prediction Data.Rds")
 CC_newdata_period<-newdata%>%
   st_drop_geometry()%>%
   as_tibble()%>%
   select(-Year_fac, -Year, -Year_s, -N,)%>%
   distinct()%>%
-  mutate(Month=as.integer(as.factor(Julian_day)))
+  mutate(Month=as.integer(as.factor(Julian_day)))%>%
+  left_join(Data_period_effort, by=c("Month", "SubRegion"))
 
 model_predictor<-function(start_year){
   CC_newdata<-CC_newdata_period%>%
+    filter(across(all_of(paste0("Sampled_", start_year))))%>%
     mutate(Year=start_year,
            Year_s=1)
   
@@ -570,9 +683,9 @@ model_predictor<-function(start_year){
     mutate(Slope_se=abs(Slope_se))%>%
     mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
            Month=month(Date, label = T),
-           Slope_l95=Slope-Slope_se*qnorm(0.995),
-           Slope_u95=Slope+Slope_se*qnorm(0.995))%>%
-    mutate(Sig=if_else(Slope_u95>0 & Slope_l95<0, "ns", "*"))%>%
+           Slope_l99=Slope-Slope_se*qnorm(0.9995),
+           Slope_u99=Slope+Slope_se*qnorm(0.9995))%>%
+    mutate(Sig=if_else(Slope_u99>0 & Slope_l99<0, "ns", "*"))%>%
     filter(Sig=="*")%>%
     st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)%>%
     st_transform(crs=st_crs(Delta))
@@ -584,15 +697,27 @@ preds_period<-map_dfr(start_years, model_predictor)
 
 preds_period_rast<-Rasterize_all(preds_period, Slope)
 
+base_period<-CC_newdata_period%>%
+  pivot_longer(all_of(paste0("Sampled_", start_years)), names_to="Period", values_to="Sampled")%>%
+  mutate(Year=recode(Period, !!!set_names(start_years, paste0("Sampled_", start_years))),
+         Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))))%>%
+  filter(Sampled)%>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326)%>%
+  st_transform(crs=st_crs(Delta))%>%
+  Rasterize_all(Location)%>%
+  st_as_sf(long=T)%>%
+  filter(!is.na(Location))
+
 p_period<-ggplot()+
+  geom_sf(data=base_period, color="gray90", fill="gray90")+
   geom_stars(data=preds_period_rast)+
   facet_grid(month(Date)~year(Date), drop=F, labeller=as_labeller(c(set_names(as.character(month(1:12, label=T)), 1:12), set_names(paste0(start_years, "-", start_years+25), start_years))))+
-  scale_fill_continuous_diverging(palette="Blue-Red 3", name="Temperature change\nper year (°C)", guide=guide_colorbar(barheight=20), na.value="white")+
+  scale_fill_continuous_diverging(palette="Blue-Red 3", name="Temperature change\nper year (°C)", guide=guide_colorbar(barheight=20), na.value=NA)+
   ylab("Latitude")+
   xlab("Longitude")+
   coord_sf()+
   theme_bw()+
-  theme(strip.background=element_blank(), text=element_text(size=8), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank(),
+  theme(strip.background=element_blank(), text=element_text(size=7), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank(),
         panel.spacing=unit(0, "lines"))
 
 ggsave(p_period, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Climate change signal over time rasters.png",

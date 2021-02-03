@@ -230,6 +230,11 @@ modellea3 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day
                    s(Time_num_s, bs="cr", k=5), family=scat,
                  data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
 
+theta<-get(".Theta", envir=environment(modellea3$family$rd))
+min.df <- get(".min.df", envir=environment(modellea3$family$rd))
+nu <- exp(theta[1]) + min.df
+sig <- exp(theta[2])
+
 modellea4 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(50, 13), by=Year_fac) + 
                    s(Time_num_s, bs="cr", k=5), family=scat,
                  data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
