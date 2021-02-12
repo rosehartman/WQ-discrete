@@ -19,6 +19,8 @@ require(purrr)
 require(scales)
 require(itsadug)
 require(colorspace)
+require(patchwork)
+require(ggstance)
 
 
 # TODO
@@ -341,7 +343,7 @@ p_space<-ggplot(CC_gam8d7b_AR7_vario_plot, aes(x=spacelag, y=gamma, color=monthl
   theme_bw()+
   theme(legend.justification = "left")
 
-p_variogram<-p_time/p_space
+p_variogram<-p_time/p_space+plot_annotation(tag_levels="A")
 
 ggsave(p_variogram, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/variogram.png",
        device="png", width=8, height=5, units="in")
@@ -499,18 +501,69 @@ ggsave(p_CC_gam, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete 
 
 # Plot slope summary for each region and month
 p_slope_sum<-ggplot(Slope_summary)+
-  geom_pointrange(aes(x=month(Month, label=T), y=Slope, ymax=Slope+Slope_se, ymin=Slope-Slope_se, fill=Sig_prop, color=Sig_prop))+
+  geom_pointrange(aes(y=reorder(month(Month, label=T), desc(month(Month, label=T))), x=Slope, xmax=Slope+Slope_se, xmin=Slope-Slope_se, fill=Sig_prop, color=Sig_prop))+
   facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen(width=15))+
-  geom_hline(yintercept=0)+
-  scale_x_discrete(labels=c("Jan", "", "Mar", "", "May", "", "July", "", "Sep", "", "Nov", ""))+
-  scale_color_viridis_c(name="Proportion\nsignificant slopes", limits=c(0,1), aesthetics = c("fill", "color"))+
-  xlab("Month")+
-  ylab("Temperature change\nper year (°C)")+
+  geom_vline(xintercept=0)+
+  scale_y_discrete(breaks=c("Jan", "Mar", "May", "Jul", "Sep", "Nov"))+
+  scale_color_viridis_c(name="Proportion\nsignificant slopes", limits=c(0,1), aesthetics = c("fill", "color"),
+                        guide=guide_colorbar(barheight=15))+
+  ylab("Month")+
+  xlab("Temperature change per year (°C)")+
   theme_bw()+
-  theme(axis.text.x=element_text(angle=45, hjust=1), text=element_text(size=16), legend.position=c(0.4, 0.7), 
+  theme(axis.text.x=element_text(angle=45, hjust=1), text=element_text(size=16), legend.position=c(0.4, 0.65), 
         legend.background = element_rect(color="black"), panel.background = element_rect(color="black"), legend.margin=margin(10,10,15,10))
 
 ggsave(p_slope_sum, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Climate change slopes.png",
+       device="png", width=15, height=18, units="in")
+
+# Plot all slopes with CIs
+Slope_sum2<-CC_newdata%>%
+  mutate(Slope=CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
+         Slope_se=CC_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"])%>%
+  mutate(across(c(Slope, Slope_se), ~(.x/Year_s)/sd(Data$Year)))%>%
+  mutate(Slope_se=abs(Slope_se))%>%
+  mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
+         Month=month(Date),
+         Slope_l99=Slope-Slope_se*qnorm(0.9995),
+         Slope_u99=Slope+Slope_se*qnorm(0.9995),
+         Sig=if_else(Slope_u99>0 & Slope_l99<0, "ns", "*"))%>%
+  arrange(Month, Year, SubRegion, Slope)
+
+P_slope_sum2<-ggplot(Slope_sum2)+
+  geom_vline(xintercept=0)+
+  geom_linerange(aes(y=reorder(month(Month, label=T), desc(month(Month, label=T))), x=Slope, xmax=Slope_u99, xmin=Slope_l99, group=1:nrow(Slope_sum2)), 
+                  position=position_dodgev(height=0.5))+
+  geom_point(aes(y=reorder(month(Month, label=T), desc(month(Month, label=T))), x=Slope, group=1:nrow(Slope_sum2)), 
+                 position=position_dodgev(height=0.5), size=0.5, color="dodgerblue1")+
+  facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen(width=15))+
+  scale_y_discrete(breaks=c("Jan", "Mar", "May", "Jul", "Sep", "Nov"))+
+  ylab("Month")+
+  xlab("Temperature change per year (°C)")+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle=45, hjust=1), text=element_text(size=16), panel.background = element_rect(color="black"))
+
+ggsave(P_slope_sum2, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Climate change all slopes.png",
+       device="png", width=15, height=28, units="in")
+
+# Plot sampling effort for each region, month. and year
+
+Data_effort<-Data_CC4%>%
+  group_by(Year, SubRegion, Month)%>%
+  summarise(N=n(), .groups="drop")
+
+p_effort<-ggplot(Data_effort)+
+  geom_tile(aes(x=Year, y=reorder(month(Month, label=T), desc(month(Month, label=T))), fill=N))+
+  scale_fill_viridis_c(breaks=seq(0,140, by=10),
+                       guide=guide_colorbar(barheight=15))+
+  scale_x_continuous(breaks=seq(1970, 2020, by=10))+
+  scale_y_discrete(breaks=c("Jan", "Mar", "May", "Jul", "Sep", "Nov"))+
+  facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen(width=15))+
+  ylab("Month")+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank(), text=element_text(size=16), legend.position=c(0.4, 0.65), 
+        legend.background = element_rect(color="black"), panel.background = element_rect(color="black"), legend.margin=margin(10,10,15,10))
+
+ggsave(p_effort, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Climate change effort.png",
        device="png", width=15, height=18, units="in")
 
 # Now try a model with higher spatial K value -----------------------------

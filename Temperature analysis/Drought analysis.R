@@ -291,16 +291,16 @@ Delta2<-st_read("Delta Subregions")%>%
 
 D2_gam_NOAR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
                     te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=TOT_mean30_c) + 
-                    s(Time_num_s, k=5), family=scat, data = Data_D2, method="fREML", discrete=T, nthreads=3)
+                    s(Time_num_s, k=5), family=scat, data = Data_D2, method="fREML", discrete=T, nthreads=2)
 D2r <- start_value_rho(D2_gam_NOAR, plot=TRUE)
 
 D2_gam_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=TOT_mean30_c) + 
-                  s(Time_num_s, k=5), family=scat, rho=D2r, AR.start=Start, data = Data_D2, method="fREML", discrete=T, nthreads=3)
+                  s(Time_num_s, k=5), family=scat, rho=D2r, AR.start=Start, data = Data_D2, method="fREML", discrete=T, nthreads=2)
 
 D2_gam_AR2 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(50, 13)) + 
                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=TOT_mean30_c) + 
-                   s(Time_num_s, k=5), family=scat, rho=D2r, AR.start=Start, data = Data_D2, method="fREML", discrete=T, nthreads=3)
+                   s(Time_num_s, k=5), family=scat, rho=D2r, AR.start=Start, data = Data_D2, method="fREML", discrete=T, nthreads=2)
 # Model predictions are almost identical, so picking D2_gam_AR as best model. 
 
 # Try centered and standardized
@@ -341,7 +341,7 @@ D2_newdata<-newdata%>%
          TOT_mean30_s_month=2,
          WY_s=2)
 
-D2_pred<-predict(D2_gam_AR5, newdata=D2_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
+D2_pred<-predict(D2_gam_AR4, newdata=D2_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
 
 D2_newdata_pred<-D2_newdata%>%
   mutate(Slope=D2_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):TOT_mean30_s_month"],
@@ -372,7 +372,7 @@ p_D2_gam<-ggplot()+
   theme_bw()+
   theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
 
-ggsave(p_D2_gam, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/D2_gam 01.04.21.png",
+ggsave(p_D2_gam, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/D2_gam 02.01.21.png",
        device="png", width=7, height=5, units="in")
 
 ## Magnitude of result too large, try centering and/or scaling inflow separately for each month.
