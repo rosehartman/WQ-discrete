@@ -21,11 +21,16 @@ path_eml <- file.path(root, "eml")
 # Add data ----------------------------------------------------------------
 
 data<-discretewq::wq()%>%
+  mutate(Date=as.character(Date, format="%Y-%m-%d"),
+         Datetime=as.character(Datetime),
+         Notes=stringr::str_replace_all(Notes, '"', "'"),# Replace full quotes with single quotes to avoid data read errors
+         Notes=stringr::str_replace_all(Notes, stringr::fixed('\n'), " "), # Replace line breaks with space to avoid data read errors
+  Notes=stringr::str_replace_all(Notes, stringr::fixed('\r'), " "))%>% # Replace line breaks with space to avoid data read errors
   select(Source, Station=StationID, Latitude, Longitude, Field_coords, Date, Datetime, Depth, 
          Sample_depth_surface, Sample_depth_bottom, Tide, Temperature, Temperature_bottom, 
          Conductivity, Salinity, Secchi, Microcystis, Chlorophyll, Notes)
 
-write_csv(data, file.path(path_data, "Delta_Integrated_WQ.csv"))
+write_csv(data, file.path(path_data, "Delta_Integrated_WQ.csv"), )
 # Create metadata templates ---------------------------------------------------
 
 # Below is a list of boiler plate function calls for creating metadata templates.
@@ -39,6 +44,12 @@ EMLassemblyline::template_core_metadata(
   path = path_templates,
   license = "CCBY",
   file.type = ".docx")
+
+# Create provenance template
+
+EMLassemblyline::template_provenance(
+  path=path_templates,
+)
 
 # Create table attributes template (required when data tables are present)
 
@@ -62,26 +73,10 @@ EMLassemblyline::template_categorical_variables(
 EMLassemblyline::template_geographic_coverage(
   path = path_templates, 
   data.path = path_data, 
-  data.table = "", 
-  lat.col = "",
-  lon.col = "",
-  site.col = "")
-
-# Create taxonomic coverage template (Not-required. Use this to report 
-# taxonomic entities in the metadata)
-
-remotes::install_github("EDIorg/taxonomyCleanr")
-library(taxonomyCleanr)
-
-taxonomyCleanr::view_taxa_authorities()
-
-EMLassemblyline::template_taxonomic_coverage(
-  path = path_templates, 
-  data.path = path_data,
-  taxa.table = "",
-  taxa.col = "",
-  taxa.name.type = "",
-  taxa.authority = 3)
+  data.table = "Delta_Integrated_WQ.csv", 
+  lat.col = "Latitude",
+  lon.col = "Longitude",
+  site.col = "Station")
 
 # Make EML from metadata templates --------------------------------------------
 
@@ -92,17 +87,12 @@ EMLassemblyline::make_eml(
   path = path_templates,
   data.path = path_data,
   eml.path = path_eml, 
-  dataset.title = "", 
-  temporal.coverage = c("YYYY-MM-DD", "YYYY-MM-DD"), 
-  geographic.description = "", 
-  geographic.coordinates = c("N", "E", "S", "W"), 
-  maintenance.description = "", 
-  data.table = c(""), 
-  data.table.name = c(""),
-  data.table.description = c(""),
-  other.entity = c(""),
-  other.entity.name = c(""),
-  other.entity.description = c(""),
-  user.id = "",
-  user.domain = "", 
-  package.id = "")
+  dataset.title = "Six decades (1959-2020) of water quality in the upper San Francisco Estuary: an integrated database of 11 discrete monitoring surveys in the Sacramento San Joaquin Delta, Suisun Bay, and Suisun Marsh", 
+  temporal.coverage = c("1959-06-13", "2020-07-10"), 
+  maintenance.description = "ongoing", 
+  data.table = c("Delta_Integrated_WQ.csv", "Delta_Integrated_WQ_metadata.csv"), 
+  data.table.description = c("Integrated water quality database", "Information on each survey included in the integrated database"),
+  data.table.quote.character='"',
+  user.id = "sbashevkin",
+  user.domain = "EDI", 
+  package.id = "edi.731.1")
