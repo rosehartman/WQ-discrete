@@ -1,0 +1,20 @@
+attributeName	attributeDefinition	class	unit	dateTimeFormatString	missingValueCode	missingValueCodeExplanation
+Source		categorical				
+Station		categorical				
+Latitude		numeric	!Add units here!			
+Longitude		numeric	!Add units here!			
+Field_coords		categorical				
+Date		Date		!Add datetime specifier here!		
+Datetime		Date		!Add datetime specifier here!		
+Depth		numeric	!Add units here!			
+Sample_depth_surface		numeric	!Add units here!			
+Sample_depth_bottom		numeric	!Add units here!			
+Tide		categorical				
+Temperature		numeric	!Add units here!			
+Temperature_bottom		numeric	!Add units here!			
+Conductivity		numeric	!Add units here!			
+Salinity		numeric	!Add units here!			
+Secchi		numeric	!Add units here!			
+Microcystis		numeric	!Add units here!			
+Chlorophyll		numeric	!Add units here!			
+Notes		categorical				

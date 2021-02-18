@@ -1,0 +1,15 @@
+attributeName	attributeDefinition	class	unit	dateTimeFormatString	missingValueCode	missingValueCodeExplanation
+V1		character				
+V2		character				
+V3		character				
+V4		character				
+V5		character				
+V6		character				
+V7		character				
+V8		character				
+V9		character				
+V10		character				
+V11		character				
+V12		character				
+V13		categorical				
+V14		categorical				
