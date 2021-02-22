@@ -3,6 +3,7 @@ require(sf)
 require(ggplot2)
 require(maps)
 require(ggspatial)
+require(patchwork)
 
 Data_CC4<-readRDS("Temperature analysis/Data_CC4.Rds")
 
@@ -37,10 +38,10 @@ labels<-tibble(label=c("Suisun Bay", "Suisun Marsh", "Confluence", "Cache Slough
                label_Y=c(4208500, 4240000, 4200000, 4228686, 4262058, 4262058, 4180000, 4255000,4220000), 
                label_X=c(585000, 590000, 610000, 607572, 640000, 610743, 642000, 642000, 647000))
 
-plot(select(base, geometry),reset=F, col="slategray1", border="slategray2")
-plot(select(SubRegions, geometry), add=T, lwd=2)
-points(as_tibble(st_coordinates(Data)), col="black", pch=16)
-Letter_locs<-locator()
+#plot(select(base, geometry),reset=F, col="slategray1", border="slategray2")
+#plot(select(SubRegions, geometry), add=T, lwd=2)
+#points(as_tibble(st_coordinates(Data)), col="black", pch=16)
+#Letter_locs<-locator()
 
 Letters<-tibble(Label=c(letters, paste0("a", letters)[1:6]), 
                 SubRegion=c("Upper Sacramento River Ship Channel", "Middle Sacramento River",
@@ -68,8 +69,10 @@ Letters<-tibble(Label=c(letters, paste0("a", letters)[1:6]),
                     4223128, 4224002, 4232212, 4232648, 4214307, 4219984, 4211599, 
                     4214831, 4214569, 4215180, 4215180, 4218848, 4214743, 4222167, 
                     4219547, 4210289, 4215005, 4212298, 4204961, 4204350, 4203127, 
-                    4202253, 4200244, 4193432, 4197886))
-paste(Letters$Label, Letters$SubRegion, sep=" - ", collapse=", ")
+                    4202253, 4200244, 4193432, 4197886))%>%
+  mutate(Label2=paste(Label, ":"),
+         Label2=factor(Label2, levels=Label2))
+#paste(Letters$Label, Letters$SubRegion, sep=" - ", collapse=", ")
 
 pout<-ggplot(states)+
   geom_sf(color="slategray1", fill="gray70")+
@@ -93,8 +96,9 @@ p<-ggplot()+
   ylab("")+
   xlab("")+
   #coord_sf(datum=st_crs(SubRegions))+
-  scale_color_viridis_c()+
+  scale_color_viridis_c(guide=guide_colorbar(barwidth=7.5, barheight=0.8))+
   theme_bw()+
+  theme(legend.position = c(0.2, 0.2), legend.background=element_rect(color="black"), legend.direction = "horizontal", plot.margin = margin(0,0,0,0))+
   annotation_scale(location = "bl") +
   annotation_north_arrow(location = "bl", pad_y=unit(0.05, "npc"), which_north = "true")+
   annotation_custom(
@@ -105,4 +109,19 @@ p<-ggplot()+
     ymax = Inf
   )
 
-ggsave("C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Figure 1 map.png", plot=p, device="png", width=8, height=8, units = "in")
+text_wrap<-function(label, width){x <- strwrap(label, width = width, simplify = FALSE)
+vapply(x, paste, character(1), collapse = "\n")}
+
+p_letters<-ggplot(Letters, aes(x=1, y=Label2, label=text_wrap(SubRegion, 20)))+
+  geom_text(hjust=0, size=3, lineheight=0.8)+
+  scale_x_continuous(expand=expansion(0,0), limits=c(1, 1.15))+
+  scale_y_discrete(limits = rev)+
+  theme_bw()+
+  theme(panel.grid=element_blank(), axis.ticks.x=element_blank(), axis.line = element_blank(), axis.text.x=element_blank(), 
+        axis.title.x=element_blank(), axis.title.y=element_blank(), plot.background = element_blank(), panel.border = element_blank(),
+        text=element_text(size=12), plot.margin = margin(0,0,0,1), axis.ticks = element_blank())
+
+p_final<-p+p_letters+plot_layout(widths=c(0.83, 0.17))
+
+ggsave("C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure 1 map.png", plot=p, device="png", width=8, height=8, units = "in")
+ggsave("C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure 1 map B.png", plot=p_final, device="png", width=8, height=8, units = "in")
