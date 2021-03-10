@@ -22,11 +22,6 @@ require(colorspace)
 require(patchwork)
 require(ggstance)
 
-
-# TODO
-
-### 1) remake variogram plots
-
 # Create overall dataset --------------------------
 
 is.even <- function(x) as.integer(x) %% 2 == 0
@@ -517,6 +512,24 @@ ggsave(p_slope_sum, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete w
        device="png", width=15, height=18, units="in")
 
 # Plot all slopes with CIs
+
+SubRegion_levels<-c("Upper Sacramento River Ship Channel", "Middle Sacramento River",
+                    "Lower Sacramento River Ship Channel", "Steamboat and Miner Slough",
+                    "Cache Slough and Lindsey Slough", "Liberty Island",
+                    "Lower Cache Slough", "Sacramento River near Ryde",
+                    "Georgiana Slough", "Upper Mokelumne River",
+                    "Suisun Marsh", "West Suisun Bay",
+                    "Grizzly Bay", "Mid Suisun Bay",
+                    "Honker Bay", "Confluence",
+                    "Lower Sacramento River", "Sacramento River near Rio Vista",
+                    "San Joaquin River at Twitchell Island", "San Joaquin River at Prisoners Pt",
+                    "Lower Mokelumne River", "Disappointment Slough",
+                    "Lower San Joaquin River", "Franks Tract", 
+                    "Holland Cut", "Mildred Island",
+                    "San Joaquin River near Stockton", "Old River",
+                    "Middle River", "Grant Line Canal and Old River",
+                    "Victoria Canal", "Upper San Joaquin River")
+
 Slope_sum2<-CC_newdata%>%
   mutate(Slope=CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
          Slope_se=CC_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"])%>%
@@ -527,23 +540,24 @@ Slope_sum2<-CC_newdata%>%
          Slope_l99=Slope-Slope_se*qnorm(0.9995),
          Slope_u99=Slope+Slope_se*qnorm(0.9995),
          Sig=if_else(Slope_u99>0 & Slope_l99<0, "ns", "*"))%>%
-  arrange(Month, Year, SubRegion, Slope)
+  group_by(Month, SubRegion)%>%
+  summarise(Slope_mean=mean(Slope), Slope_u99_max=max(Slope_u99), Slope_u99_min=min(Slope_u99), Slope_l99_max=min(Slope_l99), Slope_l99_min=max(Slope_l99), .groups="drop")%>%
+  mutate(SubRegion=factor(SubRegion, levels=SubRegion_levels))
 
 P_slope_sum2<-ggplot(Slope_sum2)+
   geom_vline(xintercept=0)+
-  geom_linerange(aes(y=reorder(month(Month, label=T), desc(month(Month, label=T))), x=Slope, xmax=Slope_u99, xmin=Slope_l99, group=1:nrow(Slope_sum2)), 
-                  position=position_dodgev(height=0.5))+
-  geom_point(aes(y=reorder(month(Month, label=T), desc(month(Month, label=T))), x=Slope, group=1:nrow(Slope_sum2)), 
-                 position=position_dodgev(height=0.5), size=0.5, color="dodgerblue1")+
-  facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen(width=15))+
+  geom_linerange(aes(y=reorder(month(Month, label=T), desc(month(Month, label=T))), xmax=Slope_l99_max, xmin=Slope_u99_max), size=1, color="#d7191c")+
+  geom_linerange(aes(y=reorder(month(Month, label=T), desc(month(Month, label=T))), xmax=Slope_l99_min, xmin=Slope_u99_min), size=2, color="#fdae61")+
+  geom_point(aes(y=reorder(month(Month, label=T), desc(month(Month, label=T))), x=Slope_mean), size=1, color="#2c7bb6")+
+  facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen(width=18))+
   scale_y_discrete(breaks=c("Jan", "Mar", "May", "Jul", "Sep", "Nov"))+
   ylab("Month")+
   xlab("Temperature change per year (°C)")+
   theme_bw()+
   theme(axis.text.x=element_text(angle=45, hjust=1), text=element_text(size=16), panel.background = element_rect(color="black"))
 
-ggsave(P_slope_sum2, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Climate change all slopes.png",
-       device="png", width=15, height=28, units="in")
+ggsave(P_slope_sum2, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Climate change all slopes.png",
+       device="png", width=15, height=18, units="in")
 
 # Plot sampling effort for each region, month. and year
 
@@ -554,16 +568,16 @@ Data_effort<-Data_CC4%>%
 p_effort<-ggplot(Data_effort)+
   geom_tile(aes(x=Year, y=reorder(month(Month, label=T), desc(month(Month, label=T))), fill=N))+
   scale_fill_viridis_c(breaks=seq(0,140, by=10),
-                       guide=guide_colorbar(barheight=15))+
+                       guide=guide_colorbar(barheight=15, barwidth = 3))+
   scale_x_continuous(breaks=seq(1970, 2020, by=10))+
   scale_y_discrete(breaks=c("Jan", "Mar", "May", "Jul", "Sep", "Nov"))+
-  facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen(width=15))+
+  facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen(width=18))+
   ylab("Month")+
   theme_bw()+
   theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank(), text=element_text(size=16), legend.position=c(0.4, 0.65), 
         legend.background = element_rect(color="black"), panel.background = element_rect(color="black"), legend.margin=margin(10,10,15,10))
 
-ggsave(p_effort, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Climate change effort.png",
+ggsave(p_effort, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Climate change effort.png",
        device="png", width=15, height=18, units="in")
 
 # Now try a model with higher spatial K value -----------------------------
@@ -800,6 +814,95 @@ ggplot(preds_period_sum)+
   #scale_color_brewer(palette="Paired")+
   theme_bw()+
   theme(panel.grid=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
+
+
+# Plot climate change signal in each priority restoration area from the Delta Plan --------
+
+## First plot a map of those areas ----------------------------------------
+PHRA<-st_read("200813_DeMartino_GIS_Export", layer = "ER_P3")%>%
+  select(PHRA=Region_)%>%
+  mutate(PHRA=recode(PHRA, `Cosumunes-Mokelumne`="Cosumnes - Mokelumne"))%>%
+  mutate(PHRA=factor(PHRA, levels=c("Lower San Joaquin River Floodplain", "Western Delta", "Suisun Marsh", "Cosumnes - Mokelumne", "Cache Slough", "Yolo Bypass")))
+
+ggplot()+
+  geom_sf(data=Delta)+
+  geom_sf(data=PHRA, aes(fill=PHRA))+
+  geom_sf(data=deltamapr::WW_Delta%>%st_transform(crs=st_crs(Delta)))
+
+PHRA_grid<-base%>%
+  st_transform(crs=st_crs(PHRA))%>%
+  st_join(PHRA%>%
+            select(PHRA))%>%
+  st_transform(crs=4326)
+
+ggplot()+
+  geom_sf(data=PHRA_grid, aes(color=PHRA, fill=PHRA))+
+  facet_wrap(~month(Date, label=T))
+
+boundary<-Delta%>%
+  st_union()%>%
+  st_boundary()%>%
+  st_polygonize()
+
+boundary<-data.frame(boundary[[1]][[1]][[1]])%>%
+  rename(X=X1, Y=X2)
+base<-deltamapr::WW_Delta%>%
+  st_transform(crs=st_crs(Delta))%>%
+  st_crop(st_union(st_as_sf(boundary, coords=c("X", "Y"), crs=st_crs(Delta))
+                   %>%st_make_valid(), 
+                   PHRA%>%
+                     st_make_valid()))
+
+colors<-RColorBrewer::brewer.pal(7,"Set1")
+
+p_map<-ggplot()+
+  geom_sf(data=base, fill="slategray1", color="slategray2")+
+  geom_sf(data=PHRA, aes(fill=PHRA, color=PHRA), alpha=0.2)+
+  geom_path(data=boundary, color="black", aes(x=X, y=Y))+
+  scale_fill_brewer(palette="Dark2", aesthetics = c("color", "fill"), labels = function(x) str_wrap(x, width = 18),
+                    name="Priority Habitat\nRestoration Area", guide=guide_legend(reverse = TRUE))+
+  ylab("")+
+  xlab("")+
+  theme_bw()+
+  theme(legend.position=c(0.25, 0.8), text=element_text(size=18), legend.background=element_rect(color="black"), plot.margin = margin(r=30))
+
+## Now plot the climate change signal in each area ------------------------------------
+
+PHRA_slopes<-CC_newdata%>%
+  mutate(Slope=CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
+         Slope_se=CC_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"])%>%
+  mutate(across(c(Slope, Slope_se), ~(.x/Year_s)/sd(Data$Year)))%>%
+  mutate(Slope_se=abs(Slope_se))%>%
+  mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
+         Month=month(Date),
+         Slope_l99=Slope-Slope_se*qnorm(0.9995),
+         Slope_u99=Slope+Slope_se*qnorm(0.9995))%>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326)%>%
+  st_transform(crs=st_crs(PHRA))%>%
+  st_join(PHRA)%>%
+  st_drop_geometry()%>%
+  filter(!is.na(PHRA))%>%
+  group_by(Month, PHRA)%>%
+  summarise(Slope_mean=mean(Slope), Slope_u99_max=max(Slope_u99), Slope_u99_min=min(Slope_u99), 
+            Slope_l99_max=min(Slope_l99), Slope_l99_min=max(Slope_l99), .groups="drop")%>%
+  mutate(PHRA=factor(PHRA, levels=c("Lower San Joaquin River Floodplain", "Western Delta", "Suisun Marsh", "Cosumnes - Mokelumne", "Cache Slough", "Yolo Bypass")))
+
+P_PHRA_slopes<-ggplot(PHRA_slopes)+
+  geom_vline(xintercept=0)+
+  geom_linerange(aes(y=PHRA, xmax=Slope_l99_max, xmin=Slope_u99_max), size=1, color="#d7191c")+
+  geom_linerange(aes(y=PHRA, xmax=Slope_l99_min, xmin=Slope_u99_min), size=2, color="#fdae61")+
+  geom_point(aes(y=PHRA, x=Slope_mean), size=1, color="#2c7bb6")+
+  facet_wrap(~month(Month, label=T))+
+  scale_y_discrete(labels = function(x) str_wrap(x, width = 18))+
+  xlab("Temperature change per year (°C)")+
+  ylab("Priority Habitat Restoration Area")+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle=45, hjust=1), text=element_text(size=18), panel.background = element_rect(color="black"), strip.background = element_blank())
+
+p_PHRA<-p_map+P_PHRA_slopes+plot_layout(ncol=2, widths = c(1,1))+ plot_annotation(tag_levels = "A")
+
+ggsave(p_PHRA, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/PHRA.png",
+       device="png", width=15, height=10, units="in")
 
 # Visualize raw climate change signal -------------------------------------
 

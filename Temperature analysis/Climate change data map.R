@@ -123,5 +123,20 @@ p_letters<-ggplot(Letters, aes(x=1, y=Label2, label=text_wrap(SubRegion, 20)))+
 
 p_final<-p+p_letters+plot_layout(widths=c(0.83, 0.17))
 
-ggsave("C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure 1 map.png", plot=p, device="png", width=8, height=8, units = "in")
-ggsave("C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure 1 map B.png", plot=p_final, device="png", width=8, height=8, units = "in")
+ggsave("C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure 1 map.png", plot=p_final, device="png", width=8, height=8, units = "in")
+
+# Map for presentation
+
+p_presentation<-ggplot()+
+  geom_sf(data=base, fill="slategray1", color="slategray2")+
+  geom_sf(data=Data, aes(color=N))+
+  ylab("")+
+  xlab("")+
+  #coord_sf(datum=st_crs(SubRegions))+
+  scale_color_viridis_c(guide=guide_colorbar(barwidth=7.5, barheight=0.8))+
+  theme_bw()+
+  theme(legend.position = c(0.25, 0.8), legend.background=element_rect(color="black"), legend.direction = "horizontal", plot.margin = margin(0,0,0,0))+
+  annotation_scale(location = "bl") +
+  annotation_north_arrow(location = "bl", pad_y=unit(0.05, "npc"), which_north = "true")
+
+ggsave("C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/BDSC Map.png", plot=p_presentation, device="png", width=6, height=6, units = "in")

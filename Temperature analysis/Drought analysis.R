@@ -21,6 +21,10 @@ require(purrr)
 require(readr)
 require(slider)
 require(colorspace)
+require(ggstance)
+
+
+# setup -------------------------------------------------------------------
 
 mygrid <- data.frame(
   name = c("Upper Sacramento River Ship Channel", "Cache Slough and Lindsey Slough", "Lower Sacramento River Ship Channel", "Liberty Island", "Suisun Marsh", "Middle Sacramento River", "Lower Cache Slough", "Steamboat and Miner Slough", "Upper Mokelumne River", "Lower Mokelumne River", "Georgiana Slough", "Sacramento River near Ryde", "Sacramento River near Rio Vista", "Grizzly Bay", "West Suisun Bay", "Mid Suisun Bay", "Honker Bay", "Confluence", "Lower Sacramento River", "San Joaquin River at Twitchell Island", "San Joaquin River at Prisoners Pt", "Disappointment Slough", "Lower San Joaquin River", "Franks Tract", "Holland Cut", "San Joaquin River near Stockton", "Mildred Island", "Middle River", "Old River", "Upper San Joaquin River", "Grant Line Canal and Old River", "Victoria Canal"),
@@ -29,6 +33,25 @@ mygrid <- data.frame(
   code = c(" 1", " 1", " 2", " 3", " 8", " 4", " 5", " 6", " 7", " 9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "30", "29", "31"),
   stringsAsFactors = FALSE
 )
+
+# Function to rasterize all dates. Creates a 3D raster Latitude x Longitude x Date 
+Rasterize_all <- function(data, var, region=Delta, out_crs=4326, n=100){
+  var<-rlang::enquo(var)
+  rlang::as_name(var)
+  preds<-map(unique(data$Date), function(x) st_rasterize(data%>%
+                                                           filter(Date==x)%>%
+                                                           dplyr::select(!!var), 
+                                                         template=st_as_stars(st_bbox(region), dx=diff(st_bbox(region)[c(1, 3)])/n, dy=diff(st_bbox(region)[c(2, 4)])/n, values = NA_real_))%>%
+               st_warp(crs=out_crs))
+  
+  # Then bind all dates together into 1 raster
+  out <- exec(c, !!!preds, along=list(Date=unique(data$Date)))
+  return(out)
+}
+
+
+# Runoff models -----------------------------------------------------------
+
 
 WY<-waterYearType::water_year_indices%>%
   bind_rows(tibble(WY=rep(c(2018, 2019), each=2), location=rep(c("Sacramento Valley", "San Joaquin Valley"), 2), 
@@ -140,22 +163,6 @@ D_newdata_pred<-D_newdata%>%
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)%>%
   st_transform(crs=st_crs(Delta))
 
-
-# Function to rasterize all dates. Creates a 3D raster Latitude x Longitude x Date 
-Rasterize_all <- function(data, var, region=Delta, out_crs=4326, n=100){
-  var<-rlang::enquo(var)
-  rlang::as_name(var)
-  preds<-map(unique(data$Date), function(x) st_rasterize(data%>%
-                                                           filter(Date==x)%>%
-                                                           dplyr::select(!!var), 
-                                                         template=st_as_stars(st_bbox(region), dx=diff(st_bbox(region)[c(1, 3)])/n, dy=diff(st_bbox(region)[c(2, 4)])/n, values = NA_real_))%>%
-               st_warp(crs=out_crs))
-  
-  # Then bind all dates together into 1 raster
-  out <- exec(c, !!!preds, along=list(Date=unique(data$Date)))
-  return(out)
-}
-
 newdata_D_pred_rast<-Rasterize_all(D_newdata_pred, Slope)
 
 p_D_gam<-ggplot()+
@@ -252,17 +259,25 @@ ggsave(p_D_gam_CC, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discret
 # Very similar to climate change model output
 
 
-# Now using total inflow (QTOT) from Dayflow
-dayflow<-read_csv(file.path("Temperature analysis", "data", "Dayflow1997 2019.csv"), col_types = cols_only(Date="c", TOT="d"))%>%
-  bind_rows(read_csv(file.path("Temperature analysis", "data", "Dayflow1984 1996.csv"), col_types = cols_only(Date="c", TOT="d")))%>%
-  bind_rows(read_csv(file.path("Temperature analysis", "data", "Dayflow1970 1983.csv"), col_types = cols_only(Date="c", TOT="d")))%>%
-  bind_rows(read_csv(file.path("Temperature analysis", "data", "Dayflow1956 1969.csv"), col_types = cols_only(Date="c", TOT="d")))%>%
-    mutate(Date=parse_date_time(Date, "%m/%d/%Y", tz = "America/Los_Angeles"))%>%
+# Now using total inflow (QTOT) from Dayflow ------------------------------
+
+## Create dataset ---------------------------------------------------------
+dayflow<-read_csv(file.path("Temperature analysis", "data", "Dayflow1997 2019.csv"), col_types = cols_only(Date="c", TOT="d", PREC="d"))%>%
+  bind_rows(read_csv(file.path("Temperature analysis", "data", "Dayflow1984 1996.csv"), col_types = cols_only(Date="c", TOT="d", PREC="d")))%>%
+  bind_rows(read_csv(file.path("Temperature analysis", "data", "Dayflow1970 1983.csv"), col_types = cols_only(Date="c", TOT="d", PREC="d")))%>%
+  bind_rows(read_csv(file.path("Temperature analysis", "data", "Dayflow1956 1969.csv"), col_types = cols_only(Date="c", TOT="d", PREC="d")))%>%
+    mutate(Date=parse_date_time(Date, "%m/%d/%Y", tz = "America/Los_Angeles"),
+           PREC_acrefeetperday=(PREC*3600*24)/(43560),
+           PREC_feetperday=if_else(Date>=parse_date_time("10/01/1980", "%m/%d/%Y", tz = "America/Los_Angeles"), PREC_acrefeetperday/682230, PREC_acrefeetperday/738000),
+           PREC_CFS=(PREC_feetperday*682230*43560)/(3600*24))%>%
   arrange(Date)
+
 
 dayflow$TOT_mean30<-slide_index_dbl(dayflow$TOT, dayflow$Date, .before=days(30), .f=mean, .complete = T)
 
 dayflow$TOT_mean7<-slide_index_dbl(dayflow$TOT, dayflow$Date, .before=days(7), .f=mean, .complete = T)
+
+dayflow$PREC_mean30<-slide_index_dbl(dayflow$PREC_CFS, dayflow$Date, .before=days(30), .f=mean, .complete = T)
 
 Data_D2<-readRDS("Temperature analysis/Data_CC4.Rds")%>%
   mutate(WY=Year)%>%
@@ -279,9 +294,9 @@ Data_D2<-readRDS("Temperature analysis/Data_CC4.Rds")%>%
          Series_ID=as.integer(as.factor(Series_ID)))%>%
   fill(Series_ID, .direction="down")%>%
   group_by(Month)%>%
-  mutate(across(c(TOT, TOT_mean7, TOT_mean30), list(c_month=~.x-mean(.x), s_month=~(.x-mean(.x))/sd(.x), monthmean=~mean(.x), monthsd=~sd(.x))))%>%
+  mutate(across(c(TOT, TOT_mean7, TOT_mean30, PREC_mean30), list(c_month=~.x-mean(.x), s_month=~(.x-mean(.x))/sd(.x), monthmean=~mean(.x), monthsd=~sd(.x))))%>%
   ungroup()%>%
-  mutate(across(c(TOT, TOT_mean7, TOT_mean30), list(c=~.x-mean(.x), s=~(.x-mean(.x))/sd(.x))))%>%
+  mutate(across(c(TOT, TOT_mean7, TOT_mean30, PREC_mean30), list(c=~.x-mean(.x), s=~(.x-mean(.x))/sd(.x))))%>%
   mutate(WY_s=(WY-mean(unique(WY)))/sd(unique(WY)))
   
 
@@ -289,33 +304,9 @@ Delta2<-st_read("Delta Subregions")%>%
   select(SubRegion)%>%
   filter(SubRegion%in%unique(Data_D2$SubRegion))
 
-D2_gam_NOAR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
-                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=TOT_mean30_c) + 
-                    s(Time_num_s, k=5), family=scat, data = Data_D2, method="fREML", discrete=T, nthreads=2)
-D2r <- start_value_rho(D2_gam_NOAR, plot=TRUE)
+## Fit models ------------------------------------------------
 
-D2_gam_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
-                  te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=TOT_mean30_c) + 
-                  s(Time_num_s, k=5), family=scat, rho=D2r, AR.start=Start, data = Data_D2, method="fREML", discrete=T, nthreads=2)
-
-D2_gam_AR2 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(50, 13)) + 
-                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=TOT_mean30_c) + 
-                   s(Time_num_s, k=5), family=scat, rho=D2r, AR.start=Start, data = Data_D2, method="fREML", discrete=T, nthreads=2)
-# Model predictions are almost identical, so picking D2_gam_AR as best model. 
-
-# Try centered and standardized
-
-D2_gam_NOAR2 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
-                     te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=TOT_mean30_s) + 
-                     s(Time_num_s, k=5), family=scat, data = Data_D2, method="fREML", discrete=T, nthreads=3)
-D2r2 <- start_value_rho(D2_gam_NOAR2, plot=TRUE)
-
-D2_gam_AR3 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
-                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=TOT_mean30_s) + 
-                   s(Time_num_s, k=5), family=scat, rho=D2r2, AR.start=Start, data = Data_D2, method="fREML", discrete=T, nthreads=3)
-
-# Try centered and standardized separately for each month
-## These results are much easier to interpret, so going with these moving forward
+#### Try centered and standardized separately for each month
 D2_gam_NOAR3 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
                       te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=TOT_mean30_s_month) + 
                       s(Time_num_s, k=5), family=scat, data = Data_D2, method="fREML", discrete=T, nthreads=3)
@@ -328,9 +319,17 @@ D2_gam_AR4 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,
 D2_gam_AR5 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(50, 13)) + 
                     te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=TOT_mean30_s_month) + 
                     s(Time_num_s, k=5), family=scat, rho=D2r3, AR.start=Start, data = Data_D2, method="fREML", discrete=T, nthreads=3)
-# Model predictions are almost identical, so picking D2_gam_AR as best model. 
+##### Model predictions are almost identical, so picking D2_gam_AR as best model. 
+
+## Set up model predictions -------------------------------------------------
 
 newdata<-readRDS("Temperature analysis/Prediction Data.Rds")
+
+##### Find SubRegion and Month combinations with representation in the data
+Data_D2_effort<-Data_D2%>%
+  distinct(SubRegion, Month)%>%
+  mutate(Keep=TRUE) 
+
 D2_newdata<-newdata%>%
   st_drop_geometry()%>%
   as_tibble()%>%
@@ -339,22 +338,36 @@ D2_newdata<-newdata%>%
   mutate(TOT_mean30_c=50000,
          TOT_mean30_s=2,
          TOT_mean30_s_month=2,
-         WY_s=2)
+         PREC_mean30_s_month=2,
+         WY_s=2,
+         Month=as.integer(as.factor(Julian_day)))%>%
+  left_join(Data_D2_effort, by=c("Month", "SubRegion"))%>%
+  filter(Keep)%>% # Only retain SubRegion and Month combinations with representation in the data
+  select(-Keep)
+
+#### Create background raster of all locations 
+base<-D2_newdata%>%
+  mutate(Date=parse_date_time(paste("2000", Month, "15", sep="-"), "%Y-%m-%d"))%>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326)%>%
+  st_transform(crs=st_crs(Delta2))%>%
+  Rasterize_all(Location, region=Delta2)%>%
+  st_as_sf(long=T)%>%
+  filter(!is.na(Location))
+
+### Predict for main model D2_gam_AR4 -----------------------------------------
 
 D2_pred<-predict(D2_gam_AR4, newdata=D2_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
 
 D2_newdata_pred<-D2_newdata%>%
   mutate(Slope=D2_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):TOT_mean30_s_month"],
-         Slope_se=D2_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):TOT_mean30_s_month"],
-         Intercept=D2_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s)"]+D2_pred$fit[,"s(Time_num_s)"],
-  )%>%
-  mutate(across(c(Slope, Slope_se), ~(.x/TOT_mean30_s)))%>%
+         Slope_se=D2_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):TOT_mean30_s_month"])%>%
+  mutate(across(c(Slope, Slope_se), ~(.x/TOT_mean30_s_month)))%>%
   mutate(Slope_se=abs(Slope_se))%>%
-  mutate(Slope_l95=Slope-Slope_se*qnorm(0.995),
-         Slope_u95=Slope+Slope_se*qnorm(0.995),
+  mutate(Slope_l99.9=Slope-Slope_se*qnorm(0.9995),
+         Slope_u99.9=Slope+Slope_se*qnorm(0.9995),
          Date=as.Date(Julian_day, origin=as.Date(paste("2000", "01", "01", sep="-"))),
          Month=month(Date, label=T))%>%
-  mutate(Sig=if_else(Slope_u95>0 & Slope_l95<0, "ns", "*"))%>%
+  mutate(Sig=if_else(Slope_u99.9>0 & Slope_l99.9<0, "ns", "*"))%>%
   filter(Sig=="*")%>%
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)%>%
   st_transform(crs=st_crs(Delta2))
@@ -362,9 +375,10 @@ D2_newdata_pred<-D2_newdata%>%
 newdata_D2_pred_rast<-Rasterize_all(D2_newdata_pred, Slope, region=Delta2)
 
 p_D2_gam<-ggplot()+
+  geom_sf(data=base, color="gray90", fill="gray90")+
   geom_stars(data=newdata_D2_pred_rast)+
   facet_wrap(~month(Date, label=T), drop=F)+
-  scale_fill_continuous_diverging(palette="Blue-Red 3", breaks=seq(-12, 6, by=2)/10, na.value = "white",
+  scale_fill_continuous_diverging(palette="Blue-Red 3", breaks=seq(-12, 6, by=2)/10, na.value=NA,
                                   name="Temperature change\nper change in\ntotal inflow (°C/monthly sd[cfs])", guide=guide_colorbar(barheight=20))+
   ylab("Latitude")+
   xlab("Longitude")+
@@ -372,7 +386,368 @@ p_D2_gam<-ggplot()+
   theme_bw()+
   theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
 
-ggsave(p_D2_gam, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/D2_gam 02.01.21.png",
+ggsave(p_D2_gam, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/inflow temp.png",
        device="png", width=7, height=5, units="in")
 
-## Magnitude of result too large, try centering and/or scaling inflow separately for each month.
+#### Create dataframe of slope deviations for each month and region --------
+
+Slope_summary<-D2_newdata%>%
+  mutate(Slope=D2_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):TOT_mean30_s_month"],
+         Slope_se=D2_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):TOT_mean30_s_month"])%>%
+  mutate(across(c(Slope, Slope_se), ~(.x/TOT_mean30_s_month)))%>%
+  mutate(Slope_se=abs(Slope_se))%>%
+  mutate(Slope_l99.9=Slope-Slope_se*qnorm(0.9995),
+         Slope_u99.9=Slope+Slope_se*qnorm(0.9995),
+         Date=as.Date(Julian_day, origin=as.Date(paste("2000", "01", "01", sep="-"))),
+         Sig=if_else(Slope_u99.9>0 & Slope_l99.9<0, "ns", "*"))%>%
+  arrange(Month, SubRegion, Slope)
+
+P_slope_sum<-ggplot(Slope_summary)+
+  geom_vline(xintercept=0)+
+  geom_linerange(aes(y=reorder(month(Month, label=T), desc(month(Month, label=T))), x=Slope, xmax=Slope_u99.9, xmin=Slope_l99.9, group=1:nrow(Slope_summary)), 
+                 position=position_dodgev(height=0.5))+
+  geom_point(aes(y=reorder(month(Month, label=T), desc(month(Month, label=T))), x=Slope, group=1:nrow(Slope_summary)), 
+             position=position_dodgev(height=0.5), size=0.5, color="dodgerblue1")+
+  facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen(width=15))+
+  scale_y_discrete(breaks=c("Jan", "Mar", "May", "Jul", "Sep", "Nov"))+
+  ylab("Month")+
+  xlab("Temperature change per year (°C)")+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle=45, hjust=1), text=element_text(size=16), panel.background = element_rect(color="black"))
+
+ggsave(P_slope_sum, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Inflow all slopes.png",
+       device="png", width=15, height=28, units="in")
+
+### Predict for higher k model D2_gam_AR5 -----------------------------------------
+
+D2_pred_higherk<-predict(D2_gam_AR5, newdata=D2_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
+
+D2_newdata_pred_higherk<-D2_newdata%>%
+  mutate(Slope=D2_pred_higherk$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):TOT_mean30_s_month"],
+         Slope_se=D2_pred_higherk$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):TOT_mean30_s_month"])%>%
+  mutate(across(c(Slope, Slope_se), ~(.x/TOT_mean30_s_month)))%>%
+  mutate(Slope_se=abs(Slope_se))%>%
+  mutate(Slope_l99.9=Slope-Slope_se*qnorm(0.9995),
+         Slope_u99.9=Slope+Slope_se*qnorm(0.9995),
+         Date=as.Date(Julian_day, origin=as.Date(paste("2000", "01", "01", sep="-"))),
+         Month=month(Date, label=T))%>%
+  mutate(Sig=if_else(Slope_u99.9>0 & Slope_l99.9<0, "ns", "*"))%>%
+  filter(Sig=="*")%>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)%>%
+  st_transform(crs=st_crs(Delta2))
+
+newdata_D2_pred_higherk_rast<-Rasterize_all(D2_newdata_pred_higherk, Slope, region=Delta2)
+
+p_D2_gam_higherk<-ggplot()+
+  geom_sf(data=base, color="gray90", fill="gray90")+
+  geom_stars(data=newdata_D2_pred_higherk_rast)+
+  facet_wrap(~month(Date, label=T), drop=F)+
+  scale_fill_continuous_diverging(palette="Blue-Red 3", breaks=seq(-12, 6, by=2)/10, na.value=NA,
+                                  name="Temperature change\nper change in\ntotal inflow (°C/monthly sd[cfs])", guide=guide_colorbar(barheight=20))+
+  ylab("Latitude")+
+  xlab("Longitude")+
+  coord_sf()+
+  theme_bw()+
+  theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
+
+ggsave(p_D2_gam, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/inflow temp higher k.png",
+       device="png", width=7, height=5, units="in")
+
+
+# Model climate change signal and inflow effects --------------------------
+
+D2_CC_gam_NOAR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                      te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=TOT_mean30_s_month) + 
+                        te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=WY_s) + 
+                      s(Time_num_s, k=5), family=scat, data = Data_D2, method="fREML", discrete=T, nthreads=2)
+D2CCr <- start_value_rho(D2_CC_gam_NOAR, plot=TRUE)
+
+D2_CC_gam_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=TOT_mean30_s_month) + 
+                      te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=WY_s) + 
+                    s(Time_num_s, k=5), family=scat, rho=D2CCr, AR.start=Start, data = Data_D2, method="fREML", discrete=T, nthreads=2)
+
+D2_CC_pred<-predict(D2_CC_gam_AR, newdata=D2_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
+
+D2_CC_newdata_pred<-D2_newdata%>%
+  mutate(Slope_D=D2_CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):TOT_mean30_s_month"],
+         Slope_D_se=D2_CC_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):TOT_mean30_s_month"],
+         Slope_CC=D2_CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):WY_s"],
+         Slope_CC_se=D2_CC_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):WY_s"])%>%
+  mutate(across(c(Slope_D, Slope_D_se), ~(.x/TOT_mean30_s_month)),
+         across(c(Slope_CC, Slope_CC_se), ~(.x/WY_s)/sd(unique(Data_D2$WY))))%>%
+  mutate(across(c(Slope_D_se, Slope_CC_se), ~abs(.x)))%>%
+  mutate(Slope_D_l99=Slope_D-Slope_D_se*qnorm(0.9995),
+         Slope_D_u99=Slope_D+Slope_D_se*qnorm(0.9995),
+         Slope_CC_l99=Slope_CC-Slope_CC_se*qnorm(0.9995),
+         Slope_CC_u99=Slope_CC+Slope_CC_se*qnorm(0.9995),
+         Date=as.Date(Julian_day, origin=as.Date(paste("2000", "01", "01", sep="-"))),
+         Month=month(Date, label=T))%>%
+  mutate(Sig_D=if_else(Slope_D_u99>0 & Slope_D_l99<0, "ns", "*"),
+         Sig_CC=if_else(Slope_CC_u99>0 & Slope_CC_l99<0, "ns", "*"))
+
+newdata_D2_CC_pred_rast_D<-D2_CC_newdata_pred%>%
+  filter(Sig_D=="*")%>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)%>%
+  st_transform(crs=st_crs(Delta2))%>%
+  Rasterize_all(Slope_D, region=Delta2)
+
+newdata_D2_CC_pred_rast_CC<-D2_CC_newdata_pred%>%
+  filter(Sig_CC=="*")%>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)%>%
+  st_transform(crs=st_crs(Delta2))%>%
+  Rasterize_all(Slope_CC, region=Delta2)
+
+p_D2_CC_gam_D<-ggplot()+
+  geom_sf(data=base, color="gray90", fill="gray90")+
+  geom_stars(data=newdata_D2_CC_pred_rast_D)+
+  facet_wrap(~month(Date, label=T), drop=F)+
+  scale_fill_continuous_diverging(palette="Blue-Red 3", breaks=seq(-12, 6, by=2)/10, na.value=NA,
+                                  name="Temperature change\nper change in\ntotal inflow (°C/monthly sd[cfs])", guide=guide_colorbar(barheight=20))+
+  ylab("Latitude")+
+  xlab("Longitude")+
+  coord_sf()+
+  theme_bw()+
+  theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
+
+ggsave(p_D2_CC_gam_D, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/inflow temp inflow_CC model.png",
+       device="png", width=7, height=5, units="in")
+
+p_D2_CC_gam_CC<-ggplot()+
+  geom_sf(data=base, color="gray90", fill="gray90")+
+  geom_stars(data=newdata_D2_CC_pred_rast_CC)+
+  facet_wrap(~month(Date, label=T), drop=F)+
+  scale_fill_viridis_c(breaks=(-6:7)/100, name="Temperature change\nper year (°C)", guide=guide_colorbar(barheight=20), na.value=NA)+
+  ylab("Latitude")+
+  xlab("Longitude")+
+  coord_sf()+
+  theme_bw()+
+  theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
+
+ggsave(p_D2_CC_gam_D, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/climate change signal inflow_CC model.png",
+       device="png", width=7, height=5, units="in")
+
+
+# Use salinity instead of geography ---------------------------------------
+
+
+## Prepare data again from scratch -----------------------------------------
+
+
+### Load Delta Shapefile from Brian ----------------------------------
+Delta_D3<-st_read("Delta Subregions")%>%
+  filter(!SubRegion%in%c("South Bay", "San Francisco Bay", "San Pablo Bay", "Upper Yolo Bypass", 
+                         "Upper Napa River", "Lower Napa River", "Carquinez Strait"))%>% # Remove regions outside our domain of interest
+  dplyr::select(SubRegion)
+
+### Load data ----------------------------------
+Data_D3_pre <- wq()%>%
+  filter(!is.na(Temperature) & !is.na(Salinity) & !is.na(Datetime) & !is.na(Latitude) & !is.na(Longitude) & !is.na(Date))%>% #Remove any rows with NAs in our key variables
+  filter(Temperature !=0)%>% #Remove 0 temps
+  filter(hour(Datetime)>=5 & hour(Datetime)<=20)%>% # Only keep data between 5AM and 8PM
+  mutate(Datetime = with_tz(Datetime, tz="America/Phoenix"), #Convert to a timezone without daylight savings time
+         Date = with_tz(Date, tz="America/Phoenix"),
+         Time=as_hms(Datetime), # Create variable for time-of-day, not date. 
+         Noon_diff=abs(hms(hours=12)-Time))%>% # Calculate difference from noon for each data point for later filtering
+  group_by(Station, Source, Date)%>%
+  filter(Noon_diff==min(Noon_diff))%>% # Select only 1 data point per station and date, choose data closest to noon
+  filter(Time==min(Time))%>% # When points are equidistant from noon, select earlier point
+  ungroup()%>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)%>% # Convert to sf object
+  st_transform(crs=st_crs(Delta_D3))%>% # Change to crs of Delta
+  st_join(Delta_D3, join=st_intersects)%>% # Add subregions
+  filter(!is.na(SubRegion))%>% # Remove any data outside our subregions of interest
+  mutate(Julian_day = yday(Date), # Create julian day variable
+         Month_fac=factor(Month), # Create month factor variable
+         Source_fac=factor(Source),
+         Year_fac=factor(Year))%>% 
+  mutate(Date_num = as.numeric(Date))%>%  # Create numeric version of date for models
+  mutate(Time_num=as.numeric(Time)) # Create numeric version of time for models (=seconds since midnight)
+
+
+### Pull station locations for major monitoring programs ----------------------------------
+#### This will be used to set a boundary for this analysis focused on well-sampled regions.
+WQ_stations_D3<-Data_D3_pre%>%
+  st_drop_geometry()%>%
+  filter(Source%in%c("FMWT", "STN", "SKT", "20mm", "EMP", "Suisun"))%>%
+  group_by(StationID, Source, Latitude, Longitude)%>%
+  summarise(N=n(), .groups="drop")%>% # Calculate how many times each station was sampled
+  filter(N>50 & !StationID%in%c("20mm 918", "STN 918"))%>% # Only keep stations sampled >50 times when deciding which regions to retain. 
+  # "20mm 918", "STN 918" are far south of the rest of the well-sampled sites and are not sampled year round, so we're removing them to exclude that far southern region
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)%>% # Convert to sf object
+  st_transform(crs=st_crs(Delta_D3))%>%
+  st_join(Delta_D3) # Add subregions
+
+### Remove any subregions that do not contain at least one of these >50 samples stations from the major monitoring programs ----------------------------------
+Delta_D3 <- Delta_D3%>%
+  filter(SubRegion%in%unique(WQ_stations_D3$SubRegion) | SubRegion=="Georgiana Slough") # Retain Georgiana Slough because it's surrounded by well-sampled regions
+
+### Now prepare the final dataset  ----------------------------------
+#### Using code from the final steps of creating Data and the creation of Data_CC4 and Data_D2
+#### Filter data to only include this final set of subregions, and any stations outside the convex hull formed by the >50 samples stations from the major monitoring programs
+Data_D3<-Data_D3_pre%>%
+  filter(SubRegion%in%unique(Delta_D3$SubRegion))%>%
+  st_join(WQ_stations_D3%>%
+            st_union()%>%
+            st_convex_hull()%>% # Draws a hexagram or pentagram or similar around the outer-most points
+            st_as_sf()%>%
+            mutate(IN=TRUE),
+          join=st_intersects)%>%
+  filter(IN)%>%
+  dplyr::select(-IN)%>%
+  filter(Source%in%c("EMP", "STN", "FMWT", "DJFMP", "SKT", "20mm", "Suisun", "Baystudy", "USGS") & !str_detect(Station, "EZ") & 
+           !(Source=="SKT" & Station=="799" & Latitude>38.2) & !(Source=="SKT" & Station=="999"))%>%
+  group_by(SubRegion)%>%
+  mutate(Sal_sd=sd(Salinity), Sal_ext=Salinity/Sal_sd)%>%
+  ungroup()%>%
+  filter(Sal_ext<10)%>%
+  mutate(Station=paste(Source, Station),
+         Noon_diff=abs(hms(hours=12)-as_hms(Datetime)),
+         mday_15_diff=abs(mday(Date)-15))%>% # Find how far each date is from the 15th of the month
+  group_by(Station, Month, Year)%>%
+  filter(mday_15_diff==min(mday_15_diff))%>%
+  filter(Date==min(Date))%>% # Deal with 2 dates equidistant from the 15th of the month
+  filter(Noon_diff==min(Noon_diff))%>%
+  ungroup()%>%
+  lazy_dt()%>%
+  group_by(Date, Date_num, Month, SubRegion, Julian_day, Year, Year_fac, Station, Source, Latitude, Longitude)%>%
+  summarise(Temperature=mean(Temperature), Salinity=mean(Salinity), Time_num=mean(Time_num))%>%
+  as_tibble()%>%
+  ungroup()%>%
+  mutate(ID=paste(Station, Date_num))%>%
+  filter(!(ID%in%ID[which(duplicated(ID))]))%>%
+  mutate(WY=Year)%>%
+  mutate(WY=if_else(Month%in%10:12, WY+1, WY))%>%
+  left_join(dayflow, by="Date")%>%
+  filter(!is.na(TOT))%>%
+  arrange(Station, Date)%>%
+  group_by(Station)%>%
+  mutate(Lag=Date-lag(Date, order_by = Date))%>%
+  ungroup()%>%
+  mutate(Start=if_else(is.na(Lag) | Lag>3600*24*60, TRUE, FALSE),
+         Series_ID=1:n(),
+         Series_ID=if_else(Start, Series_ID, NA_integer_),
+         Series_ID=as.integer(as.factor(Series_ID)))%>%
+  fill(Series_ID, .direction="down")%>%
+  group_by(Month)%>%
+  mutate(across(c(TOT, TOT_mean7, TOT_mean30), list(c_month=~.x-mean(.x), s_month=~(.x-mean(.x))/sd(.x), monthmean=~mean(.x), monthsd=~sd(.x))))%>%
+  ungroup()%>%
+  mutate(across(c(TOT, TOT_mean7, TOT_mean30, Salinity, Longitude, Latitude, Time_num, Julian_day), list(c=~.x-mean(.x), s=~(.x-mean(.x))/sd(.x))))%>%
+  mutate(WY_s=(WY-mean(unique(WY)))/sd(unique(WY)))
+
+# Tried log(x+1) transforming salinity prior to use in these analyses, but results were similar to just using salinity. Using a smaller constant
+# like log(x+0.01) was producing weird results
+
+D3_gam_NOAR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                      te(Salinity_s, Julian_day_s, bs=c("tp", "cc"), k=c(15, 13), by=TOT_mean30_s_month) + 
+                      s(Time_num_s, k=5), family=scat, data = Data_D3, method="fREML", discrete=T, nthreads=2)
+D3r <- start_value_rho(D3_gam_NOAR, plot=TRUE)
+
+D3_gam_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                   te(Salinity_s, Julian_day_s, bs=c("tp", "cc"), k=c(15, 13), by=TOT_mean30_s_month) + 
+                    s(Time_num_s, k=5), family=scat, rho=D3r, AR.start=Start, data = Data_D3, method="fREML", discrete=T, nthreads=2)
+
+D3_newdata<-expand_grid(Salinity_s=seq(min(Data_D3$Salinity_s), max(Data_D3$Salinity_s), length.out=100),
+                        Julian_day=yday(ymd(paste("2001", 1:12, "15", sep="-"))))%>%
+  mutate(Julian_day_s=(Julian_day-mean(Data_D3$Julian_day))/sd(Data_D3$Julian_day),
+         Salinity=Salinity_s*sd(Data_D3$Salinity)+mean(Data_D3$Salinity),
+         Latitude_s=0,
+         Longitude_s=0,
+         TOT_mean30_s_month=2,
+         Time_num=12*60*60,
+         Time_num_s=Time_num*sd(Data_D3$Time_num)+mean(Data_D3$Time_num))
+
+D3_pred<-predict(D3_gam_AR, newdata=D3_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=2)
+
+D3_newdata_pred<-D3_newdata%>%
+  mutate(Slope=D3_pred$fit[,"te(Julian_day_s,Salinity_s):TOT_mean30_s_month"],
+         Slope_se=D3_pred$se.fit[,"te(Julian_day_s,Salinity_s):TOT_mean30_s_month"])%>%
+  mutate(across(c(Slope, Slope_se), ~(.x/TOT_mean30_s_month)))%>%
+  mutate(Slope_se=abs(Slope_se))%>%
+  mutate(Slope_l99.9=Slope-Slope_se*qnorm(0.9995),
+         Slope_u99.9=Slope+Slope_se*qnorm(0.9995),
+         Slope_l99=Slope-Slope_se*qnorm(0.995),
+         Slope_u99=Slope+Slope_se*qnorm(0.995),
+         Slope_l95=Slope-Slope_se*qnorm(0.975),
+         Slope_u95=Slope+Slope_se*qnorm(0.975),
+         Date=as.Date(Julian_day, origin=as.Date(paste("2000", "01", "01", sep="-"))),
+         Month=month(Date, label=T))%>%
+  mutate(Sig=if_else(Slope_u99.9>0 & Slope_l99.9<0, "ns", "*"))
+
+log_x_0.01<-trans_new("log_x_0.01",
+                      transform = function(x) log10(x + 0.01),
+                      inverse = function(x) 10^(x) - 0.01)
+
+p_D3<-ggplot(D3_newdata_pred, aes(x=Salinity, y=Slope, ymin=Slope_l99.9, ymax=Slope_u99.9))+
+  geom_ribbon(alpha=0.3)+
+  geom_ribbon(alpha=0.3, aes(ymin=Slope_l99, ymax=Slope_u99))+
+  geom_ribbon(alpha=0.3, aes(ymin=Slope_l95, ymax=Slope_u95))+
+  geom_line(alpha=0.3)+
+  geom_hline(yintercept=0)+
+  ylab("Temperature change per change in total inflow (°C/monthly sd[cfs])")+
+  facet_wrap(~Month)+
+  theme_bw()+
+  theme(strip.background=element_blank())
+
+
+ggsave(p_D3, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/inflow temp by salinity.png",
+       device="png", width=7, height=5, units="in")
+
+### Now plot the salinity field  ----------------------------------
+
+D3_sal_gam_NOAR<-bam(Salinity ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)),
+                     family=scat, data = Data_D3, method="fREML", discrete=T, nthreads=2)
+D3r <- start_value_rho(D3_gam_NOAR, plot=TRUE)
+
+D3_gam_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                   te(Salinity_l_s, Julian_day_s, bs=c("tp", "cc"), k=c(15, 13), by=TOT_mean30_s_month) + 
+                   s(Time_num_s, k=5), family=scat, rho=D3r, AR.start=Start, data = Data_D3, method="fREML", discrete=T, nthreads=2)
+
+
+# Now try precipitation ---------------------------------------------------
+
+D2_gam_PREC_NOAR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                          te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=PREC_mean30_s_month) + 
+                          s(Time_num_s, k=5), family=scat, data = Data_D2, method="fREML", discrete=T, nthreads=2)
+D2r_PREC <- start_value_rho(D2_gam_PREC_NOAR, plot=TRUE)
+
+D2_gam_PREC_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                        te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=PREC_mean30_s_month) + 
+                        s(Time_num_s, k=5), family=scat, rho=D2r_PREC, AR.start=Start, data = Data_D2, method="fREML", discrete=T, nthreads=2)
+
+D2_PREC_pred<-predict(D2_gam_PREC_AR, newdata=D2_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=2)
+
+# Difference from inflow slopes
+m_resid<-lm(D2_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):TOT_mean30_s_month"]~ D2_PREC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):PREC_mean30_s_month"])
+
+D2_newdata_PREC_pred<-D2_newdata%>%
+  mutate(Slope=D2_PREC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):PREC_mean30_s_month"],
+         Slope_se=D2_PREC_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):PREC_mean30_s_month"],
+         Inflow_resid=resid(m_resid))%>%
+  mutate(across(c(Slope, Slope_se), ~(.x/PREC_mean30_s_month)))%>%
+  mutate(Slope_se=abs(Slope_se))%>%
+  mutate(Slope_l99.9=Slope-Slope_se*qnorm(0.9995),
+         Slope_u99.9=Slope+Slope_se*qnorm(0.9995),
+         Date=as.Date(Julian_day, origin=as.Date(paste("2000", "01", "01", sep="-"))),
+         Month=month(Date, label=T))%>%
+  mutate(Sig=if_else(Slope_u99.9>0 & Slope_l99.9<0, "ns", "*"))%>%
+  filter(Sig=="*")%>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)%>%
+  st_transform(crs=st_crs(Delta2))
+
+newdata_D2_PREC_pred_rast<-Rasterize_all(D2_newdata_PREC_pred, Slope, region=Delta2)
+
+p_D2_gam_PREC<-ggplot()+
+  geom_sf(data=base, color="gray90", fill="gray90")+
+  geom_stars(data=newdata_D2_PREC_pred_rast)+
+  facet_wrap(~month(Date, label=T), drop=F)+
+  scale_fill_continuous_diverging(palette="Blue-Red 3", breaks=seq(-12, 6, by=2)/10, na.value=NA,
+                                  name="Temperature change\nper change in\nPrecipitation (°C/monthly sd[cfs])", guide=guide_colorbar(barheight=20))+
+  ylab("Latitude")+
+  xlab("Longitude")+
+  coord_sf()+
+  theme_bw()+
+  theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
+
+ggsave(p_D2_gam, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/inflow temp.png",
+       device="png", width=7, height=5, units="in")
