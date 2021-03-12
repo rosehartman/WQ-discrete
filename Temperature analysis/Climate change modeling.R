@@ -477,11 +477,11 @@ base<-CC_newdata%>%
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326)%>%
   st_transform(crs=st_crs(Delta))%>%
   Rasterize_all(Location)%>%
-  st_as_sf(long=T)%>%
+  st_as_sf(long=T, connect8=T)%>%
   filter(!is.na(Location))
 
 p_CC_gam<-ggplot()+
-  geom_sf(data=base, color="gray90", fill="gray90")+
+  geom_sf(data=base, color=NA, fill="gray80", lwd=0)+
   geom_stars(data=newdata_CC_pred_rast)+
   facet_wrap(~month(Date, label=T), drop=F)+
   scale_fill_viridis_c(breaks=(-6:7)/100, name="Temperature change\nper year (°C)", guide=guide_colorbar(barheight=20), na.value=NA)+
@@ -491,7 +491,38 @@ p_CC_gam<-ggplot()+
   theme_bw()+
   theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
 
-ggsave(p_CC_gam, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Climate change signal.png",
+ggsave(p_CC_gam, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Climate change signal.png",
+       device="png", width=7, height=5, units="in")
+
+# Plot all slopes, significant or not
+
+newdata_CC_pred_all<-CC_newdata%>%
+  mutate(Slope=CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
+         Slope_se=CC_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
+         Intercept=CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s)"]+CC_pred$fit[,"s(Time_num_s)"])%>%
+  mutate(across(c(Slope, Slope_se), ~(.x/Year_s)/sd(Data$Year)))%>%
+  mutate(Slope_se=abs(Slope_se))%>%
+  mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
+         Month=month(Date, label = T),
+         Slope_l99=Slope-Slope_se*qnorm(0.9995),
+         Slope_u99=Slope+Slope_se*qnorm(0.9995))%>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)%>%
+  st_transform(crs=st_crs(Delta))
+
+newdata_CC_pred_all_rast<-Rasterize_all(newdata_CC_pred_all, Slope)
+
+p_CC_gam_all<-ggplot()+
+  geom_sf(data=base, color=NA, fill="gray80", lwd=0)+
+  geom_stars(data=newdata_CC_pred_all_rast)+
+  facet_wrap(~month(Date, label=T), drop=F)+
+  scale_fill_viridis_c(breaks=(-6:7)/100, name="Temperature change\nper year (°C)", guide=guide_colorbar(barheight=20), na.value=NA)+
+  ylab("Latitude")+
+  xlab("Longitude")+
+  coord_sf()+
+  theme_bw()+
+  theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
+
+ggsave(p_CC_gam_all, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Climate change signal all.png",
        device="png", width=7, height=5, units="in")
 
 # Plot slope summary for each region and month
@@ -610,7 +641,7 @@ newdata_CC_pred_AR8<-CC_newdata%>%
 newdata_CC_pred_rast_AR8<-Rasterize_all(newdata_CC_pred_AR8, Slope)
 
 p_CC_gam_AR8<-ggplot()+
-  geom_sf(data=base, color="gray90", fill="gray90")+
+  geom_sf(data=base, color=NA, fill="gray80", lwd=0)+
   geom_stars(data=newdata_CC_pred_rast_AR8)+
   facet_wrap(~month(Date, label=T), drop=F)+
   scale_fill_viridis_c(breaks=(-6:7)/100, name="Temperature change\nper year (°C)", guide=guide_colorbar(barheight=20), na.value=NA)+
@@ -620,7 +651,7 @@ p_CC_gam_AR8<-ggplot()+
   theme_bw()+
   theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
 
-ggsave(p_CC_gam_AR8, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Climate change signal_higherk.png",
+ggsave(p_CC_gam_AR8, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Climate change signal_higherk.png",
        device="png", width=7, height=5, units="in")
 
 ###CC_gam8d7b_AR8 has a lower AIC but higher AIC and  predicted slope values are almost identical to CC_gam8d7b_AR7, so using CC_gam8d7b_AR7 as the final model
@@ -734,7 +765,7 @@ CC_newdata_period<-newdata%>%
   mutate(Month=as.integer(as.factor(Julian_day)))%>%
   left_join(Data_period_effort, by=c("Month", "SubRegion"))
 
-model_predictor<-function(start_year){
+model_predictor<-function(start_year, sig="filter"){
   CC_newdata<-CC_newdata_period%>%
     filter(across(all_of(paste0("Sampled_", start_year))))%>%
     mutate(Year=start_year,
@@ -753,7 +784,11 @@ model_predictor<-function(start_year){
            Slope_l99=Slope-Slope_se*qnorm(0.9995),
            Slope_u99=Slope+Slope_se*qnorm(0.9995))%>%
     mutate(Sig=if_else(Slope_u99>0 & Slope_l99<0, "ns", "*"))%>%
-    filter(Sig=="*")%>%
+    {if(sig=="filter"){
+      filter(., Sig=="*")
+    }else{
+      .
+    }}%>%
     st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)%>%
     st_transform(crs=st_crs(Delta))
   
@@ -776,7 +811,7 @@ base_period<-CC_newdata_period%>%
   filter(!is.na(Location))
 
 p_period<-ggplot()+
-  geom_sf(data=base_period, color="gray90", fill="gray90")+
+  geom_sf(data=base_period, color=NA, fill="gray80", lwd = 0)+
   geom_stars(data=preds_period_rast)+
   facet_grid(month(Date)~year(Date), drop=F, labeller=as_labeller(c(set_names(as.character(month(1:12, label=T)), 1:12), set_names(paste0(start_years, "-", start_years+25), start_years))))+
   scale_fill_continuous_diverging(palette="Blue-Red 3", name="Temperature change\nper year (°C)", guide=guide_colorbar(barheight=20), na.value=NA)+
@@ -787,7 +822,7 @@ p_period<-ggplot()+
   theme(strip.background=element_blank(), text=element_text(size=7), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank(),
         panel.spacing=unit(0, "lines"))
 
-ggsave(p_period, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Climate change signal over time rasters.png",
+ggsave(p_period, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Climate change signal over time rasters.png",
        device="png", width=7, height=7, units="in")
 
 ###Maybe instead of rasters just plot the slope over time for each region
@@ -815,6 +850,26 @@ ggplot(preds_period_sum)+
   theme_bw()+
   theme(panel.grid=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
 
+## Plot slope over time for each month
+
+preds_period_month_sum<-map_dfr(start_years, model_predictor, sig="no")%>%
+  st_drop_geometry()%>%
+  group_by(Year, Month)%>%
+  summarise(Slope_mean=mean(Slope), Slope_sd=sd(Slope), Sig_prop=length(which(Sig=="*"))/n(), .groups="drop")%>%
+  mutate(Years=factor(paste0(Year, "-", Year+25), levels=paste0(start_years, "-", start_years+25)))
+
+p_period_slope_sum<-ggplot(preds_period_month_sum)+
+  geom_hline(yintercept=0)+
+  geom_pointrange(aes(x=Years, y=Slope_mean, ymin=Slope_mean-Slope_sd, ymax=Slope_mean+Slope_sd, fill=Sig_prop), shape=21, color="black")+
+  facet_wrap(~Month)+
+  scale_fill_viridis_c(name="Proportion\nsignificant")+
+  ylab("Temperature change per year (°C)")+
+  xlab("")+
+  theme_bw()+
+  theme(strip.background = element_blank(), axis.text.x=element_text(angle=45, hjust=1))
+
+ggsave(p_period_slope_sum, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Climate change signal over time summary.png",
+       device="png", width=6, height=6, units="in")
 
 # Plot climate change signal in each priority restoration area from the Delta Plan --------
 
@@ -846,7 +901,7 @@ boundary<-Delta%>%
 
 boundary<-data.frame(boundary[[1]][[1]][[1]])%>%
   rename(X=X1, Y=X2)
-base<-deltamapr::WW_Delta%>%
+base_PHRA<-deltamapr::WW_Delta%>%
   st_transform(crs=st_crs(Delta))%>%
   st_crop(st_union(st_as_sf(boundary, coords=c("X", "Y"), crs=st_crs(Delta))
                    %>%st_make_valid(), 
@@ -856,7 +911,7 @@ base<-deltamapr::WW_Delta%>%
 colors<-RColorBrewer::brewer.pal(7,"Set1")
 
 p_map<-ggplot()+
-  geom_sf(data=base, fill="slategray1", color="slategray2")+
+  geom_sf(data=base_PHRA, fill="slategray1", color="slategray2")+
   geom_sf(data=PHRA, aes(fill=PHRA, color=PHRA), alpha=0.2)+
   geom_path(data=boundary, color="black", aes(x=X, y=Y))+
   scale_fill_brewer(palette="Dark2", aesthetics = c("color", "fill"), labels = function(x) str_wrap(x, width = 18),
@@ -876,7 +931,8 @@ PHRA_slopes<-CC_newdata%>%
   mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
          Month=month(Date),
          Slope_l99=Slope-Slope_se*qnorm(0.9995),
-         Slope_u99=Slope+Slope_se*qnorm(0.9995))%>%
+         Slope_u99=Slope+Slope_se*qnorm(0.9995),
+         Sig=if_else(Slope_u99>0 & Slope_l99<0, "ns", "*"))%>%
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326)%>%
   st_transform(crs=st_crs(PHRA))%>%
   st_join(PHRA)%>%
@@ -884,7 +940,8 @@ PHRA_slopes<-CC_newdata%>%
   filter(!is.na(PHRA))%>%
   group_by(Month, PHRA)%>%
   summarise(Slope_mean=mean(Slope), Slope_u99_max=max(Slope_u99), Slope_u99_min=min(Slope_u99), 
-            Slope_l99_max=min(Slope_l99), Slope_l99_min=max(Slope_l99), .groups="drop")%>%
+            Slope_l99_max=min(Slope_l99), Slope_l99_min=max(Slope_l99), 
+            Slope_sd=sd(Slope), Sig_prop=length(which(Sig=="*"))/n(), .groups="drop")%>%
   mutate(PHRA=factor(PHRA, levels=c("Lower San Joaquin River Floodplain", "Western Delta", "Suisun Marsh", "Cosumnes - Mokelumne", "Cache Slough", "Yolo Bypass")))
 
 P_PHRA_slopes<-ggplot(PHRA_slopes)+
@@ -903,6 +960,34 @@ p_PHRA<-p_map+P_PHRA_slopes+plot_layout(ncol=2, widths = c(1,1))+ plot_annotatio
 
 ggsave(p_PHRA, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/PHRA.png",
        device="png", width=15, height=10, units="in")
+
+## Now Plot a more summarized version of the slopes for BDSC talk
+
+p_PHRA_sum<-ggplot(PHRA_slopes%>%mutate(PHRA=factor(PHRA, levels=rev(levels(PHRA_slopes$PHRA)))))+
+  geom_vline(xintercept=0)+
+  geom_pointrange(aes(y=month(Month, label=T), x=Slope_mean, xmin=Slope_mean-Slope_sd, xmax=Slope_mean+Slope_sd, fill=Sig_prop), shape=21, color="black")+
+  facet_wrap(~PHRA, ncol=1)+
+  scale_y_discrete(limits=rev, breaks=month(1:12, label=T)[c(1,3,5,7,9,11)])+
+  xlab("Temperature change per year (°C)")+
+  ylab("Month")+
+  scale_fill_viridis_c(name="Proportion\nsignificant")+
+  theme_bw()+
+  theme(text=element_text(size=14), strip.text=element_text(color="white"))
+
+g <- ggplot_gtable(ggplot_build(p_PHRA_sum))
+stripr <- which(grepl('strip-t', g$layout$name))
+fills <- RColorBrewer::brewer.pal(6, "Dark2")
+k <- 1
+for (i in stripr) {
+  j <- which(grepl('rect', g$grobs[[i]]$grobs[[1]]$childrenOrder))
+  g$grobs[[i]]$grobs[[1]]$children[[j]]$gp$fill <- fills[k]
+  k <- k+1
+}
+
+png(file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/PHRA_sum.png",
+    width=5, height=8, units="in", res=300)
+p_PHRA_sum_final<-grid::grid.draw(g)
+dev.off()
 
 # Visualize raw climate change signal -------------------------------------
 
