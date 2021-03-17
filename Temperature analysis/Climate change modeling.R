@@ -919,9 +919,9 @@ p_map<-ggplot()+
   ylab("")+
   xlab("")+
   theme_bw()+
-  theme(legend.position=c(0.25, 0.8), text=element_text(size=18), legend.background=element_rect(color="black"), plot.margin = margin(r=30))
+  theme(legend.position="none", text=element_text(size=18), legend.background=element_rect(color="black"), plot.margin = margin(r=30))
 
-## Now plot the climate change signal in each area ------------------------------------
+## Now Plot a more summarized version of the slopes for final figure
 
 PHRA_slopes<-CC_newdata%>%
   mutate(Slope=CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
@@ -944,6 +944,38 @@ PHRA_slopes<-CC_newdata%>%
             Slope_sd=sd(Slope), Sig_prop=length(which(Sig=="*"))/n(), .groups="drop")%>%
   mutate(PHRA=factor(PHRA, levels=c("Lower San Joaquin River Floodplain", "Western Delta", "Suisun Marsh", "Cosumnes - Mokelumne", "Cache Slough", "Yolo Bypass")))
 
+p_PHRA_sum<-ggplot(PHRA_slopes%>%mutate(PHRA=factor(PHRA, levels=rev(levels(PHRA_slopes$PHRA)))))+
+  geom_vline(xintercept=0)+
+  geom_pointrange(aes(y=month(Month, label=T), x=Slope_mean, xmin=Slope_mean-Slope_sd, xmax=Slope_mean+Slope_sd, fill=Sig_prop), shape=21, size=1, color="black")+
+  facet_wrap(~PHRA, ncol=1)+
+  scale_y_discrete(limits=rev, breaks=month(1:12, label=T)[c(1,3,5,7,9,11)])+
+  xlab("Temperature change per year (°C)")+
+  ylab("Month")+
+  scale_fill_viridis_c(name="Proportion\nsignificant")+
+  theme_bw()+
+  theme(text=element_text(size=18), strip.text=element_text(color="white"))
+
+g <- ggplot_gtable(ggplot_build(p_PHRA_sum))
+stripr <- which(grepl('strip-t', g$layout$name))
+fills <- RColorBrewer::brewer.pal(6, "Dark2")
+k <- 1
+for (i in stripr) {
+  j <- which(grepl('rect', g$grobs[[i]]$grobs[[1]]$childrenOrder))
+  g$grobs[[i]]$grobs[[1]]$children[[j]]$gp$fill <- fills[k]
+  k <- k+1
+}
+
+g_ggplot<-ggplotify::as.ggplot(g)
+#ggsave(g_ggplot, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/PHRA_sum.png",
+#       width=5, height=8, units="in")
+
+p_PHRA<-p_map+g_ggplot+plot_layout(ncol=2, widths = c(1,1))+ plot_annotation(tag_levels = "A") & theme(plot.tag = element_text(size=18))
+
+ggsave(p_PHRA, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure 8 PHRA.png",
+       device="png", width=14, height=10, units="in")
+
+## Alternative plot of the climate change signal in each area ------------------------------------
+
 P_PHRA_slopes<-ggplot(PHRA_slopes)+
   geom_vline(xintercept=0)+
   geom_linerange(aes(y=PHRA, xmax=Slope_l99_max, xmin=Slope_u99_max), size=1, color="#d7191c")+
@@ -958,36 +990,7 @@ P_PHRA_slopes<-ggplot(PHRA_slopes)+
 
 p_PHRA<-p_map+P_PHRA_slopes+plot_layout(ncol=2, widths = c(1,1))+ plot_annotation(tag_levels = "A")
 
-ggsave(p_PHRA, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/PHRA.png",
-       device="png", width=15, height=10, units="in")
 
-## Now Plot a more summarized version of the slopes for BDSC talk
-
-p_PHRA_sum<-ggplot(PHRA_slopes%>%mutate(PHRA=factor(PHRA, levels=rev(levels(PHRA_slopes$PHRA)))))+
-  geom_vline(xintercept=0)+
-  geom_pointrange(aes(y=month(Month, label=T), x=Slope_mean, xmin=Slope_mean-Slope_sd, xmax=Slope_mean+Slope_sd, fill=Sig_prop), shape=21, color="black")+
-  facet_wrap(~PHRA, ncol=1)+
-  scale_y_discrete(limits=rev, breaks=month(1:12, label=T)[c(1,3,5,7,9,11)])+
-  xlab("Temperature change per year (°C)")+
-  ylab("Month")+
-  scale_fill_viridis_c(name="Proportion\nsignificant")+
-  theme_bw()+
-  theme(text=element_text(size=14), strip.text=element_text(color="white"))
-
-g <- ggplot_gtable(ggplot_build(p_PHRA_sum))
-stripr <- which(grepl('strip-t', g$layout$name))
-fills <- RColorBrewer::brewer.pal(6, "Dark2")
-k <- 1
-for (i in stripr) {
-  j <- which(grepl('rect', g$grobs[[i]]$grobs[[1]]$childrenOrder))
-  g$grobs[[i]]$grobs[[1]]$children[[j]]$gp$fill <- fills[k]
-  k <- k+1
-}
-
-png(file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/PHRA_sum.png",
-    width=5, height=8, units="in", res=300)
-p_PHRA_sum_final<-grid::grid.draw(g)
-dev.off()
 
 # Visualize raw climate change signal -------------------------------------
 
