@@ -1,13 +1,10 @@
 require(sp)
 require(gstat)
 require(spacetime)
-require(tidybayes)
 require(dplyr)
 require(tidyr)
 require(stringr)
 require(dtplyr)
-require(broom)
-require(brms)
 require(mgcv)
 require(ggplot2)
 require(geofacet)
@@ -22,6 +19,7 @@ require(readr)
 require(slider)
 require(colorspace)
 require(ggstance)
+source("Utility_functions.R")
 
 
 # setup -------------------------------------------------------------------
@@ -33,22 +31,6 @@ mygrid <- data.frame(
   code = c(" 1", " 1", " 2", " 3", " 8", " 4", " 5", " 6", " 7", " 9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "30", "29", "31"),
   stringsAsFactors = FALSE
 )
-
-# Function to rasterize all dates. Creates a 3D raster Latitude x Longitude x Date 
-Rasterize_all <- function(data, var, region=Delta, out_crs=4326, n=100){
-  var<-rlang::enquo(var)
-  rlang::as_name(var)
-  preds<-map(unique(data$Date), function(x) st_rasterize(data%>%
-                                                           filter(Date==x)%>%
-                                                           dplyr::select(!!var), 
-                                                         template=st_as_stars(st_bbox(region), dx=diff(st_bbox(region)[c(1, 3)])/n, dy=diff(st_bbox(region)[c(2, 4)])/n, values = NA_real_))%>%
-               st_warp(crs=out_crs))
-  
-  # Then bind all dates together into 1 raster
-  out <- exec(c, !!!preds, along=list(Date=unique(data$Date)))
-  return(out)
-}
-
 
 # Runoff models -----------------------------------------------------------
 
@@ -321,6 +303,16 @@ D2_gam_AR5 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,
                     s(Time_num_s, k=5), family=scat, rho=D2r3, AR.start=Start, data = Data_D2, method="fREML", discrete=T, nthreads=3)
 ##### Model predictions are almost identical, so picking D2_gam_AR as best model. 
 
+
+## Autocorrelation ---------------------------------------------------------
+
+######### STILL NEED TO DO THIS ######################
+p_D2_variogram<-ST_variogram(D2_gam_AR4, Data_D2, 4)
+
+ggsave(p_D2_variogram, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Inflow model variogram.png",
+       device="png", width=8, height=5, units="in")
+
+
 ## Set up model predictions -------------------------------------------------
 
 newdata<-readRDS("Temperature analysis/Prediction Data.Rds")
@@ -389,7 +381,14 @@ p_D2_gam<-ggplot()+
 ggsave(p_D2_gam, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/inflow temp.png",
        device="png", width=7, height=5, units="in")
 
-#### Create dataframe of slope deviations for each month and region --------
+### Model validation ----------------
+
+p_D2_check<-model_validation(D2_gam_AR4, Data_D2$Temperature)
+
+ggsave(p_D2_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Inflow model validation.png",
+       device="png", width=10, height=7, units="in")
+
+#### Create dataframe of slopes for each month and region --------
 
 Slope_summary<-D2_newdata%>%
   mutate(Slope=D2_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):TOT_mean30_s_month"],
@@ -528,6 +527,13 @@ ggsave(p_D2_CC_gam_D, filename="C:/Users/sbashevkin/deltacouncil/Science Extrane
        device="png", width=7, height=5, units="in")
 
 
+## Model validation -----------------
+
+p_D2_CC_check<-model_validation(D2_CC_gam_AR, Data_D2$Temperature)
+
+ggsave(p_D2_CC_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Inflow_cc model validation.png",
+       device="png", width=10, height=7, units="in")
+
 # Use salinity instead of geography ---------------------------------------
 
 
@@ -598,7 +604,7 @@ Data_D3<-Data_D3_pre%>%
   filter(Source%in%c("EMP", "STN", "FMWT", "DJFMP", "SKT", "20mm", "Suisun", "Baystudy", "USGS") & !str_detect(Station, "EZ") & 
            !(Source=="SKT" & Station=="799" & Latitude>38.2) & !(Source=="SKT" & Station=="999"))%>%
   group_by(SubRegion)%>%
-  mutate(Sal_sd=sd(Salinity), Sal_ext=Salinity/Sal_sd)%>%
+  mutate(Sal_sd=sd(Salinity), Sal_ext=(Salinity-mean(Salinity))/Sal_sd)%>%
   ungroup()%>%
   filter(Sal_ext<10)%>%
   mutate(Station=paste(Source, Station),
@@ -647,10 +653,10 @@ D3_gam_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1
                    te(Salinity_s, Julian_day_s, bs=c("tp", "cc"), k=c(15, 13), by=TOT_mean30_s_month) + 
                     s(Time_num_s, k=5), family=scat, rho=D3r, AR.start=Start, data = Data_D3, method="fREML", discrete=T, nthreads=2)
 
-D3_newdata<-expand_grid(Salinity_s=seq(min(Data_D3$Salinity_s), max(Data_D3$Salinity_s), length.out=100),
+D3_newdata<-expand_grid(Salinity=seq(quantile(Data_D3$Salinity, probs=0.05), quantile(Data_D3$Salinity, probs=0.95), length.out=100),
                         Julian_day=yday(ymd(paste("2001", 1:12, "15", sep="-"))))%>%
   mutate(Julian_day_s=(Julian_day-mean(Data_D3$Julian_day))/sd(Data_D3$Julian_day),
-         Salinity=Salinity_s*sd(Data_D3$Salinity)+mean(Data_D3$Salinity),
+         Salinity_s=(Salinity-mean(Data_D3$Salinity))/sd(Data_D3$Salinity),
          Latitude_s=0,
          Longitude_s=0,
          TOT_mean30_s_month=2,
@@ -692,6 +698,13 @@ p_D3<-ggplot(D3_newdata_pred, aes(x=Salinity, y=Slope, ymin=Slope_l99.9, ymax=Sl
 
 ggsave(p_D3, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/inflow temp by salinity.png",
        device="png", width=7, height=5, units="in")
+
+### Model validation
+
+p_D3_check<-model_validation(D3_gam_AR, Data_D3$Temperature)
+
+ggsave(p_D3_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Inflow salinity model validation.png",
+       device="png", width=10, height=7, units="in")
 
 ### Now plot the salinity field  ----------------------------------
 

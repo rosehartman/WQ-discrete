@@ -21,6 +21,7 @@ require(itsadug)
 require(colorspace)
 require(patchwork)
 require(ggstance)
+source("Utility_functions.R")
 
 # Create overall dataset --------------------------
 
@@ -454,29 +455,14 @@ Slope_summary<-CC_newdata%>%
          Slope_se_mult=Slope/Slope_se_mean)
 #saveRDS(Slope_summary, "Temperature analysis/Slope summary.Rds")
 
-# Function to rasterize all dates. Creates a 3D raster Latitude x Longitude x Date 
-Rasterize_all <- function(data, var, out_crs=4326, n=100){
-  var<-rlang::enquo(var)
-  rlang::as_name(var)
-  preds<-map(unique(data$Date), function(x) st_rasterize(data%>%
-                                                           filter(Date==x)%>%
-                                                           dplyr::select(!!var), 
-                                                         template=st_as_stars(st_bbox(Delta), dx=diff(st_bbox(Delta)[c(1, 3)])/n, dy=diff(st_bbox(Delta)[c(2, 4)])/n, values = NA_real_))%>%
-               st_warp(crs=out_crs))
-  
-  # Then bind all dates together into 1 raster
-  out <- exec(c, !!!preds, along=list(Date=unique(data$Date)))
-  return(out)
-}
-
-newdata_CC_pred_rast<-Rasterize_all(newdata_CC_pred, Slope)
+newdata_CC_pred_rast<-Rasterize_all(newdata_CC_pred, Slope, region=Delta)
 
 # Create background raster of all locations
 base<-CC_newdata%>%
   mutate(Date=parse_date_time(paste(Year, Month, "15", sep="-"), "%Y-%m-%d"))%>%
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326)%>%
   st_transform(crs=st_crs(Delta))%>%
-  Rasterize_all(Location)%>%
+  Rasterize_all(Location, region=Delta)%>%
   st_as_sf(long=T, connect8=T)%>%
   filter(!is.na(Location))
 
@@ -509,7 +495,7 @@ newdata_CC_pred_all<-CC_newdata%>%
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)%>%
   st_transform(crs=st_crs(Delta))
 
-newdata_CC_pred_all_rast<-Rasterize_all(newdata_CC_pred_all, Slope)
+newdata_CC_pred_all_rast<-Rasterize_all(newdata_CC_pred_all, Slope, region=Delta)
 
 p_CC_gam_all<-ggplot()+
   geom_sf(data=base, color=NA, fill="gray80", lwd=0)+
@@ -638,7 +624,7 @@ newdata_CC_pred_AR8<-CC_newdata%>%
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)%>%
   st_transform(crs=st_crs(Delta))
 
-newdata_CC_pred_rast_AR8<-Rasterize_all(newdata_CC_pred_AR8, Slope)
+newdata_CC_pred_rast_AR8<-Rasterize_all(newdata_CC_pred_AR8, Slope, region=Delta)
 
 p_CC_gam_AR8<-ggplot()+
   geom_sf(data=base, color=NA, fill="gray80", lwd=0)+
@@ -658,42 +644,8 @@ ggsave(p_CC_gam_AR8, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet
 
 # Recreate gam check plots ------------------------------------------------
 
-#QQ plot
-CC_gam8d7b_AR7_sum<-summary(CC_gam8d7b_AR7)
-resids <- resid_gam(CC_gam8d7b_AR7, incl_na=TRUE)
-quantiles<-qq.gam(CC_gam8d7b_AR7)
-qq_data<-as_tibble(qqplot(quantiles, resids, plot.it=FALSE))
 
-p_qq<-ggplot(qq_data, aes(x=x, y=y))+
-  geom_abline(intercept=0, slope=1, color="firebrick3", size=1)+
-  geom_point(size=0.5)+
-  xlab("Theoretical quantiles")+
-  ylab("Residuals")+
-  theme_bw()
-
-p_hist<-ggplot(data.frame(Residuals=resids), aes(x=Residuals))+
-  geom_histogram()+
-  scale_y_continuous(expand=expansion(mult=c(0,0.1)))+
-  theme_bw()
-
-linpred<-napredict(CC_gam8d7b_AR7$na.action, CC_gam8d7b_AR7$linear.predictors)
-
-p_pred_resid<-ggplot(tibble(Predictor=linpred, Residuals=resids), aes(x=Predictor, y=Residuals))+
-  geom_point(size=0.5)+
-  xlab("Linear predictor")+
-  theme_bw()
-
-fitted<-predict(CC_gam8d7b_AR7, type = "response")
-
-p_fitted_resid<-ggplot(data=tibble(Fitted=fitted, Response=Data_CC4.3$Temperature), aes(x=Fitted, y=Response))+
-  geom_point(size=0.5)+
-  annotate("label", x=10, y=30, label=paste0("R^2 == ", round(CC_gam8d7b_AR7_sum$r.sq, 4)), parse=T)+
-  xlab("Fitted values")+
-  theme_bw()
-
-require(patchwork)
-
-p_check<-(p_qq|p_pred_resid)/(p_hist|p_fitted_resid)+plot_annotation(tag_levels="A")
+p_check<-model_validation(CC_gam8d7b_AR7, Data_CC4.3$Temperature)
 
 ggsave(p_check, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Climate change model validation.png",
        device="png", width=10, height=7, units="in")
@@ -797,7 +749,7 @@ model_predictor<-function(start_year, sig="filter"){
 
 preds_period<-map_dfr(start_years, model_predictor)
 
-preds_period_rast<-Rasterize_all(preds_period, Slope)
+preds_period_rast<-Rasterize_all(preds_period, Slope, region=Delta)
 
 base_period<-CC_newdata_period%>%
   pivot_longer(all_of(paste0("Sampled_", start_years)), names_to="Period", values_to="Sampled")%>%
@@ -806,7 +758,7 @@ base_period<-CC_newdata_period%>%
   filter(Sampled)%>%
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326)%>%
   st_transform(crs=st_crs(Delta))%>%
-  Rasterize_all(Location)%>%
+  Rasterize_all(Location, region=Delta)%>%
   st_as_sf(long=T)%>%
   filter(!is.na(Location))
 
@@ -991,6 +943,34 @@ P_PHRA_slopes<-ggplot(PHRA_slopes)+
 p_PHRA<-p_map+P_PHRA_slopes+plot_layout(ncol=2, widths = c(1,1))+ plot_annotation(tag_levels = "A")
 
 
+# Plot our climate change signal relative to other systems ----------------
+
+Slope_stats<-CC_newdata%>%
+  mutate(Slope=CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
+         Slope_se=CC_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"])%>%
+  mutate(across(c(Slope, Slope_se), ~(.x/Year_s)/sd(Data$Year)))%>%
+  mutate(Slope_se=abs(Slope_se))
+
+CC_trends<-tibble(Location=c("San Francisco Estuary\naverage (our study)", "San Francisco Estuary Air", "Mallard Island", "Confluence (our study)", "Hudson River", "Chesapeake", "Narragansett Bay"),
+                  Slope=c(mean(Slope_stats$Slope), NA_real_, 0.007, mean(filter(Slope_stats, SubRegion=="Confluence")$Slope), 0.015, rep(NA_real_, 2)),
+                  Slope_sd=c(sd(Slope_stats$Slope), rep(NA_real_, 2), sd(filter(Slope_stats, SubRegion=="Confluence")$Slope), rep(NA_real_, 3)),
+                  Min=c(NA_real_, 0.009, rep(NA_real_, 3), 0.021, 0.027),
+                  Max=c(NA_real_, 0.016, rep(NA_real_, 3), 0.04, 0.032))%>%
+  mutate(Location=factor(Location, levels=Location))
+
+p_other_slopes<-ggplot(CC_trends)+
+  geom_point(aes(x=Location, y=Slope))+
+  geom_linerange(aes(x=Location, ymin=Slope-Slope_sd, ymax=Slope+Slope_sd))+
+  geom_point(aes(x=Location, y=Min))+
+  geom_point(aes(x=Location, y=Max))+
+  geom_segment(aes(x=Location, xend=Location, y=Min, yend=Max))+
+  scale_y_continuous(limits=c(0,0.05), expand = expansion(0,0))+
+  ylab("Temperature change per year (°C)")+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank())
+
+ggsave(p_other_slopes, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Slope comparison.png",
+       device="png", width=4, height=4, units="in")
 
 # Visualize raw climate change signal -------------------------------------
 
