@@ -20,6 +20,13 @@ require(slider)
 require(colorspace)
 require(ggstance)
 source("Utility_functions.R")
+options(scipen=999)
+
+# TODO
+## 1) Finish fixing Data_D3, including setting up predicted data using centering and scaling specific to Data_D3
+## 2) Rerun salinity models and validations
+## 3) Fit variograms
+
 
 
 # setup -------------------------------------------------------------------
@@ -32,215 +39,6 @@ mygrid <- data.frame(
   stringsAsFactors = FALSE
 )
 
-# Runoff models -----------------------------------------------------------
-
-
-WY<-waterYearType::water_year_indices%>%
-  bind_rows(tibble(WY=rep(c(2018, 2019), each=2), location=rep(c("Sacramento Valley", "San Joaquin Valley"), 2), 
-                   Index=c(7.14, 3.03, 10.34, 4.94), WYsum=c(12.86, 4.76, 24.77, 9.28)))%>% # Add data for 2018 and 2019
-  group_by(WY)%>%
-  summarise(Index=sum(Index), WYsum=sum(WYsum), .groups="drop")
-
-Data_D<-readRDS("Temperature analysis/Data_CC4.Rds")%>%
-  mutate(WY=Year)%>%
-  mutate(WY=if_else(Month%in%10:12, WY+1, WY))%>%
-  left_join(WY, by="WY")%>%
-  filter(!is.na(WYsum))%>%
-  arrange(Station, Date)%>%
-  group_by(Station)%>%
-  mutate(Lag=Date-lag(Date, order_by = Date))%>%
-  ungroup()%>%
-  mutate(Start=if_else(is.na(Lag) | Lag>3600*24*60, TRUE, FALSE),
-         Series_ID=1:n(),
-         Series_ID=if_else(Start, Series_ID, NA_integer_),
-         Series_ID=as.integer(as.factor(Series_ID)))%>%
-  fill(Series_ID, .direction="down")%>%
-  mutate(WYsum_c=WYsum-mean(WYsum),
-         WY_s=(WY-mean(unique(WY)))/sd(unique(WY)))
-
-Delta<-st_read("Delta Subregions")%>%
-  select(SubRegion)%>%
-  filter(SubRegion%in%unique(Data_D$SubRegion))
-
-D_gam_NOAR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
-                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=WYsum_c) + 
-                    s(Time_num_s, k=5), family=scat, data = Data_D, method="fREML", discrete=T, nthreads=3)
-r <- start_value_rho(D_gam_NOAR, plot=TRUE)
-
-
-# Best model
-D_gam_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
-                  te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=WYsum_c) + 
-                  s(Time_num_s, k=5), family=scat, rho=r, AR.start=Start, data = Data_D, method="fREML", discrete=T, nthreads=3)
-#AIC: 195059.8
-#AIC: 195059.8
-
-# Best model
-
-D_gam_AR2 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(50, 13)) + 
-                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=WYsum_c) + 
-                   s(Time_num_s, k=5), family=scat, rho=r, AR.start=Start, data = Data_D, method="fREML", discrete=T, nthreads=3)
-#AIC: 194590.7
-#BIC: 199277.9
-
-# D_gam_AR2 has a better AIC value but worse BIC and model predictions are almost identical, so picking D_gam_AR as best model. 
-
-
-# Now try adding a temperature term
-D_gam_NOAR2 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
-                     te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=WYsum_c) + 
-                     te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=WY_s) + 
-                     s(Time_num_s, k=5), family=scat, data = Data_D, method="fREML", discrete=T, nthreads=3)
-r2 <- start_value_rho(D_gam_NOAR2, plot=TRUE)
-
-## Best
-D_gam_AR3 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
-                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=WYsum_c) + 
-                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=WY_s) + 
-                   s(Time_num_s, k=5), family=scat, rho=r2, AR.start=Start, data = Data_D, method="fREML", discrete=T, nthreads=3)
-##Best
-
-D_gam_AR4 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(50, 13)) + 
-                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=WYsum_c) + 
-                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=WY_s) + 
-                   s(Time_num_s, k=5), family=scat, rho=r2, AR.start=Start, data = Data_D, method="fREML", discrete=T, nthreads=3)
-# Just as before, adding higher k does not change model predictions
-
-# Does the order of the terms matter?
-
-D_gam_AR5 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
-                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=WY_s) + 
-                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=WYsum_c) + 
-                   s(Time_num_s, k=5), family=scat, rho=r2, AR.start=Start, data = Data_D, method="fREML", discrete=T, nthreads=3)
-
-# No, predictions still identical
-##Just as before, no benefit to increased k. Predictions are identical.
-
-# Predict effect
-
-newdata<-readRDS("Temperature analysis/Prediction Data.Rds")
-D_newdata<-newdata%>%
-  st_drop_geometry()%>%
-  as_tibble()%>%
-  select(-Year_fac, -Year, -Year_s, -N,)%>%
-  distinct()%>%
-  mutate(WYsum_c=10,
-         WY_s=2)
-
-D_pred<-predict(D_gam_AR, newdata=D_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
-
-D_newdata_pred<-D_newdata%>%
-  mutate(Slope=D_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):WYsum_c"],
-         Slope_se=D_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):WYsum_c"],
-         Intercept=D_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s)"]+D_pred$fit[,"s(Time_num_s)"],
-  )%>%
-  mutate(across(c(Slope, Slope_se), ~(.x/WYsum_c)))%>%
-  mutate(Slope_se=abs(Slope_se))%>%
-  mutate(Date=as.Date(Julian_day, origin=as.Date(paste("2000", "01", "01", sep="-"))),
-         Month=month(Date, label = T),
-         Slope_l95=Slope-Slope_se*qnorm(0.995),
-         Slope_u95=Slope+Slope_se*qnorm(0.995))%>%
-  mutate(Sig=if_else(Slope_u95>0 & Slope_l95<0, "ns", "*"))%>%
-  filter(Sig=="*")%>%
-  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)%>%
-  st_transform(crs=st_crs(Delta))
-
-newdata_D_pred_rast<-Rasterize_all(D_newdata_pred, Slope)
-
-p_D_gam<-ggplot()+
-  geom_stars(data=newdata_D_pred_rast)+
-  facet_wrap(~month(Date, label=T), drop=F)+
-  scale_fill_continuous_diverging(palette="Blue-Red 3", breaks=(-15:7)/100, na.value = "white",
-                                  name="Temperature change\nper change in\ntotal runoff (°C/maf)", guide=guide_colorbar(barheight=20))+
-  ylab("Latitude")+
-  xlab("Longitude")+
-  coord_sf()+
-  theme_bw()+
-  theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
-
-ggsave(p_D_gam, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/D_gam 12.17.20.png",
-       device="png", width=7, height=5, units="in")
-
-# Has runoff changed over time?
-
-runoff_year<-Data_D%>%
-  select(WYsum, WY)%>%
-  distinct()
-
-p_runoff<-ggplot(runoff_year, aes(x=WY, y=WYsum))+
-  geom_point()+
-  ylab("Total Sac + SJ runoff (maf)")+
-  theme_bw()
-
-ggsave(p_runoff, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/runoff year.png",
-       device="png", width=4, height=3, units="in")
-
-D_CC_pred<-predict(D_gam_AR3, newdata=D_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
-
-D_CC_newdata_pred<-D_newdata%>%
-  mutate(Slope=D_CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):WYsum_c"],
-         Slope_se=D_CC_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):WYsum_c"],
-         Intercept=D_CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s)"]+D_pred$fit[,"s(Time_num_s)"],
-  )%>%
-  mutate(across(c(Slope, Slope_se), ~(.x/WYsum_c)))%>%
-  mutate(Slope_se=abs(Slope_se))%>%
-  mutate(Date=as.Date(Julian_day, origin=as.Date(paste("2000", "01", "01", sep="-"))),
-         Month=month(Date, label = T),
-         Slope_l95=Slope-Slope_se*qnorm(0.995),
-         Slope_u95=Slope+Slope_se*qnorm(0.995))%>%
-  mutate(Sig=if_else(Slope_u95>0 & Slope_l95<0, "ns", "*"))%>%
-  filter(Sig=="*")%>%
-  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)%>%
-  st_transform(crs=st_crs(Delta))
-
-newdata_D_CC_pred_rast<-Rasterize_all(D_CC_newdata_pred, Slope)
-
-p_D_CC_gam<-ggplot()+
-  geom_stars(data=newdata_D_CC_pred_rast)+
-  facet_wrap(~month(Date, label=T), drop=F)+
-  scale_fill_continuous_diverging(palette="Blue-Red 3", breaks=(-15:7)/100, na.value = "white",
-                                  name="Temperature change\nper change in\ntotal runoff (°C/maf)", guide=guide_colorbar(barheight=20))+
-  ylab("Latitude")+
-  xlab("Longitude")+
-  coord_sf()+
-  theme_bw()+
-  theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
-
-ggsave(p_D_CC_gam, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/D_CC_gam WYsum 12.17.20.png",
-       device="png", width=7, height=5, units="in")
-
-D_CC_newdata_pred_CC<-D_newdata%>%
-  mutate(Slope=D_CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):WY_s"],
-         Slope_se=D_CC_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):WY_s"],
-         Intercept=D_CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s)"]+D_CC_pred$fit[,"s(Time_num_s)"])%>%
-  mutate(across(c(Slope, Slope_se), ~(.x/WY_s)/sd(unique(Data_D$WY))))%>%
-  mutate(Slope_se=abs(Slope_se))%>%
-  mutate(Date=as.Date(Julian_day, origin=as.Date(paste("2000", "01", "01", sep="-"))),
-         Month=month(Date, label = T),
-         Slope_l95=Slope-Slope_se*qnorm(0.995),
-         Slope_u95=Slope+Slope_se*qnorm(0.995))%>%
-  mutate(Sig=if_else(Slope_u95>0 & Slope_l95<0, "ns", "*"))%>%
-  filter(Sig=="*")%>%
-  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)%>%
-  st_transform(crs=st_crs(Delta))
-
-newdata_D_CC_pred_rast_CC<-Rasterize_all(D_CC_newdata_pred_CC, Slope)
-
-p_D_gam_CC<-ggplot()+
-  geom_stars(data=newdata_D_CC_pred_rast_CC)+
-  facet_wrap(~month(Date, label=T), drop=F)+
-  scale_fill_viridis_c(limits=c(-0.025, 0.065), breaks=(-6:7)/100, name="Temperature change\nper year (°C)", guide=guide_colorbar(barheight=20), na.value="white")+
-  ylab("Latitude")+
-  xlab("Longitude")+
-  coord_sf()+
-  theme_bw()+
-  theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
-
-ggsave(p_D_gam_CC, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/D_CC_gam WY 12.17.20.png",
-       device="png", width=7, height=5, units="in")
-# Very similar to climate change model output
-
-
 # Now using total inflow (QTOT) from Dayflow ------------------------------
 
 ## Create dataset ---------------------------------------------------------
@@ -252,14 +50,14 @@ dayflow<-read_csv(file.path("Temperature analysis", "data", "Dayflow1997 2019.cs
            PREC_acrefeetperday=(PREC*3600*24)/(43560),
            PREC_feetperday=if_else(Date>=parse_date_time("10/01/1980", "%m/%d/%Y", tz = "America/Los_Angeles"), PREC_acrefeetperday/682230, PREC_acrefeetperday/738000),
            PREC_CFS=(PREC_feetperday*682230*43560)/(3600*24))%>%
-  arrange(Date)
-
-
-dayflow$TOT_mean30<-slide_index_dbl(dayflow$TOT, dayflow$Date, .before=days(30), .f=mean, .complete = T)
-
-dayflow$TOT_mean7<-slide_index_dbl(dayflow$TOT, dayflow$Date, .before=days(7), .f=mean, .complete = T)
-
-dayflow$PREC_mean30<-slide_index_dbl(dayflow$PREC_CFS, dayflow$Date, .before=days(30), .f=mean, .complete = T)
+  arrange(Date)%>%
+  mutate(TOT_mean30=slide_index_dbl(.$TOT, .$Date, .before=days(30), .f=mean, .complete = T),
+         PREC_mean30=slide_index_dbl(.$PREC, .$Date, .before=days(30), .f=mean, .complete = T),
+         Month=month(Date))%>%
+  group_by(Month)%>%
+  mutate(across(c(TOT_mean30, PREC_mean30), list(sd= ~sd(.x, na.rm=T), mean=~mean(.x, na.rm=T))))%>%
+  ungroup()%>%
+  select(-Month)
 
 Data_D2<-readRDS("Temperature analysis/Data_CC4.Rds")%>%
   mutate(WY=Year)%>%
@@ -275,45 +73,29 @@ Data_D2<-readRDS("Temperature analysis/Data_CC4.Rds")%>%
          Series_ID=if_else(Start, Series_ID, NA_integer_),
          Series_ID=as.integer(as.factor(Series_ID)))%>%
   fill(Series_ID, .direction="down")%>%
-  group_by(Month)%>%
-  mutate(across(c(TOT, TOT_mean7, TOT_mean30, PREC_mean30), list(c_month=~.x-mean(.x), s_month=~(.x-mean(.x))/sd(.x), monthmean=~mean(.x), monthsd=~sd(.x))))%>%
-  ungroup()%>%
-  mutate(across(c(TOT, TOT_mean7, TOT_mean30, PREC_mean30), list(c=~.x-mean(.x), s=~(.x-mean(.x))/sd(.x))))%>%
-  mutate(WY_s=(WY-mean(unique(WY)))/sd(unique(WY)))
+  mutate(across(c(TOT_mean30, PREC_mean30), list(s=~(.x-mean(.x))/sd(.x))))%>%
+  mutate(WY_s=(WY-mean(unique(WY)))/sd(unique(WY)),
+         TOT_mean30_s_month=(TOT_mean30-TOT_mean30_mean)/TOT_mean30_sd,
+         PREC_mean30_s_month=(PREC_mean30-PREC_mean30_mean)/PREC_mean30_sd)
   
 
 Delta2<-st_read("Delta Subregions")%>%
   select(SubRegion)%>%
   filter(SubRegion%in%unique(Data_D2$SubRegion))
 
-## Fit models ------------------------------------------------
 
-#### Try centered and standardized separately for each month
-D2_gam_NOAR3 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
-                      te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=TOT_mean30_s_month) + 
-                      s(Time_num_s, k=5), family=scat, data = Data_D2, method="fREML", discrete=T, nthreads=3)
-D2r3 <- start_value_rho(D2_gam_NOAR3, plot=TRUE)
+## First fit non-month adjusted models -------------------------------------
 
-D2_gam_AR4 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
-                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=TOT_mean30_s_month) + 
-                    s(Time_num_s, k=5), family=scat, rho=D2r3, AR.start=Start, data = Data_D2, method="fREML", discrete=T, nthreads=3)
+D2_nomonth_gam_NOAR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                     te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=TOT_mean30_s) + 
+                     s(Time_num_s, k=5), family=scat, data = Data_D2, method="fREML", discrete=T, nthreads=3)
+D2_nomonthr <- start_value_rho(D2_nomonth_gam_NOAR, plot=TRUE)
 
-D2_gam_AR5 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(50, 13)) + 
-                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=TOT_mean30_s_month) + 
-                    s(Time_num_s, k=5), family=scat, rho=D2r3, AR.start=Start, data = Data_D2, method="fREML", discrete=T, nthreads=3)
-##### Model predictions are almost identical, so picking D2_gam_AR as best model. 
+D2_nomonth_gam_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                   te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=TOT_mean30_s) + 
+                   s(Time_num_s, k=5), family=scat, rho=D2_nomonthr, AR.start=Start, data = Data_D2, method="fREML", discrete=T, nthreads=3)
 
-
-## Autocorrelation ---------------------------------------------------------
-
-######### STILL NEED TO DO THIS ######################
-p_D2_variogram<-ST_variogram(D2_gam_AR4, Data_D2, 4)
-
-ggsave(p_D2_variogram, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Inflow model variogram.png",
-       device="png", width=8, height=5, units="in")
-
-
-## Set up model predictions -------------------------------------------------
+### Set up model predictions -------------------------------------------------
 
 newdata<-readRDS("Temperature analysis/Prediction Data.Rds")
 
@@ -327,8 +109,7 @@ D2_newdata<-newdata%>%
   as_tibble()%>%
   select(-Year_fac, -Year, -Year_s, -N,)%>%
   distinct()%>%
-  mutate(TOT_mean30_c=50000,
-         TOT_mean30_s=2,
+  mutate(TOT_mean30_s=2,
          TOT_mean30_s_month=2,
          PREC_mean30_s_month=2,
          WY_s=2,
@@ -343,12 +124,79 @@ base<-D2_newdata%>%
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326)%>%
   st_transform(crs=st_crs(Delta2))%>%
   Rasterize_all(Location, region=Delta2)%>%
-  st_as_sf(long=T)%>%
+  st_as_sf(long=T, connect8=T)%>%
   filter(!is.na(Location))
 
-### Predict for main model D2_gam_AR4 -----------------------------------------
+### Predict for main model D2_nomonth_gam_AR -----------------------------------------
 
-D2_pred<-predict(D2_gam_AR4, newdata=D2_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
+D2_nomonth_pred<-predict(D2_nomonth_gam_AR, newdata=D2_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
+
+D2_nomonth_newdata_pred<-D2_newdata%>%
+  mutate(Slope=D2_nomonth_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):TOT_mean30_s"],
+         Slope_se=D2_nomonth_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):TOT_mean30_s"])%>%
+  mutate(across(c(Slope, Slope_se), ~(.x/TOT_mean30_s)/sd(Data_D2$TOT_mean30)))%>%
+  mutate(Slope_se=abs(Slope_se))%>%
+  mutate(Slope_l99.9=Slope-Slope_se*qnorm(0.9995),
+         Slope_u99.9=Slope+Slope_se*qnorm(0.9995),
+         Date=as.Date(Julian_day, origin=as.Date(paste("2000", "01", "01", sep="-"))),
+         Month=month(Date, label=T))%>%
+  mutate(Sig=if_else(Slope_u99.9>0 & Slope_l99.9<0, "ns", "*"))%>%
+  filter(Sig=="*")%>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)%>%
+  st_transform(crs=st_crs(Delta2))
+
+newdata_D2_nomonth_pred_rast<-Rasterize_all(D2_nomonth_newdata_pred, Slope, region=Delta2)
+
+p_D2_nomonth_gam<-predict_plot(data=newdata_D2_nomonth_pred_rast*100000, 
+                       base=base, 
+                       scale_fill_continuous_diverging, 
+                       guide=guide_colorbar(barheight=15), 
+                       na.value=NA, 
+                       palette="Blue-Red 3", 
+                       breaks=seq(-14, 6, by=2),
+                       name="Temperature change\nper change in\ntotal inflow\n(°C/100,000cfs)")
+
+ggsave(p_D2_nomonth_gam, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/inflow nomonth temp.png",
+       device="png", width=7, height=5, units="in")
+
+### Model validation ----------------
+
+p_D2_nomonth_check<-model_validation(D2_nomonth_gam_AR, Data_D2$Temperature)
+
+ggsave(p_D2_nomonth_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Inflow nomonth model validation.png",
+       device="png", width=10, height=7, units="in")
+
+## Fit month-adjusted models ------------------------------------------------
+
+#### Try centered and standardized separately for each month
+D2_gam_NOAR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                      te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=TOT_mean30_s_month) + 
+                      s(Time_num_s, k=5), family=scat, data = Data_D2, method="fREML", discrete=T, nthreads=3)
+D2r <- start_value_rho(D2_gam_NOAR, plot=TRUE)
+
+D2_gam_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=TOT_mean30_s_month) + 
+                    s(Time_num_s, k=5), family=scat, rho=D2r, AR.start=Start, data = Data_D2, method="fREML", discrete=T, nthreads=3)
+
+D2_gam_AR_higherk <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(50, 13)) + 
+                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=TOT_mean30_s_month) + 
+                    s(Time_num_s, k=5), family=scat, rho=D2r, AR.start=Start, data = Data_D2, method="fREML", discrete=T, nthreads=3)
+##### Model predictions are almost identical, so picking D2_gam_AR as best model. 
+
+
+## Autocorrelation ---------------------------------------------------------
+
+########STILL NEED TO DO####################
+
+p_D2_variogram<-ST_variogram(D2_gam_AR, Data_D2, 5)
+
+ggsave(p_D2_variogram, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Inflow model variogram.png",
+       device="png", width=8, height=5, units="in")
+
+
+### Predict for main model D2_gam_AR -----------------------------------------
+
+D2_pred<-predict(D2_gam_AR, newdata=D2_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
 
 D2_newdata_pred<-D2_newdata%>%
   mutate(Slope=D2_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):TOT_mean30_s_month"],
@@ -366,24 +214,21 @@ D2_newdata_pred<-D2_newdata%>%
 
 newdata_D2_pred_rast<-Rasterize_all(D2_newdata_pred, Slope, region=Delta2)
 
-p_D2_gam<-ggplot()+
-  geom_sf(data=base, color="gray90", fill="gray90")+
-  geom_stars(data=newdata_D2_pred_rast)+
-  facet_wrap(~month(Date, label=T), drop=F)+
-  scale_fill_continuous_diverging(palette="Blue-Red 3", breaks=seq(-12, 6, by=2)/10, na.value=NA,
-                                  name="Temperature change\nper change in\ntotal inflow (°C/monthly sd[cfs])", guide=guide_colorbar(barheight=20))+
-  ylab("Latitude")+
-  xlab("Longitude")+
-  coord_sf()+
-  theme_bw()+
-  theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
+p_D2_gam<-predict_plot(data=newdata_D2_pred_rast, 
+                       base=base, 
+                       scale_fill_continuous_diverging, 
+                       guide=guide_colorbar(barheight=15), 
+                       na.value=NA, 
+                       palette="Blue-Red 3", 
+                       breaks=seq(-12, 6, by=2)/10,
+                       name="Temperature change\nper change in\ntotal inflow\n(°C/monthly sd[cfs])")
 
 ggsave(p_D2_gam, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/inflow temp.png",
        device="png", width=7, height=5, units="in")
 
 ### Model validation ----------------
 
-p_D2_check<-model_validation(D2_gam_AR4, Data_D2$Temperature)
+p_D2_check<-model_validation(D2_gam_AR, Data_D2$Temperature)
 
 ggsave(p_D2_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Inflow model validation.png",
        device="png", width=10, height=7, units="in")
@@ -399,27 +244,28 @@ Slope_summary<-D2_newdata%>%
          Slope_u99.9=Slope+Slope_se*qnorm(0.9995),
          Date=as.Date(Julian_day, origin=as.Date(paste("2000", "01", "01", sep="-"))),
          Sig=if_else(Slope_u99.9>0 & Slope_l99.9<0, "ns", "*"))%>%
-  arrange(Month, SubRegion, Slope)
+  arrange(Month, SubRegion, Slope)%>%
+  group_by(Month, SubRegion)%>%
+  summarise(Slope_mean=mean(Slope), Slope_u99.9_max=max(Slope_u99.9), Slope_u99.9_min=min(Slope_u99.9), Slope_l99.9_max=min(Slope_l99.9), Slope_l99.9_min=max(Slope_l99.9), .groups="drop")
 
 P_slope_sum<-ggplot(Slope_summary)+
   geom_vline(xintercept=0)+
-  geom_linerange(aes(y=reorder(month(Month, label=T), desc(month(Month, label=T))), x=Slope, xmax=Slope_u99.9, xmin=Slope_l99.9, group=1:nrow(Slope_summary)), 
-                 position=position_dodgev(height=0.5))+
-  geom_point(aes(y=reorder(month(Month, label=T), desc(month(Month, label=T))), x=Slope, group=1:nrow(Slope_summary)), 
-             position=position_dodgev(height=0.5), size=0.5, color="dodgerblue1")+
-  facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen(width=15))+
+  geom_linerange(aes(y=reorder(month(Month, label=T), desc(month(Month, label=T))), xmax=Slope_l99.9_max, xmin=Slope_u99.9_max), size=1, color="#d7191c")+
+  geom_linerange(aes(y=reorder(month(Month, label=T), desc(month(Month, label=T))), xmax=Slope_l99.9_min, xmin=Slope_u99.9_min), size=2, color="#fdae61")+
+  geom_point(aes(y=reorder(month(Month, label=T), desc(month(Month, label=T))), x=Slope_mean), size=1, color="#2c7bb6")+
+  facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen(width=18))+
   scale_y_discrete(breaks=c("Jan", "Mar", "May", "Jul", "Sep", "Nov"))+
   ylab("Month")+
-  xlab("Temperature change per year (°C)")+
+  xlab("Temperature change per change in total inflow (°C/monthly sd[cfs])")+
   theme_bw()+
   theme(axis.text.x=element_text(angle=45, hjust=1), text=element_text(size=16), panel.background = element_rect(color="black"))
 
 ggsave(P_slope_sum, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Inflow all slopes.png",
-       device="png", width=15, height=28, units="in")
+       device="png", width=15, height=18, units="in")
 
-### Predict for higher k model D2_gam_AR5 -----------------------------------------
+### Predict for higher k model D2_gam_AR_higherk -----------------------------------------
 
-D2_pred_higherk<-predict(D2_gam_AR5, newdata=D2_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
+D2_pred_higherk<-predict(D2_gam_AR_higherk, newdata=D2_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
 
 D2_newdata_pred_higherk<-D2_newdata%>%
   mutate(Slope=D2_pred_higherk$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):TOT_mean30_s_month"],
@@ -437,19 +283,16 @@ D2_newdata_pred_higherk<-D2_newdata%>%
 
 newdata_D2_pred_higherk_rast<-Rasterize_all(D2_newdata_pred_higherk, Slope, region=Delta2)
 
-p_D2_gam_higherk<-ggplot()+
-  geom_sf(data=base, color="gray90", fill="gray90")+
-  geom_stars(data=newdata_D2_pred_higherk_rast)+
-  facet_wrap(~month(Date, label=T), drop=F)+
-  scale_fill_continuous_diverging(palette="Blue-Red 3", breaks=seq(-12, 6, by=2)/10, na.value=NA,
-                                  name="Temperature change\nper change in\ntotal inflow (°C/monthly sd[cfs])", guide=guide_colorbar(barheight=20))+
-  ylab("Latitude")+
-  xlab("Longitude")+
-  coord_sf()+
-  theme_bw()+
-  theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
+p_D2_gam_higherk<-predict_plot(data=newdata_D2_pred_higherk_rast, 
+                       base=base, 
+                       scale_fill_continuous_diverging, 
+                       guide=guide_colorbar(barheight=15), 
+                       na.value=NA, 
+                       palette="Blue-Red 3", 
+                       breaks=seq(-12, 6, by=2)/10,
+                       name="Temperature change\nper change in\ntotal inflow\n(°C/monthly sd[cfs])")
 
-ggsave(p_D2_gam, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/inflow temp higher k.png",
+ggsave(p_D2_gam_higherk, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/inflow temp higher k.png",
        device="png", width=7, height=5, units="in")
 
 
@@ -465,6 +308,17 @@ D2_CC_gam_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(
                     te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=TOT_mean30_s_month) + 
                       te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=WY_s) + 
                     s(Time_num_s, k=5), family=scat, rho=D2CCr, AR.start=Start, data = Data_D2, method="fREML", discrete=T, nthreads=2)
+
+## Autocorrelation ---------------------------------------------------------
+
+### STILL NEED TO DO ################
+
+p_D2_CC_variogram<-ST_variogram(D2_CC_gam_AR, Data_D2, 5)
+
+ggsave(p_D2_CC_variogram, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Inflow_CC model variogram.png",
+       device="png", width=8, height=5, units="in")
+
+## Predict ------------------------------------------------------------------
 
 D2_CC_pred<-predict(D2_CC_gam_AR, newdata=D2_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
 
@@ -497,31 +351,25 @@ newdata_D2_CC_pred_rast_CC<-D2_CC_newdata_pred%>%
   st_transform(crs=st_crs(Delta2))%>%
   Rasterize_all(Slope_CC, region=Delta2)
 
-p_D2_CC_gam_D<-ggplot()+
-  geom_sf(data=base, color="gray90", fill="gray90")+
-  geom_stars(data=newdata_D2_CC_pred_rast_D)+
-  facet_wrap(~month(Date, label=T), drop=F)+
-  scale_fill_continuous_diverging(palette="Blue-Red 3", breaks=seq(-12, 6, by=2)/10, na.value=NA,
-                                  name="Temperature change\nper change in\ntotal inflow (°C/monthly sd[cfs])", guide=guide_colorbar(barheight=20))+
-  ylab("Latitude")+
-  xlab("Longitude")+
-  coord_sf()+
-  theme_bw()+
-  theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
+p_D2_CC_gam_D<-predict_plot(data=newdata_D2_CC_pred_rast_D, 
+                       base=base, 
+                       scale_fill_continuous_diverging, 
+                       guide=guide_colorbar(barheight=15), 
+                       na.value=NA, 
+                       palette="Blue-Red 3", 
+                       breaks=seq(-12, 6, by=2)/10,
+                       name="Temperature change\nper change in\ntotal inflow\n(°C/monthly sd[cfs])")
 
 ggsave(p_D2_CC_gam_D, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/inflow temp inflow_CC model.png",
        device="png", width=7, height=5, units="in")
 
-p_D2_CC_gam_CC<-ggplot()+
-  geom_sf(data=base, color="gray90", fill="gray90")+
-  geom_stars(data=newdata_D2_CC_pred_rast_CC)+
-  facet_wrap(~month(Date, label=T), drop=F)+
-  scale_fill_viridis_c(breaks=(-6:7)/100, name="Temperature change\nper year (°C)", guide=guide_colorbar(barheight=20), na.value=NA)+
-  ylab("Latitude")+
-  xlab("Longitude")+
-  coord_sf()+
-  theme_bw()+
-  theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
+p_D2_CC_gam_CC<-predict_plot(data=newdata_D2_CC_pred_rast_CC, 
+                            base=base, 
+                            scale_fill_viridis_c, 
+                            guide=guide_colorbar(barheight=15), 
+                            na.value=NA, 
+                            breaks=(-6:7)/100, 
+                            name="Temperature change\nper year (°C)")
 
 ggsave(p_D2_CC_gam_D, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/climate change signal inflow_CC model.png",
        device="png", width=7, height=5, units="in")
@@ -531,7 +379,7 @@ ggsave(p_D2_CC_gam_D, filename="C:/Users/sbashevkin/deltacouncil/Science Extrane
 
 p_D2_CC_check<-model_validation(D2_CC_gam_AR, Data_D2$Temperature)
 
-ggsave(p_D2_CC_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Inflow_cc model validation.png",
+ggsave(p_D2_CC_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Inflow_CC model validation.png",
        device="png", width=10, height=7, units="in")
 
 # Use salinity instead of geography ---------------------------------------
@@ -635,11 +483,9 @@ Data_D3<-Data_D3_pre%>%
          Series_ID=if_else(Start, Series_ID, NA_integer_),
          Series_ID=as.integer(as.factor(Series_ID)))%>%
   fill(Series_ID, .direction="down")%>%
-  group_by(Month)%>%
-  mutate(across(c(TOT, TOT_mean7, TOT_mean30), list(c_month=~.x-mean(.x), s_month=~(.x-mean(.x))/sd(.x), monthmean=~mean(.x), monthsd=~sd(.x))))%>%
-  ungroup()%>%
-  mutate(across(c(TOT, TOT_mean7, TOT_mean30, Salinity, Longitude, Latitude, Time_num, Julian_day), list(c=~.x-mean(.x), s=~(.x-mean(.x))/sd(.x))))%>%
-  mutate(WY_s=(WY-mean(unique(WY)))/sd(unique(WY)))
+  mutate(across(c(TOT_mean30, Salinity, Time_num, Julian_day), list(s=~(.x-mean(.x))/sd(.x))))%>%
+  mutate(WY_s=(WY-mean(unique(WY)))/sd(unique(WY)),
+         TOT_mean30_s_month=(TOT_mean30-TOT_mean30_mean)/TOT_mean30_sd)
 
 # Tried log(x+1) transforming salinity prior to use in these analyses, but results were similar to just using salinity. Using a smaller constant
 # like log(x+0.01) was producing weird results
@@ -652,6 +498,16 @@ D3r <- start_value_rho(D3_gam_NOAR, plot=TRUE)
 D3_gam_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
                    te(Salinity_s, Julian_day_s, bs=c("tp", "cc"), k=c(15, 13), by=TOT_mean30_s_month) + 
                     s(Time_num_s, k=5), family=scat, rho=D3r, AR.start=Start, data = Data_D3, method="fREML", discrete=T, nthreads=2)
+
+## Autocorrelation ---------------------------------------------------------
+
+#############STILL NEED TO DO ##########################################
+p_D3_variogram<-ST_variogram(D3_gam_AR, Data_D3, 5)
+
+ggsave(p_D3_variogram, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Inflow salinity model variogram.png",
+       device="png", width=8, height=5, units="in")
+
+## Predict -----------------------------------------------------------------
 
 D3_newdata<-expand_grid(Salinity=seq(quantile(Data_D3$Salinity, probs=0.05), quantile(Data_D3$Salinity, probs=0.95), length.out=100),
                         Julian_day=yday(ymd(paste("2001", 1:12, "15", sep="-"))))%>%
@@ -716,6 +572,32 @@ D3_gam_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1
                    te(Salinity_l_s, Julian_day_s, bs=c("tp", "cc"), k=c(15, 13), by=TOT_mean30_s_month) + 
                    s(Time_num_s, k=5), family=scat, rho=D3r, AR.start=Start, data = Data_D3, method="fREML", discrete=T, nthreads=2)
 
+
+
+# Plot monthly sd of inflow for each dataset ------------------------------
+
+inflow_month<-Data_D2%>%
+  select(Month, TOT_mean30_monthmean, TOT_mean30_monthsd)%>%
+  distinct()%>%
+  mutate(Dataset="Models 1 & 2 (spatial)")%>%
+  bind_rows(Data_D3%>%
+              select(Month, TOT_mean30_monthmean, TOT_mean30_monthsd)%>%
+              distinct()%>%
+              mutate(Dataset="Model 3 (salinity)"))%>%
+  mutate(Dataset=factor(Dataset, levels=c("Models 1 & 2 (spatial)", "Model 3 (salinity)")))
+
+p_inflow_month<-ggplot(inflow_month, aes(x=month(Month, label=T), y=TOT_mean30_monthmean, ymin=TOT_mean30_monthmean-TOT_mean30_monthsd, 
+                                         ymax=TOT_mean30_monthmean+TOT_mean30_monthsd, fill=Dataset))+
+  geom_pointrange(position=position_dodge(width=0.4), shape=21, color="black")+
+  scale_fill_viridis_d()+
+  scale_y_continuous(labels = function(x) format(x, big.mark = ","))+
+  ylab("30 day lagged mean inflow (cfs)")+
+  xlab("Month")+
+  theme_bw()+
+  theme(legend.position=c(0.75, 0.85), legend.background=element_rect(color="black"))
+
+ggsave(p_inflow_month, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Inflow monthly variability.png",
+       device="png", width=5, height=4, units="in")
 
 # Now try precipitation ---------------------------------------------------
 

@@ -501,7 +501,7 @@ p_CC_gam_all<-ggplot()+
   geom_sf(data=base, color=NA, fill="gray80", lwd=0)+
   geom_stars(data=newdata_CC_pred_all_rast)+
   facet_wrap(~month(Date, label=T), drop=F)+
-  scale_fill_viridis_c(breaks=(-6:7)/100, name="Temperature change\nper year (°C)", guide=guide_colorbar(barheight=20), na.value=NA)+
+  scale_fill_viridis_c(breaks=(-6:7)/100, name="Temperature change\nper year (°C)", na.value=NA)+
   ylab("Latitude")+
   xlab("Longitude")+
   coord_sf()+

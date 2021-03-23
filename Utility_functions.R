@@ -75,8 +75,8 @@ ST_variogram<-function(model, data, cores){
   
   norm_resids<-resid_gam(model, incl_na=TRUE)
   
-  Data_vario<-model%>%
-    mutate(Resid=norm_resids$norm_res)
+  Data_vario<-data%>%
+    mutate(Resid=norm_resids)
   
   Data_coords<-Data_vario%>%
     st_as_sf(coords=c("Longitude", "Latitude"), crs=4326)%>%
@@ -115,4 +115,20 @@ ST_variogram<-function(model, data, cores){
   p_variogram<-p_time/p_space+plot_annotation(tag_levels="A")
   
   return(p_variogram)
+}
+
+predict_plot<-function(data, base, scale_fun, ...){
+  require(ggplot2)
+  
+  ggplot()+
+    geom_sf(data=base, color=NA, fill="gray80", lwd=0)+
+    geom_stars(data=data)+
+    facet_wrap(~month(Date, label=T), drop=F)+
+    scale_fun(...)+
+    ylab("Latitude")+
+    xlab("Longitude")+
+    coord_sf()+
+    theme_bw()+
+    theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
+  
 }
