@@ -92,7 +92,7 @@ EMLassemblyline::make_eml(
   maintenance.description = "ongoing", 
   data.table = c("Delta_Integrated_WQ.csv", "Delta_Integrated_WQ_metadata.csv"), 
   data.table.description = c("Integrated water quality database", "Information on each survey included in the integrated database"),
-  data.table.quote.character='"',
+  data.table.quote.character=c('"','"'),
   user.id = "sbashevkin",
   user.domain = "EDI", 
   package.id = "edi.731.1")

@@ -22,7 +22,7 @@
       <electronicMailAddress>sam.bashevkin@deltacouncil.ca.gov</electronicMailAddress>
       <userId directory="https://orcid.org">https://orcid.org/0000-0001-7406-7089</userId>
     </creator>
-    <pubDate>2021-02-18</pubDate>
+    <pubDate>2021-03-23</pubDate>
     <abstract>
       <para>
   The upper San Francisco Estuary (SFE) is simultaneously a central hub
@@ -50701,7 +50701,7 @@
   measurements in the San Francisco Estuary, we combined data from 11
   boat-based surveys with the R statistical programming language (R Core
   Team 2020). The data integration code was packaged into the R package
-  discretewq: https://github.com/sbashevkin/discretewq.
+  discretewq: https://github.com/sbashevkin/discretewq (Bashevkin 2021).
 </para>
           <para>
   The surveys included in the integrated database are long-term
@@ -50835,9 +50835,16 @@
   stations), we retained any coordinates that were recorded during the
   field sampling. To remove duplicate values from the dataset, only one
   set of values was retained for each recorded date, time, and location.
+  All data integration code can be found in the discretewq R package
+  (https://github.com/sbashevkin/discretewq; Bashevkin 2021).
 </para>
           <para>
   4. Literature cited
+</para>
+          <para>
+  Bashevkin, S. M. 2021. discretewq: An Integrated Dataset of Discrete
+  Water Quality in the San Francisco Estuary. Zenodo.
+  doi:10.5281/zenodo.4631924
 </para>
           <para>
   Fofonoff, N. P., and R. C. Millard Jr. 1983. Algorithms for the
