@@ -322,7 +322,7 @@ sim_test_processer<-function(sim_results, data_type, model_type){
     ylab("Model-estimated slope (Temperature change per year [°C])")+
     theme_bw()+
     {if(model_type=="NULL"){
-      theme(strip.background = element_blank(), plot.title = element_text(hjust = 0.5), legend.position = "none")
+      theme(strip.background = element_blank(), plot.title = element_text(hjust = 0.5), legend.position = "none", axis.text.x=element_text(angle=45, hjust=1))
     }else{
       theme(strip.background = element_blank(), plot.title = element_text(hjust = 0.5))
     }}
@@ -344,7 +344,7 @@ sim_test_processer<-function(sim_results, data_type, model_type){
     ylab("'True' slope (Temperature change per year [°C])")+
     ggtitle(title)+
     theme_bw()+
-    theme(strip.background = element_blank(), plot.title = element_text(hjust = 0.5))
+    theme(strip.background = element_blank(), plot.title = element_text(hjust = 0.5), axis.text.x=element_text(angle=45, hjust=1))
   
   return(list(Estimation=p1, Significance=p2))
 }
@@ -381,15 +381,15 @@ p_sim_balanced_NULL<-sim_test_processer(sim_results_stations_NULL_balanced, "bal
 ## Create final graphs ----------------------------------------
 p_sim_CC_estimation<-p_sim_unbalanced_CC$Estimation/p_sim_balanced_CC$Estimation+plot_annotation(tag_levels="A")+plot_layout(guides="collect")
 
-ggsave(p_sim_CC_estimation, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Slope_sim_CC.png",
+ggsave(p_sim_CC_estimation, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Slope_sim_CC.png",
        device="png", width=10, height=10, units="in")
 
 p_sim_NULL_estimation<-p_sim_unbalanced_NULL/p_sim_balanced_NULL+plot_annotation(tag_levels="A")+plot_layout(guides="collect")
 
-ggsave(p_sim_NULL_estimation, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Slope_sim_NULL.png",
+ggsave(p_sim_NULL_estimation, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Slope_sim_NULL.png",
        device="png", width=10, height=10, units="in")
 
 p_sim_CC_significance<-p_sim_unbalanced_CC$Significance/p_sim_balanced_CC$Significance+plot_annotation(tag_levels="A")+plot_layout(guides="collect")
 
-ggsave(p_sim_CC_significance, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Slope_sim_CC_Sig.png",
+ggsave(p_sim_CC_significance, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Slope_sim_CC_Sig.png",
        device="png", width=10, height=10, units="in")
