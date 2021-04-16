@@ -38,16 +38,12 @@ Data <- wq()%>%
   mutate(Datetime = with_tz(Datetime, tz="America/Phoenix"), #Convert to a timezone without daylight savings time
          Date = with_tz(Date, tz="America/Phoenix"),
          Time=as_hms(Datetime), # Create variable for time-of-day, not date. 
-         Noon_diff=abs(hms(hours=12)-Time),
-         Week=floor_date(Date, unit="weeks", week_start=7))%>% # Calculate difference from noon for each data point for later filtering
+         Noon_diff=abs(hms(hours=12)-Time))%>% # Calculate difference from noon for each data point for later filtering
   group_by(Station, Source, Date)%>%
   filter(Noon_diff==min(Noon_diff))%>% # Select only 1 data point per station and date, choose data closest to noon
   filter(Time==min(Time))%>% # When points are equidistant from noon, select earlier point
   ungroup()%>%
   distinct(Date, Station, Source, .keep_all = TRUE)%>% # Finally, remove the ~10 straggling datapoints from the same time and station
-  group_by(Station, Source, Week)%>%
-  filter(Date==min(Date))%>% # Now further filter the dataset by selecting 1 data point per week
-  ungroup()%>%
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)%>% # Convert to sf object
   st_transform(crs=st_crs(Delta))%>% # Change to crs of Delta
   st_join(Delta, join=st_intersects)%>% # Add subregions
@@ -93,7 +89,7 @@ Data<-Data%>%
   mutate_at(vars(Date_num, Longitude, Latitude, Time_num, Year, Julian_day), list(s=~(.-mean(., na.rm=T))/sd(., na.rm=T))) # Create centered and standardized versions of covariates
 
 #saveRDS(Data, file="Temperature analysis/Discrete Temp Data_2.Rds")
-Data<-readRDS("Temperature analysis/Discrete Temp Data_2.Rds")
+Data<-readRDS("Temperature analysis/Discrete Temp Data.Rds")
 
 # Model selection ---------------------------------------------------------
 
@@ -223,6 +219,10 @@ modellea2 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day
                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=3)
 # 4: In bgam.fitd(G, mf, gp, scale, nobs.extra = 0, rho = rho, coef = coef,  :
 #                  algorithm did not converge
+
+modellea3 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 13), by=Year_fac) + 
+                        s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE),
+                      data = Data, method="fREML", discrete=T, nthreads=8)
 
 
 
