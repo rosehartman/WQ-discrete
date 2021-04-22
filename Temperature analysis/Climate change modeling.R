@@ -341,7 +341,7 @@ p_space<-ggplot(CC_gam8d7b_AR7_vario_plot, aes(x=spacelag, y=gamma, color=monthl
 
 p_variogram<-p_time/p_space+plot_annotation(tag_levels="A")
 
-ggsave(p_variogram, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/variogram.png",
+ggsave(p_variogram, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Figure S6 variogram.png",
        device="png", width=8, height=5, units="in")
 
 
@@ -466,18 +466,15 @@ base<-CC_newdata%>%
   st_as_sf(long=T, connect8=T)%>%
   filter(!is.na(Location))
 
-p_CC_gam<-ggplot()+
-  geom_sf(data=base, color=NA, fill="gray80", lwd=0)+
-  geom_stars(data=newdata_CC_pred_rast)+
-  facet_wrap(~month(Date, label=T), drop=F)+
-  scale_fill_viridis_c(breaks=(-6:7)/100, name="Temperature change\nper year (°C)", guide=guide_colorbar(barheight=20), na.value=NA)+
-  ylab("Latitude")+
-  xlab("Longitude")+
-  coord_sf()+
-  theme_bw()+
-  theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
+p_CC_gam<-predict_plot(data=newdata_CC_pred_rast, 
+             base=base, 
+             scale_fill_viridis_c, 
+             guide=guide_colorbar(barheight=20), 
+             na.value=NA, 
+             breaks=(-6:7)/100, 
+             name="Temperature change\nper year (°C)")
 
-ggsave(p_CC_gam, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Climate change signal.png",
+ggsave(p_CC_gam, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure 4 Climate change signal.png",
        device="png", width=7, height=5, units="in")
 
 # Plot all slopes, significant or not
@@ -508,7 +505,7 @@ p_CC_gam_all<-ggplot()+
   theme_bw()+
   theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
 
-ggsave(p_CC_gam_all, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Climate change signal all.png",
+ggsave(p_CC_gam_all, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Climate change signal all_BDSC.png",
        device="png", width=7, height=5, units="in")
 
 # Plot slope summary for each region and month
@@ -573,7 +570,7 @@ P_slope_sum2<-ggplot(Slope_sum2)+
   theme_bw()+
   theme(axis.text.x=element_text(angle=45, hjust=1), text=element_text(size=16), panel.background = element_rect(color="black"))
 
-ggsave(P_slope_sum2, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Climate change all slopes.png",
+ggsave(P_slope_sum2, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure S7 Climate change all slopes.png",
        device="png", width=15, height=18, units="in")
 
 # Plot sampling effort for each region, month. and year
@@ -594,7 +591,7 @@ p_effort<-ggplot(Data_effort)+
   theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank(), text=element_text(size=16), legend.position=c(0.4, 0.65), 
         legend.background = element_rect(color="black"), panel.background = element_rect(color="black"), legend.margin=margin(10,10,15,10))
 
-ggsave(p_effort, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Climate change effort.png",
+ggsave(p_effort, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure S1 Climate change effort.png",
        device="png", width=15, height=18, units="in")
 
 # Now try a model with higher spatial K value -----------------------------
@@ -626,18 +623,15 @@ newdata_CC_pred_AR8<-CC_newdata%>%
 
 newdata_CC_pred_rast_AR8<-Rasterize_all(newdata_CC_pred_AR8, Slope, region=Delta)
 
-p_CC_gam_AR8<-ggplot()+
-  geom_sf(data=base, color=NA, fill="gray80", lwd=0)+
-  geom_stars(data=newdata_CC_pred_rast_AR8)+
-  facet_wrap(~month(Date, label=T), drop=F)+
-  scale_fill_viridis_c(breaks=(-6:7)/100, name="Temperature change\nper year (°C)", guide=guide_colorbar(barheight=20), na.value=NA)+
-  ylab("Latitude")+
-  xlab("Longitude")+
-  coord_sf()+
-  theme_bw()+
-  theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
+p_CC_gam_AR8<-predict_plot(data=newdata_CC_pred_rast_AR8, 
+                           base=base, 
+                           scale_fill_viridis_c, 
+                           guide=guide_colorbar(barheight=20), 
+                           na.value=NA, 
+                           breaks=(-6:7)/100, 
+                           name="Temperature change\nper year (°C)")
 
-ggsave(p_CC_gam_AR8, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Climate change signal_higherk.png",
+ggsave(p_CC_gam_AR8, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure S5 Climate change signal_higherk.png",
        device="png", width=7, height=5, units="in")
 
 ###CC_gam8d7b_AR8 has a lower AIC but higher AIC and  predicted slope values are almost identical to CC_gam8d7b_AR7, so using CC_gam8d7b_AR7 as the final model
@@ -647,7 +641,7 @@ ggsave(p_CC_gam_AR8, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet
 
 p_check<-model_validation(CC_gam8d7b_AR7, Data_CC4.3$Temperature)
 
-ggsave(p_check, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Climate change model validation.png",
+ggsave(p_check, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Figure 3 Climate change model validation.png",
        device="png", width=10, height=7, units="in")
 
 
@@ -771,10 +765,10 @@ p_period<-ggplot()+
   xlab("Longitude")+
   coord_sf()+
   theme_bw()+
-  theme(strip.background=element_blank(), text=element_text(size=7), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank(),
+  theme(strip.background=element_blank(), text=element_text(size=7), axis.text = element_blank(), axis.ticks=element_blank(), panel.grid=element_blank(),
         panel.spacing=unit(0, "lines"))
 
-ggsave(p_period, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Climate change signal over time rasters.png",
+ggsave(p_period, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure 5 Climate change signal over time rasters.png",
        device="png", width=7, height=7, units="in")
 
 ###Maybe instead of rasters just plot the slope over time for each region
@@ -820,7 +814,7 @@ p_period_slope_sum<-ggplot(preds_period_month_sum)+
   theme_bw()+
   theme(strip.background = element_blank(), axis.text.x=element_text(angle=45, hjust=1))
 
-ggsave(p_period_slope_sum, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Climate change signal over time summary.png",
+ggsave(p_period_slope_sum, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Climate change signal over time summary_BDSC.png",
        device="png", width=6, height=6, units="in")
 
 # Plot climate change signal in each priority restoration area from the Delta Plan --------
@@ -923,7 +917,7 @@ g_ggplot<-ggplotify::as.ggplot(g)
 
 p_PHRA<-p_map+g_ggplot+plot_layout(ncol=2, widths = c(1,1))+ plot_annotation(tag_levels = "A") & theme(plot.tag = element_text(size=18))
 
-ggsave(p_PHRA, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure 8 PHRA.png",
+ggsave(p_PHRA, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure 6 PHRA.png",
        device="png", width=14, height=10, units="in")
 
 ## Alternative plot of the climate change signal in each area ------------------------------------
@@ -969,7 +963,7 @@ p_other_slopes<-ggplot(CC_trends)+
   theme_bw()+
   theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank())
 
-ggsave(p_other_slopes, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Slope comparison.png",
+ggsave(p_other_slopes, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Slope comparison_BDSC.png",
        device="png", width=4, height=4, units="in")
 
 # Visualize raw climate change signal -------------------------------------

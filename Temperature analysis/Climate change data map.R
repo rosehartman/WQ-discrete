@@ -1,4 +1,4 @@
-mapplot<-function(data, type="paper"){
+mapplot<-function(data, type="paper", point=tibble(Latitude=37.999664, Longitude=-121.317443)){
   
   require(dplyr)
   require(sf)
@@ -91,6 +91,12 @@ mapplot<-function(data, type="paper"){
            Label2=factor(Label2, levels=Label2))
   #paste(Letters$Label, Letters$SubRegion, sep=" - ", collapse=", ")
   
+  if(!is.null(point)){
+    point<-point%>%
+      st_as_sf(coords=c("Longitude", "Latitude"), crs=4326)%>%
+      st_transform(crs=st_crs(SubRegions))
+  }
+  
   pout<-ggplot(states)+
     geom_sf(color="slategray1", fill="gray70")+
     geom_sf(data=base2, color="slategray1", fill="slategray1")+
@@ -110,10 +116,14 @@ mapplot<-function(data, type="paper"){
     geom_segment(data=tibble(x=580000, y=4205000, xend=575000, yend=4205000), aes(x=x, y=y, xend=xend, yend=yend), arrow=arrow(length = unit(0.03, "npc")), size=1)+
     geom_label(data=tibble(x=590000, y=4205000, label="to San Francisco Bay"), aes(x=x, y=y, label=label))+
     geom_text(data=Letters, aes(x=X, y=Y, label=Label))+
+    {if(!is.null(point)){
+      geom_sf(data=point, color="firebrick3", shape=17, size=2)
+    }}+
     ylab("")+
     xlab("")+
     #coord_sf(datum=st_crs(SubRegions))+
-    scale_color_viridis_c(guide=guide_colorbar(barwidth=7.5, barheight=0.8))+
+    scale_color_viridis_c(guide=guide_colorbar(barwidth=7.5, barheight=0.8, title.position="top", title.hjust=0.5), 
+                          name="Sample size", breaks=c(1, 100, 200, 300, 400, 500))+
     theme_bw()+
     theme(legend.position = c(0.2, 0.2), legend.background=element_rect(color="black"), legend.direction = "horizontal", plot.margin = margin(0,0,0,0))+
     annotation_scale(location = "bl") +
@@ -148,14 +158,14 @@ mapplot<-function(data, type="paper"){
 
 Data_CC4<-readRDS("Temperature analysis/Data_CC4.Rds")
 
-p_CC4_final<-mapplot(Data_CC4)
+p_CC4_final<-mapplot(Data_CC4, point=NULL)
 
 ggsave("C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure 1 map.png", plot=p_CC4_final, device="png", width=8, height=8, units = "in")
 
 
 # Map for presentation
 
-p_CC4_presentation<-mapplot(Data_CC4, "Presentation")
+p_CC4_presentation<-mapplot(Data_CC4, "Presentation", point=NULL)
 
 ggsave("C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/BDSC Map.png", plot=p_CC4_presentation, device="png", width=6, height=6, units = "in")
 
