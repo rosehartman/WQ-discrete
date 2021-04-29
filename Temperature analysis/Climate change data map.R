@@ -49,7 +49,7 @@ mapplot<-function(data, type="paper", point=tibble(Latitude=37.999664, Longitude
   station_lims<-st_bbox(Data)
   
   labels<-tibble(label=c("Suisun Bay", "Suisun Marsh", "Confluence", "Cache Slough", "Sacramento River", 
-                         "Sacramento\nShipping Channel", "San Joaquin River", "Cosumnes River", "Mokelumne\nRiver"), 
+                         "Sacramento\nShip Channel", "San Joaquin River", "Cosumnes River", "Mokelumne\nRiver"), 
                  Y=c(4212000, 4226700, 4211490, 4232164, 4262276, 4262276, 4183000,4247000,4225000), 
                  X=c(583318, 590000, 597000, 615970, 625568, 623600,649500,645000,648500),
                  label_Y=c(4208500, 4240000, 4200000, 4228686, 4262058, 4262058, 4180000, 4255000,4220000), 
@@ -176,5 +176,5 @@ Data_D2<-readRDS("Temperature analysis/Data_D2.Rds")
 
 p_D2_final<-mapplot(Data_D2)
 
-ggsave("C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta inflow temperature/Figures/Figure 1 map.png", plot=p_D2_final, device="png", width=8, height=8, units = "in")
+ggsave("C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta inflow temperature/Figures/Figure 2 map.png", plot=p_D2_final, device="png", width=8, height=8, units = "in")
 

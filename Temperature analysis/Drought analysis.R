@@ -228,14 +228,14 @@ p_D2_gam<-predict_plot(data=newdata_D2_pred_rast,
                        breaks=seq(-12, 6, by=2)/10,
                        name="Temperature change\nper change in\ntotal inflow\n(°C/monthly sd[cfs])")
 
-ggsave(p_D2_gam, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Figure 3 model 2 inflow temp.png",
+ggsave(p_D2_gam, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Figure 4 model 2 inflow temp.png",
        device="png", width=7, height=5, units="in")
 
 ### Model validation ----------------
 
 p_D2_check<-model_validation(D2_gam_AR, Data_D2$Temperature)
 
-ggsave(p_D2_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Figure 2 model 2 inflow model validation.png",
+ggsave(p_D2_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Figure 3 model 2 inflow model validation.png",
        device="png", width=10, height=7, units="in")
 
 #### Create dataframe of slopes for each month and region --------
@@ -551,7 +551,7 @@ p_D3<-ggplot(D3_newdata_pred, aes(x=Salinity, y=Slope, ymin=Slope_l99.9, ymax=Sl
   theme(strip.background=element_blank())
 
 
-ggsave(p_D3, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Figure 4 model 4 inflow temp by salinity.png",
+ggsave(p_D3, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Figure 5 model 4 inflow temp by salinity.png",
        device="png", width=7, height=5, units="in")
 
 ### Model validation
@@ -621,7 +621,7 @@ p_sal_sd<-ggplot()+
 
 p_sal<-p_sal_mean+p_sal_sd+plot_annotation(tag_levels="A")
 
-ggsave(p_sal, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Figure 5 salinity month map.png",
+ggsave(p_sal, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Figure 6 salinity month map.png",
        device="png", width=10, height=5, units="in")
 
 #### Plot monthly salinity --------------------------------------------------
@@ -789,5 +789,5 @@ p_D2_gam_PREC<-predict_plot(data=newdata_D2_PREC_pred_rast,
                             breaks=seq(-12, 6, by=2)/10,
                             name="Temperature change\nper change in\nprecipitation\n(°C/monthly sd[cfs])")
 
-ggsave(p_D2_gam_PREC, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Figure 6 model 5 precip temp.png",
+ggsave(p_D2_gam_PREC, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Figure 7 model 5 precip temp.png",
        device="png", width=7, height=5, units="in")
