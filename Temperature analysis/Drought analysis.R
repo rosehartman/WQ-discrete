@@ -23,8 +23,6 @@ require(ggstance)
 source("Utility_functions.R")
 options(scipen=999)
 
-# TODO
-# 1) Precip model variogram
 
 
 # setup -------------------------------------------------------------------
@@ -726,14 +724,37 @@ D3_gam_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1
 
 # Plot monthly sd of inflow for each dataset ------------------------------
 
-dayflow%>%
+dayflow_sum<-dayflow%>%
   mutate(Month=month(Date, label=T))%>%
   select(Month, TOT_mean30_mean, TOT_mean30_sd, PREC_mean30_mean, PREC_mean30_sd)%>%
   distinct()%>%
-  mutate(across(c(TOT_mean30_mean, TOT_mean30_sd, PREC_mean30_mean, PREC_mean30_sd), ~format(round(.x), big.mark = ",")))%>%
+  mutate(across(c(TOT_mean30_mean, TOT_mean30_sd, PREC_mean30_mean, PREC_mean30_sd), ~format(round(.x), big.mark = ",")))
+
+dayflow_sum%>%
   rename(`Mean inflow`=TOT_mean30_mean, `SD inflow`=TOT_mean30_sd, `Mean precip`=PREC_mean30_mean, `SD precip`=PREC_mean30_sd)%>%
   arrange(Month)%>%
   write_csv("C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Table 1.csv")
+
+dayflow_sum2<-dayflow%>%
+  mutate(Month=month(Date, label=T),
+         Year=year(Date))%>%
+  group_by(Month, Year)%>%
+  summarise(across(c(TOT_mean30, PREC_mean30), list(mean=mean, sd=sd)), .groups="drop")%>%
+  filter(Year>=min(Data_D2$Year))
+
+p_inflow<-ggplot(data=dayflow_sum2, aes(x=Year, y=TOT_mean30_mean, ymin=TOT_mean30_mean-TOT_mean30_sd, ymax=TOT_mean30_mean+TOT_mean30_sd))+
+  geom_rect(data=dayflow_sum, aes(xmin=1969, xmax=2019, ymin=TOT_mean30_mean, ymax=TOT_mean30_mean+TOT_mean30_sd, fill="1 SD above mean"), alpha=0.2, inherit.aes = F)+
+  geom_rect(data=dayflow_sum, aes(xmin=1969, xmax=2019, ymin=TOT_mean30_mean-TOT_mean30_sd, ymax=TOT_mean30_mean, fill="1 SD below mean"), alpha=0.2, inherit.aes = F)+
+  geom_line(color="gray50")+
+  geom_point()+
+  facet_wrap(~Month, scales = "free_y")+
+  scale_fill_manual(values=c("1 SD above mean" = "firebrick3", "1 SD below mean" = "dodgerblue3"), name="")+
+  ylab("30-day lagged mean inflow (cfs)")+
+  theme_bw()+
+  theme(strip.background=element_blank(), legend.position="top", axis.text.x=element_text(angle=45, hjust=1))
+
+ggsave(p_inflow, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/inflow by month and year.png",
+       device="png", width=9, height=9, units="in")
 
 # Now try precipitation ---------------------------------------------------
 
