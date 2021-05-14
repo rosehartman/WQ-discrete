@@ -23,8 +23,6 @@ require(ggstance)
 source("Utility_functions.R")
 options(scipen=999)
 
-# TODO
-# 1) Precip model variogram
 
 
 # setup -------------------------------------------------------------------
@@ -99,7 +97,7 @@ D2_nomonth_gam_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s,
 
 p_D2_nomonth_variogram<-ST_variogram(D2_nomonth_gam_AR, Data_D2, 4)
 
-ggsave(p_D2_nomonth_variogram, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Inflow nomonth model variogram.png",
+ggsave(p_D2_nomonth_variogram, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/model 1 inflow nomonth model variogram.png",
        device="png", width=8, height=5, units="in")
 
 ### Set up model predictions -------------------------------------------------
@@ -163,14 +161,14 @@ p_D2_nomonth_gam<-predict_plot(data=newdata_D2_nomonth_pred_rast*100000,
                        breaks=seq(-14, 6, by=2),
                        name="Temperature change\nper change in\ntotal inflow\n(°C/100,000cfs)")
 
-ggsave(p_D2_nomonth_gam, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/inflow nomonth temp.png",
+ggsave(p_D2_nomonth_gam, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/model 1 inflow nomonth temp.png",
        device="png", width=7, height=5, units="in")
 
 ### Model validation ----------------
 
 p_D2_nomonth_check<-model_validation(D2_nomonth_gam_AR, Data_D2$Temperature)
 
-ggsave(p_D2_nomonth_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Inflow nomonth model validation.png",
+ggsave(p_D2_nomonth_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/model 1 inflow nomonth model validation.png",
        device="png", width=10, height=7, units="in")
 
 ## Fit month-adjusted models ------------------------------------------------
@@ -195,7 +193,7 @@ D2_gam_AR_higherk <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s,
 
 p_D2_variogram<-ST_variogram(D2_gam_AR, Data_D2, 4)
 
-ggsave(p_D2_variogram, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Inflow model variogram.png",
+ggsave(p_D2_variogram, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/model 2 inflow model variogram.png",
        device="png", width=8, height=5, units="in")
 
 
@@ -228,14 +226,14 @@ p_D2_gam<-predict_plot(data=newdata_D2_pred_rast,
                        breaks=seq(-12, 6, by=2)/10,
                        name="Temperature change\nper change in\ntotal inflow\n(°C/monthly sd[cfs])")
 
-ggsave(p_D2_gam, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/inflow temp.png",
+ggsave(p_D2_gam, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Figure 4 model 2 inflow temp.png",
        device="png", width=7, height=5, units="in")
 
 ### Model validation ----------------
 
 p_D2_check<-model_validation(D2_gam_AR, Data_D2$Temperature)
 
-ggsave(p_D2_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Inflow model validation.png",
+ggsave(p_D2_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Figure 3 model 2 inflow model validation.png",
        device="png", width=10, height=7, units="in")
 
 #### Create dataframe of slopes for each month and region --------
@@ -265,7 +263,7 @@ P_slope_sum<-ggplot(Slope_summary)+
   theme_bw()+
   theme(axis.text.x=element_text(angle=45, hjust=1), text=element_text(size=16), panel.background = element_rect(color="black"))
 
-ggsave(P_slope_sum, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Inflow all slopes.png",
+ggsave(P_slope_sum, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/model 2 inflow all slopes.png",
        device="png", width=15, height=18, units="in")
 
 ### Predict for higher k model D2_gam_AR_higherk -----------------------------------------
@@ -297,7 +295,7 @@ p_D2_gam_higherk<-predict_plot(data=newdata_D2_pred_higherk_rast,
                        breaks=seq(-12, 6, by=2)/10,
                        name="Temperature change\nper change in\ntotal inflow\n(°C/monthly sd[cfs])")
 
-ggsave(p_D2_gam_higherk, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/inflow temp higher k.png",
+ggsave(p_D2_gam_higherk, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/model 2B inflow temp higher k.png",
        device="png", width=7, height=5, units="in")
 
 
@@ -318,7 +316,7 @@ D2_CC_gam_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(
 
 p_D2_CC_variogram<-ST_variogram(D2_CC_gam_AR, Data_D2, 5)
 
-ggsave(p_D2_CC_variogram, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Inflow_CC model variogram.png",
+ggsave(p_D2_CC_variogram, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/model 3 inflow_CC model variogram.png",
        device="png", width=8, height=5, units="in")
 
 ## Predict ------------------------------------------------------------------
@@ -363,7 +361,7 @@ p_D2_CC_gam_D<-predict_plot(data=newdata_D2_CC_pred_rast_D,
                        breaks=seq(-12, 6, by=2)/10,
                        name="Temperature change\nper change in\ntotal inflow\n(°C/monthly sd[cfs])")
 
-ggsave(p_D2_CC_gam_D, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/inflow temp inflow_CC model.png",
+ggsave(p_D2_CC_gam_D, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/model 3 inflow temp inflow_CC model.png",
        device="png", width=7, height=5, units="in")
 
 p_D2_CC_gam_CC<-predict_plot(data=newdata_D2_CC_pred_rast_CC, 
@@ -374,7 +372,7 @@ p_D2_CC_gam_CC<-predict_plot(data=newdata_D2_CC_pred_rast_CC,
                             breaks=(-6:7)/100, 
                             name="Temperature change\nper year (°C)")
 
-ggsave(p_D2_CC_gam_CC, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/climate change signal inflow_CC model.png",
+ggsave(p_D2_CC_gam_CC, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/model 3 climate change signal inflow_CC model.png",
        device="png", width=7, height=5, units="in")
 
 
@@ -382,7 +380,7 @@ ggsave(p_D2_CC_gam_CC, filename="C:/Users/sbashevkin/deltacouncil/Science Extran
 
 p_D2_CC_check<-model_validation(D2_CC_gam_AR, Data_D2$Temperature)
 
-ggsave(p_D2_CC_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Inflow_CC model validation.png",
+ggsave(p_D2_CC_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/model 3 inflow_CC model validation.png",
        device="png", width=10, height=7, units="in")
 
 # Use salinity instead of geography ---------------------------------------
@@ -507,7 +505,7 @@ D3_gam_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1
 
 p_D3_variogram<-ST_variogram(D3_gam_AR, Data_D3, 5)
 
-ggsave(p_D3_variogram, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Inflow salinity model variogram.png",
+ggsave(p_D3_variogram, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/model 4 inflow salinity model variogram.png",
        device="png", width=8, height=5, units="in")
 
 ## Predict -----------------------------------------------------------------
@@ -551,14 +549,14 @@ p_D3<-ggplot(D3_newdata_pred, aes(x=Salinity, y=Slope, ymin=Slope_l99.9, ymax=Sl
   theme(strip.background=element_blank())
 
 
-ggsave(p_D3, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/inflow temp by salinity.png",
+ggsave(p_D3, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Figure 5 model 4 inflow temp by salinity.png",
        device="png", width=7, height=5, units="in")
 
 ### Model validation
 
 p_D3_check<-model_validation(D3_gam_AR, Data_D3$Temperature)
 
-ggsave(p_D3_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Inflow salinity model validation.png",
+ggsave(p_D3_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/model 4 inflow salinity model validation.png",
        device="png", width=10, height=7, units="in")
 
 ### Now plot the salinity field  ----------------------------------
@@ -621,7 +619,7 @@ p_sal_sd<-ggplot()+
 
 p_sal<-p_sal_mean+p_sal_sd+plot_annotation(tag_levels="A")
 
-ggsave(p_sal, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Salinity map.png",
+ggsave(p_sal, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Figure 6 salinity month map.png",
        device="png", width=10, height=5, units="in")
 
 #### Plot monthly salinity --------------------------------------------------
@@ -726,14 +724,37 @@ D3_gam_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1
 
 # Plot monthly sd of inflow for each dataset ------------------------------
 
-dayflow%>%
+dayflow_sum<-dayflow%>%
   mutate(Month=month(Date, label=T))%>%
   select(Month, TOT_mean30_mean, TOT_mean30_sd, PREC_mean30_mean, PREC_mean30_sd)%>%
   distinct()%>%
-  mutate(across(c(TOT_mean30_mean, TOT_mean30_sd, PREC_mean30_mean, PREC_mean30_sd), ~format(round(.x), big.mark = ",")))%>%
+  mutate(across(c(TOT_mean30_mean, TOT_mean30_sd, PREC_mean30_mean, PREC_mean30_sd), ~format(round(.x), big.mark = ",")))
+
+dayflow_sum%>%
   rename(`Mean inflow`=TOT_mean30_mean, `SD inflow`=TOT_mean30_sd, `Mean precip`=PREC_mean30_mean, `SD precip`=PREC_mean30_sd)%>%
   arrange(Month)%>%
   write_csv("C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Table 1.csv")
+
+dayflow_sum2<-dayflow%>%
+  mutate(Month=month(Date, label=T),
+         Year=year(Date))%>%
+  group_by(Month, Year)%>%
+  summarise(across(c(TOT_mean30, PREC_mean30), list(mean=mean, sd=sd)), .groups="drop")%>%
+  filter(Year>=min(Data_D2$Year))
+
+p_inflow<-ggplot(data=dayflow_sum2, aes(x=Year, y=TOT_mean30_mean, ymin=TOT_mean30_mean-TOT_mean30_sd, ymax=TOT_mean30_mean+TOT_mean30_sd))+
+  geom_rect(data=dayflow_sum, aes(xmin=1969, xmax=2019, ymin=TOT_mean30_mean, ymax=TOT_mean30_mean+TOT_mean30_sd, fill="1 SD above mean"), alpha=0.2, inherit.aes = F)+
+  geom_rect(data=dayflow_sum, aes(xmin=1969, xmax=2019, ymin=TOT_mean30_mean-TOT_mean30_sd, ymax=TOT_mean30_mean, fill="1 SD below mean"), alpha=0.2, inherit.aes = F)+
+  geom_line(color="gray50")+
+  geom_point()+
+  facet_wrap(~Month, scales = "free_y")+
+  scale_fill_manual(values=c("1 SD above mean" = "firebrick3", "1 SD below mean" = "dodgerblue3"), name="")+
+  ylab("30-day lagged mean inflow (cfs)")+
+  theme_bw()+
+  theme(strip.background=element_blank(), legend.position="top", axis.text.x=element_text(angle=45, hjust=1))
+
+ggsave(p_inflow, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/inflow by month and year.png",
+       device="png", width=9, height=9, units="in")
 
 # Now try precipitation ---------------------------------------------------
 
@@ -750,14 +771,14 @@ D2_gam_PREC_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=
 
 p_D2_PREC_variogram<-ST_variogram(D2_gam_PREC_AR, Data_D2, 5)
 
-ggsave(p_D2_PREC_variogram, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Precip model variogram.png",
+ggsave(p_D2_PREC_variogram, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/model 5 precip model variogram.png",
        device="png", width=8, height=5, units="in")
 
 ## Model validation ----------------------------------------------------------
 
 p_D2_PREC_check<-model_validation(D2_gam_PREC_AR, Data_D2$Temperature)
 
-ggsave(p_D2_PREC_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Precip model validation.png",
+ggsave(p_D2_PREC_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/model 5 precip model validation.png",
        device="png", width=10, height=7, units="in")
 
 ## Predict ------------------------------------------------------------------
@@ -787,7 +808,7 @@ p_D2_gam_PREC<-predict_plot(data=newdata_D2_PREC_pred_rast,
                             na.value=NA, 
                             palette="Blue-Red 3", 
                             breaks=seq(-12, 6, by=2)/10,
-                            name="Temperature change\nper change in\nPrecipitation (°C/monthly sd[cfs])")
+                            name="Temperature change\nper change in\nprecipitation\n(°C/monthly sd[cfs])")
 
-ggsave(p_D2_gam_PREC, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Precip temp.png",
+ggsave(p_D2_gam_PREC, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Figure 7 model 5 precip temp.png",
        device="png", width=7, height=5, units="in")

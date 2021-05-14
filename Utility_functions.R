@@ -129,6 +129,6 @@ predict_plot<-function(data, base, scale_fun, ...){
     xlab("Longitude")+
     coord_sf()+
     theme_bw()+
-    theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
+    theme(strip.background=element_blank(), axis.text = element_blank(), axis.ticks=element_blank(), panel.grid=element_blank())
   
 }
