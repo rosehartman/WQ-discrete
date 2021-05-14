@@ -1,4 +1,4 @@
-mapplot<-function(data, type="paper", point=tibble(Latitude=37.999664, Longitude=-121.317443)){
+mapplot<-function(data, type="paper", point=tibble(Latitude=37.999664, Longitude=-121.317443), yolo){
   
   require(dplyr)
   require(sf)
@@ -49,11 +49,15 @@ mapplot<-function(data, type="paper", point=tibble(Latitude=37.999664, Longitude
   station_lims<-st_bbox(Data)
   
   labels<-tibble(label=c("Suisun Bay", "Suisun Marsh", "Confluence", "Cache Slough", "Sacramento River", 
-                         "Sacramento\nShip Channel", "San Joaquin River", "Cosumnes River", "Mokelumne\nRiver"), 
-                 Y=c(4212000, 4226700, 4211490, 4232164, 4262276, 4262276, 4183000,4247000,4225000), 
-                 X=c(583318, 590000, 597000, 615970, 625568, 623600,649500,645000,648500),
-                 label_Y=c(4208500, 4240000, 4200000, 4228686, 4262058, 4262058, 4180000, 4255000,4220000), 
-                 label_X=c(585000, 590000, 610000, 607572, 640000, 610743, 642000, 642000, 647000))
+                         "Sacramento\nShip Channel", "San Joaquin River", "Cosumnes River", "Mokelumne\nRiver", "Yolo Bypass"), 
+                 Y=c(4212000, 4226700, 4211490, 4232164, 4262276, 
+                     4264345, 4183000,4247000,4225000, 4262058), 
+                 X=c(583318, 590000, 597000, 615970, 625568, 
+                     623600,649500,645000,648500, 620000),
+                 label_Y=c(4208500, 4240000, 4200000, 4228686, 4262276, 
+                           4268058, 4180000, 4255000,4220000, 4262058), 
+                 label_X=c(585000, 590000, 610000, 607572, 640000, 
+                           640000, 642000, 642000, 647000, 608000))
   
   #plot(select(base, geometry),reset=F, col="slategray1", border="slategray2")
   #plot(select(SubRegions, geometry), add=T, lwd=2)
@@ -97,6 +101,13 @@ mapplot<-function(data, type="paper", point=tibble(Latitude=37.999664, Longitude
       st_transform(crs=st_crs(SubRegions))
   }
   
+  if(!is.null(yolo)){
+    yolo<-yolo%>%
+      st_transform(crs=st_crs(SubRegions))%>%
+      st_union()%>%
+      st_crop(SubRegions)
+  }
+  
   pout<-ggplot(states)+
     geom_sf(color="slategray1", fill="gray70")+
     geom_sf(data=base2, color="slategray1", fill="slategray1")+
@@ -105,9 +116,12 @@ mapplot<-function(data, type="paper", point=tibble(Latitude=37.999664, Longitude
     coord_sf(xlim=c(st_bbox(california)["xmin"], st_bbox(california)["xmax"]), ylim=c(st_bbox(california)["ymin"], st_bbox(california)["ymax"]))+
     theme_bw()+
     theme(panel.background = element_rect(fill = "slategray1"), axis.text.x=element_text(angle=45, hjust=1))
-  pout
+  #pout
   
   p<-ggplot()+
+    {if(!is.null(yolo)){
+      geom_sf(data=yolo, color=NA, fill="gray80", alpha=0.5)
+    }}+
     geom_sf(data=base, fill="slategray1", color="slategray2")+
     geom_sf(data=SubRegions, alpha=0.1)+
     geom_segment(data=labels, aes(x=label_X, y=label_Y, xend=X, yend=Y), size=1)+
@@ -172,9 +186,11 @@ ggsave("C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quali
 
 # Inflow analyses ---------------------------------------------------------
 
+yolo<-st_read("Yolo Bypass Extent")
+
 Data_D2<-readRDS("Temperature analysis/Data_D2.Rds")
 
-p_D2_final<-mapplot(Data_D2)
+p_D2_final<-mapplot(Data_D2, yolo=yolo)
 
 ggsave("C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta inflow temperature/Figures/Figure 2 map.png", plot=p_D2_final, device="png", width=8, height=8, units = "in")
 
