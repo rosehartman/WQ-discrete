@@ -18,6 +18,17 @@ require(parallel)
 
 # 1) Try only retaining 1 datapoint per week per station
 
+# Function to extract scat family variables
+
+scat_extract<-function(model){
+  
+  theta<-get(".Theta", envir=environment(model$family$rd))
+  min.df <- get(".min.df", envir=environment(model$family$rd))
+  nu <- exp(theta[1]) + min.df
+  sig <- exp(theta[2])
+  return(c(nu=nu, sig=sig))
+}
+
 
 # Data preparation --------------------------------------------------------
 
@@ -224,16 +235,64 @@ modellea3 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day
                         s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE),
                       data = Data, method="fREML", discrete=T, nthreads=8)
 
-
-
-modellea3a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 12), by=Year_fac) + 
+cl <- makeCluster(8) 
+modellea3B <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 13), by=Year_fac) + 
                    s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE),
-                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
+                 data = Data, method="REML", discrete=F, cluster=cl)
+# Didn't go anywhere in a few hours
+
+
+modellea3C <- gam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 13), by=Year_fac) + 
+                    s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE, nthreads=8),
+                  data = Data, method="REML", optimizer=c("outer","bfgs"))
+
+
+modellea3a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(15, 13), by=Year_fac) + 
+                   s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE),
+                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
+
+modellea3a_vars<-scat_extract(modellea3a)
+
+
+modellea3a2 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(20, 13), by=Year_fac) + 
+                    s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE),
+                  data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
+
+modellea3a2_vars<-scat_extract(modellea3a2)
 
 theta<-get(".Theta", envir=environment(modellea3$family$rd))
 min.df <- get(".min.df", envir=environment(modellea3$family$rd))
 nu <- exp(theta[1]) + min.df
 sig <- exp(theta[2])
+
+modellea3a3 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 13), by=Year_fac) + 
+                     s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE),
+                   data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
+# algorithm did not converge
+
+modellea3a3_vars<-scat_extract(modellea3a3)
+
+modellea3a4 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 13), by=Year_fac) + 
+                     s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE),
+                   data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
+
+modellea3a4_vars<-scat_extract(modellea3a4)
+
+modellea3b4 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 13), by=Year_fac) + 
+                     s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE),
+                   data = filter(Data, Group==2)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
+
+modellea3b4_vars<-scat_extract(modellea3b4)
+
+scat_vars_final<-map2_dbl(modellea3a4_vars, modellea3b4_vars, ~mean(c(.x, .y)))
+
+modellea_full <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 13), by=Year_fac) + 
+                     s(Time_num_s, bs="cr", k=5), family=scat(theta=scat_vars_final), control=list(trace=TRUE),
+                   data = Data, method="fREML", discrete=T, nthreads=8)
+
+#Error: cannot allocate vector of size 1.8 Gb
+# In addition: Warning message:
+#  In scat(theta = scat_vars_final) : Supplied df below min.df. min.df reset
 
 modellea3b <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 12), by=Year_fac) + 
                     s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE),
