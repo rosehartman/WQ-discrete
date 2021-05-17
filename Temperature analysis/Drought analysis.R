@@ -510,6 +510,11 @@ ggsave(p_D3_variogram, filename="C:/Users/sbashevkin/deltacouncil/Science Extran
 
 ## Predict -----------------------------------------------------------------
 
+D3_effort<-Data_D3%>%
+  mutate(Month=month(Month, label=T))%>%
+  group_by(Month)%>%
+  summarise(Sal_min=quantile(Salinity, probs=0.05), Sal_max=quantile(Salinity, probs=0.95), .groups="drop")
+
 D3_newdata<-expand_grid(Salinity=seq(quantile(Data_D3$Salinity, probs=0.05), quantile(Data_D3$Salinity, probs=0.95), length.out=100),
                         Julian_day=yday(ymd(paste("2001", 1:12, "15", sep="-"))))%>%
   mutate(Julian_day_s=(Julian_day-mean(Data_D3$Julian_day))/sd(Data_D3$Julian_day),
@@ -518,7 +523,11 @@ D3_newdata<-expand_grid(Salinity=seq(quantile(Data_D3$Salinity, probs=0.05), qua
          Longitude_s=0,
          TOT_mean30_s_month=2,
          Time_num=12*60*60,
-         Time_num_s=Time_num*sd(Data_D3$Time_num)+mean(Data_D3$Time_num))
+         Time_num_s=Time_num*sd(Data_D3$Time_num)+mean(Data_D3$Time_num),
+         Date=as.Date(Julian_day, origin=as.Date(paste("2000", "01", "01", sep="-"))),
+         Month=month(Date, label=T))%>%
+  left_join(D3_effort, by="Month")%>%
+  filter(Salinity >= Sal_min & Salinity <= Sal_max)
 
 D3_pred<-predict(D3_gam_AR, newdata=D3_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=2)
 
@@ -532,9 +541,7 @@ D3_newdata_pred<-D3_newdata%>%
          Slope_l99=Slope-Slope_se*qnorm(0.995),
          Slope_u99=Slope+Slope_se*qnorm(0.995),
          Slope_l95=Slope-Slope_se*qnorm(0.975),
-         Slope_u95=Slope+Slope_se*qnorm(0.975),
-         Date=as.Date(Julian_day, origin=as.Date(paste("2000", "01", "01", sep="-"))),
-         Month=month(Date, label=T))%>%
+         Slope_u95=Slope+Slope_se*qnorm(0.975))%>%
   mutate(Sig=if_else(Slope_u99.9>0 & Slope_l99.9<0, "ns", "*"))
 
 p_D3<-ggplot(D3_newdata_pred, aes(x=Salinity, y=Slope, ymin=Slope_l99.9, ymax=Slope_u99.9))+
