@@ -1,14 +1,17 @@
 # Winter starts in Dec, push to next year
+require(discretewq) # water quality data https://github.com/sbashevkin/discretewq
+require(deltamapr) # SubRegions dataset https://github.com/InteragencyEcologicalProgram/deltamapr
 require(dplyr)
-require(discretewq)
 require(sf)
 require(lubridate)
 require(hms)
-require(dtplyr)
-require(ggplot2)
-require(geofacet)
 require(tidyr)
+require(dtplyr) # To speed things up
+require(ggplot2) # Plotting
+require(geofacet) # plotting
 
+
+# Subregions organized on a geographic grid for geofacetted plots
 mygrid <- data.frame(
   name = c("Upper Sacramento River Ship Channel", "Cache Slough and Lindsey Slough", "Lower Sacramento River Ship Channel", "Liberty Island", "Upper Sacramento River", "Suisun Marsh", "Middle Sacramento River", "Lower Cache Slough", "Steamboat and Miner Slough", "Upper Mokelumne River", "Lower Mokelumne River", "Sacramento River near Ryde", "Sacramento River near Rio Vista", "Grizzly Bay", "West Suisun Bay", "Mid Suisun Bay", "Honker Bay", "Confluence", "Lower Sacramento River", "San Joaquin River at Twitchell Island", "San Joaquin River at Prisoners Pt", "Disappointment Slough", "Lower San Joaquin River", "Franks Tract", "Holland Cut", "San Joaquin River near Stockton", "Mildred Island", "Middle River", "Old River", "Rock Slough and Discovery Bay", "Upper San Joaquin River", "Grant Line Canal and Old River", "Victoria Canal"),
   row = c(2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 7, 7, 7, 8, 8, 8),
@@ -20,10 +23,11 @@ mygrid <- data.frame(
 
 ## Load Delta Shapefile from Brian
 Delta<-deltamapr::R_EDSM_Subregions_Mahardja%>%
-  filter(!SubRegion%in%c("South Bay", "San Francisco Bay", "San Pablo Bay", "Upper Yolo Bypass", 
-                         "Upper Napa River", "Lower Napa River", "Carquinez Strait"))%>% # Remove regions outside our domain of interest
+  filter(!SubRegion%in%c("South Bay", "San Francisco Bay", "San Pablo Bay", "Upper Yolo Bypass", # Remove regions outside our domain of interest
+                         "Upper Napa River", "Lower Napa River", "Carquinez Strait", # Remove regions outside our domain of interest
+                         "Rock Slough and Discovery Bay", "Upper Sacramento River"))%>%  # Exclude 2 regions with none or almost no samples
   dplyr::select(SubRegion)%>%
-  mutate(SubRegion=recode(SubRegion, `Georgiana Slough`="Sacramento River near Ryde"))%>%
+  mutate(SubRegion=recode(SubRegion, `Georgiana Slough`="Sacramento River near Ryde"))%>% # Merge Georgiana Slough with Sacramento River near Ryde since Georgiana has only 1 station
   group_by(SubRegion)%>%
   summarise()%>%
   ungroup()
@@ -70,7 +74,11 @@ Data<-wq(End_year=2021,
   group_by(Season, SubRegion, Year)%>%
   summarise(Sal_mean=mean(Sal_month_mean), Sal_sd=sqrt(mean(Sal_month_var)), N=sum(N))%>% # Calculate seasonal mean salinity, seasonal sd as the sqrt of the mean monthly variance, total seasonal sample size
   ungroup()%>%
+  group_by(SubRegion, Season)%>% # Some Sal_sd were NA when there was only 1 sample per month, so here I'm calculating and filling in the average SD for that region and season
+  mutate(Sal_sd_mean=mean(Sal_sd, na.rm=T))%>%
+  ungroup()%>%
   as_tibble()%>% # End dtplyr operation
+  mutate(Sal_sd=if_else(is.na(Sal_sd), Sal_sd_mean, Sal_sd))%>%
   mutate(Season=factor(Season, levels=c("Winter", "Spring", "Summer", "Fall")))
 
 p_effort<-ggplot(filter(Data, N>0))+
