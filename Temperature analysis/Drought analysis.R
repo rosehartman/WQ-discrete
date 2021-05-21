@@ -544,12 +544,19 @@ D3_newdata_pred<-D3_newdata%>%
          Slope_u95=Slope+Slope_se*qnorm(0.975))%>%
   mutate(Sig=if_else(Slope_u99.9>0 & Slope_l99.9<0, "ns", "*"))
 
+# Calculate monthly mean salinity for each subregion and month
+sal_sum_month<-Data_D3%>%
+  group_by(SubRegion, Month)%>%
+  summarise(Salinity_mean=mean(Salinity), Salinity_sd=sd(Salinity), .groups="drop")
+
 p_D3<-ggplot(D3_newdata_pred, aes(x=Salinity, y=Slope, ymin=Slope_l99.9, ymax=Slope_u99.9))+
   geom_ribbon(alpha=0.3)+
   geom_ribbon(alpha=0.3, aes(ymin=Slope_l99, ymax=Slope_u99))+
   geom_ribbon(alpha=0.3, aes(ymin=Slope_l95, ymax=Slope_u95))+
   geom_line(alpha=0.3)+
   geom_hline(yintercept=0)+
+  geom_vline(data=sal_sum_month%>%filter(SubRegion=="Confluence")%>%mutate(Month=month(Month, label=T)), 
+             aes(xintercept=Salinity_mean), color="red", linetype=2)+
   ylab("Temperature change per change in total inflow (°C/monthly sd[cfs])")+
   facet_wrap(~Month)+
   theme_bw()+
@@ -626,14 +633,11 @@ p_sal_sd<-ggplot()+
 
 p_sal<-p_sal_mean+p_sal_sd+plot_annotation(tag_levels="A")
 
-ggsave(p_sal, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Figure 6 salinity month map.png",
+ggsave(p_sal, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Overall salinity map.png",
        device="png", width=10, height=5, units="in")
 
 #### Plot monthly salinity --------------------------------------------------
 
-sal_sum_month<-Data_D3%>%
-  group_by(SubRegion, Month)%>%
-  summarise(Salinity_mean=mean(Salinity), Salinity_sd=sd(Salinity), .groups="drop")
 
 water_mean2<-base%>%
   mutate(Month=month(Date))%>%
@@ -663,7 +667,7 @@ p_sal_month_sd<-ggplot()+
 
 p_sal_month<-p_sal_month_mean+p_sal_month_sd+plot_annotation(tag_levels="A")
 
-ggsave(p_sal_month, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Salinity month map.png",
+ggsave(p_sal_month, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Figure 6 salinity month map.png",
        device="png", width=13, height=7, units="in")
 
 
