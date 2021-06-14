@@ -288,6 +288,10 @@ modellea3b4 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_d
 
 modellea3b4_vars<-scat_extract(modellea3b4)
 
+modellea3b4_gaus <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 13), by=Year_fac) + 
+                     s(Time_num_s, bs="cr", k=5), control=list(trace=TRUE),
+                   data = filter(Data, Group==2)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=7)
+
 scat_vars_final<-map2_dbl(modellea3a4_vars, modellea3b4_vars, ~mean(c(.x, .y)))
 
 modellea_full <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 13), by=Year_fac) + 
@@ -434,7 +438,8 @@ WQ_pred<-function(Full_data=Data,
 
 newdata_year <- WQ_pred(Full_data=Data, 
                         Julian_days = yday(ymd(paste("2001", 1:12, "15", sep="-"))),
-                        Years=round(min(Data$Year):max(Data$Year)))
+                        Years=round(min(Data$Year):max(Data$Year)))%>%
+  mutate(Group=if_else(is.even(Year), 1, 2))
 
 #saveRDS(newdata_year, file="Temperature analysis/Prediction Data.Rds")
 
@@ -442,6 +447,80 @@ newdata_year <- WQ_pred(Full_data=Data,
 
 modellc4_predictions<-predict(modellc4, newdata=newdata_year, type="response", se.fit=TRUE, discrete=T, n.threads=16) # Create predictions
 modelld_predictions<-predict(modelld, newdata=newdata_year, type="response", se.fit=TRUE, discrete=T, n.threads=16) # Create predictions
+
+modellea3b4_gaus_predictions<-predict(modellea3b4_gaus, newdata=filter(newdata_year, Group==2), type="response", se.fit=TRUE, discrete=T, n.threads=7) # Predict for gaussian model
+modellea3b4_predictions<-predict(modellea3b4, newdata=filter(newdata_year, Group==2), type="response", se.fit=TRUE, discrete=T, n.threads=6) # Predict for scat model
+
+newdata<-newdata_year%>%
+  filter(Group==2)%>%
+  st_drop_geometry()%>%
+  as_tibble()%>%
+  mutate(scat_pred=modellea3b4_predictions$fit,
+         scat_SE=modellea3b4_predictions$se.fit,
+         gaus_pred=modellea3b4_gaus_predictions$fit,
+         gaus_SE=modellea3b4_gaus_predictions$se.fit,
+         Diff=scat_pred-gaus_pred)%>%
+  mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-")))) # Create Date variable from Julian Day and Year
+
+newdata_sum<-newdata%>%
+  mutate(Month=month(Date))%>%
+  group_by(Year, SubRegion, Month)%>%
+  summarise(across(c(Diff, scat_pred, scat_SE, gaus_pred, gaus_SE), list(mean=mean, sd=sd)), .groups="drop")%>%
+  mutate(ID=paste(Year, SubRegion, Month))
+
+Data_issues<-Data%>%
+  st_drop_geometry()%>%
+  mutate(ID=paste(Year, SubRegion, Month))%>%
+  filter(ID%in%unique(filter(newdata_sum, abs(Diff_mean)>5)$ID))%>%
+  group_by(Year, SubRegion, Month)%>%
+  summarise(Temp_mean=mean(Temperature), Temp_sd=sd(Temperature), .groups="drop")
+
+newdata_issues<-newdata_sum%>%
+  filter(abs(Diff_mean)>5)%>%
+  left_join(Data_issues, by=c("Year", "SubRegion", "Month"))
+
+ggplot(newdata_issues, aes(x=Temp_mean, xmin=Temp_mean-Temp_sd, xmax=Temp_mean+Temp_sd))+
+  geom_pointrange(aes(y=scat_pred_mean, ymin=scat_pred_mean-scat_pred_sd, ymax=scat_pred_mean+scat_pred_sd, fill="scat"), color="black", shape=21)+
+  geom_pointrange(aes(y=gaus_pred_mean, ymin=gaus_pred_mean-gaus_pred_sd, ymax=gaus_pred_mean+gaus_pred_sd, fill="gaus"), color="black", shape=21)+
+  geom_abline(slope=1, intercept=0)+
+  ylab("Model prediction")+
+  xlab("Measured temperature")+
+  scale_fill_viridis_d()
+
+Data_good<-Data%>%
+  st_drop_geometry()%>%
+  mutate(ID=paste(Year, SubRegion, Month))%>%
+  filter(ID%in%unique(filter(newdata_sum, abs(Diff_mean)<5)$ID))%>%
+  group_by(Year, SubRegion, Month)%>%
+  summarise(Temp_mean=mean(Temperature), Temp_sd=sd(Temperature), .groups="drop")
+
+newdata_good<-newdata_sum%>%
+  filter(abs(Diff_mean)<5)%>%
+  left_join(Data_good, by=c("Year", "SubRegion", "Month"))
+
+ggplot(newdata_good, aes(x=Temp_mean, xmin=Temp_mean-Temp_sd, xmax=Temp_mean+Temp_sd))+
+  geom_pointrange(aes(y=scat_pred_mean, ymin=scat_pred_mean-scat_pred_sd, ymax=scat_pred_mean+scat_pred_sd, fill="scat"), color="black", shape=21)+
+  geom_pointrange(aes(y=gaus_pred_mean, ymin=gaus_pred_mean-gaus_pred_sd, ymax=gaus_pred_mean+gaus_pred_sd, fill="gaus"), color="black", shape=21)+
+  geom_abline(slope=1, intercept=0)+
+  ylab("Model prediction")+
+  xlab("Measured temperature")+
+  scale_fill_viridis_d()
+
+Data_sum<-Data%>%
+  st_drop_geometry()%>%
+  group_by(Year, SubRegion, Month)%>%
+  summarise(Temp_mean=mean(Temperature), Temp_sd=sd(Temperature), .groups="drop")
+
+newdata_sum_plot<-newdata_sum%>%
+  left_join(Data_sum, by=c("Year", "SubRegion", "Month"))
+
+ggplot(newdata_sum_plot, aes(x=Temp_mean, xmin=Temp_mean-Temp_sd, xmax=Temp_mean+Temp_sd))+
+  geom_pointrange(aes(y=scat_pred_mean, ymin=scat_pred_mean-scat_pred_sd, ymax=scat_pred_mean+scat_pred_sd, fill="scat"), color="black", shape=21)+
+  geom_pointrange(aes(y=gaus_pred_mean, ymin=gaus_pred_mean-gaus_pred_sd, ymax=gaus_pred_mean+gaus_pred_sd, fill="gaus"), color="black", shape=21)+
+  geom_abline(slope=1, intercept=0)+
+  ylab("Model prediction")+
+  xlab("Measured temperature")+
+  scale_fill_viridis_d()
 
 # Predictions stored as "modellc4_predictions.Rds"
 
