@@ -21,6 +21,7 @@ require(itsadug)
 require(colorspace)
 require(patchwork)
 require(ggstance)
+require(discretewq)
 source("Utility_functions.R")
 
 # Create overall dataset --------------------------
@@ -39,8 +40,8 @@ Data <- wq()%>%
   filter(Temperature !=0)%>% #Remove 0 temps
   mutate(Temperature_bottom=if_else(Temperature_bottom>30, NA_real_, Temperature_bottom))%>% #Remove bad bottom temps
   filter(hour(Datetime)>=5 & hour(Datetime)<=20)%>% # Only keep data between 5AM and 8PM
-  mutate(Datetime = with_tz(Datetime, tz="America/Phoenix"), #Convert to a timezone without daylight savings time
-         Date = with_tz(Date, tz="America/Phoenix"),
+  mutate(Datetime = with_tz(Datetime, tz="Etc/GMT+7"), #Convert to a timezone without daylight savings time
+         Date = with_tz(Date, tz="Etc/GMT+7"),
          Time=as_hms(Datetime), # Create variable for time-of-day, not date. 
          Noon_diff=abs(hms(hours=12)-Time))%>% # Calculate difference from noon for each data point for later filtering
   group_by(Station, Source, Date)%>%
@@ -591,7 +592,7 @@ p_effort<-ggplot(Data_effort)+
   theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank(), text=element_text(size=16), legend.position=c(0.4, 0.65), 
         legend.background = element_rect(color="black"), panel.background = element_rect(color="black"), legend.margin=margin(10,10,15,10))
 
-ggsave(p_effort, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure S1 Climate change effort.png",
+ggsave(p_effort, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure S1 Climate change effort2.png",
        device="png", width=15, height=18, units="in")
 
 # Now try a model with higher spatial K value -----------------------------

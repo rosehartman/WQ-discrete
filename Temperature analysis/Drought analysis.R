@@ -20,9 +20,12 @@ require(readr)
 require(slider)
 require(colorspace)
 require(ggstance)
+require(discretewq)
 source("Utility_functions.R")
 options(scipen=999)
 
+# TODO
+# 1) Re-run all variograms
 
 
 # setup -------------------------------------------------------------------
@@ -45,7 +48,8 @@ dayflow<-read_csv(file.path("Temperature analysis", "data", "Dayflow1997 2019.cs
     mutate(Date=parse_date_time(Date, "%m/%d/%Y", tz = "America/Los_Angeles"),
            PREC_acrefeetperday=(PREC*3600*24)/(43560),
            PREC_feetperday=if_else(Date>=parse_date_time("10/01/1980", "%m/%d/%Y", tz = "America/Los_Angeles"), PREC_acrefeetperday/682230, PREC_acrefeetperday/738000),
-           PREC_CFS=(PREC_feetperday*682230*43560)/(3600*24))%>%
+           PREC_CFS=(PREC_feetperday*682230*43560)/(3600*24),
+           Date = as_date(Date))%>% # Remove times to make sure merging works correctly
   arrange(Date)%>%
   mutate(TOT_mean30=slide_index_dbl(.$TOT, .$Date, .before=days(30), .f=mean, .complete = T),
          PREC_mean30=slide_index_dbl(.$PREC, .$Date, .before=days(30), .f=mean, .complete = T),
@@ -57,7 +61,8 @@ dayflow<-read_csv(file.path("Temperature analysis", "data", "Dayflow1997 2019.cs
 
 Data_D2<-readRDS("Temperature analysis/Data_CC4.Rds")%>%
   mutate(WY=Year)%>%
-  mutate(WY=if_else(Month%in%10:12, WY+1, WY))%>%
+  mutate(WY=if_else(Month%in%10:12, WY+1, WY),
+         Date=as_date(Date))%>% # Remove times to make sure merging works correctly
   left_join(dayflow, by="Date")%>%
   filter(!is.na(TOT))%>%
   arrange(Station, Date)%>%
@@ -74,7 +79,7 @@ Data_D2<-readRDS("Temperature analysis/Data_CC4.Rds")%>%
          TOT_mean30_s_month=(TOT_mean30-TOT_mean30_mean)/TOT_mean30_sd,
          PREC_mean30_s_month=(PREC_mean30-PREC_mean30_mean)/PREC_mean30_sd)
 
-saveRDS(Data_D2, "Temperature analysis/Data_D2.Rds")
+#saveRDS(Data_D2, "Temperature analysis/Data_D2.Rds")
   
 
 Delta2<-st_read("Delta Subregions")%>%
@@ -95,7 +100,7 @@ D2_nomonth_gam_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s,
 
 ## Autocorrelation ---------------------------------------------------------
 
-p_D2_nomonth_variogram<-ST_variogram(D2_nomonth_gam_AR, Data_D2, 4)
+p_D2_nomonth_variogram<-ST_variogram(D2_nomonth_gam_AR, Data_D2, 5)
 
 ggsave(p_D2_nomonth_variogram, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/model 1 inflow nomonth model variogram.png",
        device="png", width=8, height=5, units="in")
@@ -304,13 +309,13 @@ ggsave(p_D2_gam_higherk, filename="C:/Users/sbashevkin/deltacouncil/Science Extr
 D2_CC_gam_NOAR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
                       te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=TOT_mean30_s_month) + 
                         te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=WY_s) + 
-                      s(Time_num_s, k=5), family=scat, data = Data_D2, method="fREML", discrete=T, nthreads=2)
+                      s(Time_num_s, k=5), family=scat, data = Data_D2, method="fREML", discrete=T, nthreads=5)
 D2CCr <- start_value_rho(D2_CC_gam_NOAR, plot=TRUE)
 
 D2_CC_gam_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
                     te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=TOT_mean30_s_month) + 
                       te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=WY_s) + 
-                    s(Time_num_s, k=5), family=scat, rho=D2CCr, AR.start=Start, data = Data_D2, method="fREML", discrete=T, nthreads=2)
+                    s(Time_num_s, k=5), family=scat, rho=D2CCr, AR.start=Start, data = Data_D2, method="fREML", discrete=T, nthreads=5)
 
 ## Autocorrelation ---------------------------------------------------------
 
@@ -400,8 +405,8 @@ Data_D3_pre <- wq()%>%
   filter(!is.na(Temperature) & !is.na(Salinity) & !is.na(Datetime) & !is.na(Latitude) & !is.na(Longitude) & !is.na(Date))%>% #Remove any rows with NAs in our key variables
   filter(Temperature !=0)%>% #Remove 0 temps
   filter(hour(Datetime)>=5 & hour(Datetime)<=20)%>% # Only keep data between 5AM and 8PM
-  mutate(Datetime = with_tz(Datetime, tz="America/Phoenix"), #Convert to a timezone without daylight savings time
-         Date = with_tz(Date, tz="America/Phoenix"),
+  mutate(Datetime = with_tz(Datetime, tz="Etc/GMT+7"), #Convert to a timezone without daylight savings time
+         Date = with_tz(Date, tz="Etc/GMT+7"),
          Time=as_hms(Datetime), # Create variable for time-of-day, not date. 
          Noon_diff=abs(hms(hours=12)-Time))%>% # Calculate difference from noon for each data point for later filtering
   group_by(Station, Source, Date)%>%
@@ -472,7 +477,8 @@ Data_D3<-Data_D3_pre%>%
   mutate(ID=paste(Station, Date_num))%>%
   filter(!(ID%in%ID[which(duplicated(ID))]))%>%
   mutate(WY=Year)%>%
-  mutate(WY=if_else(Month%in%10:12, WY+1, WY))%>%
+  mutate(WY=if_else(Month%in%10:12, WY+1, WY),
+         Date=as_date(Date))%>% # Remove times to make sure merging works correctly
   left_join(dayflow, by="Date")%>%
   filter(!is.na(TOT))%>%
   arrange(Station, Date)%>%
@@ -677,7 +683,7 @@ ggsave(p_sal_month, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet 
 Data_D3_sal<-Data_D3%>%
   mutate(Hour=floor(Time_num/3600),
          Minute=floor((Time_num-3600*Hour)/60),
-         Datetime=parse_date_time(paste0(year(Date), "-", month(Date), "-", day(Date), " ", Hour, ":", Minute), "%Y-%m-%d %H:%M", tz="America/Phoenix"))%>%
+         Datetime=parse_date_time(paste0(year(Date), "-", month(Date), "-", day(Date), " ", Hour, ":", Minute), "%Y-%m-%d %H:%M", tz="Etc/GMT+7"))%>%
   filter(Salinity!=0)%>%
   mutate(Salinity_l=log(Salinity),
          ID=1:n())
@@ -738,10 +744,10 @@ D3_gam_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1
 dayflow_sum<-dayflow%>%
   mutate(Month=month(Date, label=T))%>%
   select(Month, TOT_mean30_mean, TOT_mean30_sd, PREC_mean30_mean, PREC_mean30_sd)%>%
-  distinct()%>%
-  mutate(across(c(TOT_mean30_mean, TOT_mean30_sd, PREC_mean30_mean, PREC_mean30_sd), ~format(round(.x), big.mark = ",")))
+  distinct()
 
 dayflow_sum%>%
+  mutate(across(c(TOT_mean30_mean, TOT_mean30_sd, PREC_mean30_mean, PREC_mean30_sd), ~format(round(.x), big.mark = ",")))%>%
   rename(`Mean inflow`=TOT_mean30_mean, `SD inflow`=TOT_mean30_sd, `Mean precip`=PREC_mean30_mean, `SD precip`=PREC_mean30_sd)%>%
   arrange(Month)%>%
   write_csv("C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Table 1.csv")
@@ -771,12 +777,12 @@ ggsave(p_inflow, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - D
 
 D2_gam_PREC_NOAR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
                           te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=PREC_mean30_s_month) + 
-                          s(Time_num_s, k=5), family=scat, data = Data_D2, method="fREML", discrete=T, nthreads=2)
+                          s(Time_num_s, k=5), family=scat, data = Data_D2, method="fREML", discrete=T, nthreads=5)
 D2r_PREC <- start_value_rho(D2_gam_PREC_NOAR, plot=TRUE)
 
 D2_gam_PREC_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
                         te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=PREC_mean30_s_month) + 
-                        s(Time_num_s, k=5), family=scat, rho=D2r_PREC, AR.start=Start, data = Data_D2, method="fREML", discrete=T, nthreads=2)
+                        s(Time_num_s, k=5), family=scat, rho=D2r_PREC, AR.start=Start, data = Data_D2, method="fREML", discrete=T, nthreads=5)
 
 ## Autocorrelation ---------------------------------------------------------
 

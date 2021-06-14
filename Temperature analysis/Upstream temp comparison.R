@@ -24,6 +24,32 @@ ggplot(filter(Data_sum, Year>=2012 & Year<=2018 & !is.na(Position)), aes(x=JDay,
                      minor_breaks = F, expand=expansion(0,0))+
   theme_bw()
 
+# Freeport vs Rio Vista
+
+ggplot(filter(Data_sum, Station%in%c("FPT", "SRV") & Year>=2009 & Year<=2018), aes(x=JDay, y=Temp, color=Station, group=Station))+
+  geom_line()+
+  facet_wrap(~Year)+
+  scale_color_viridis_d()+
+  scale_x_continuous(breaks=yday(parse_date_time(paste("2001", 1:12, 1, sep="-"), orders="%Y-%m-%d")), labels=month(1:12, label=T), 
+                     minor_breaks = F, expand=expansion(0,0))+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle=45, hjust=1))
+
+Data_sum_diff<-Data_sum%>%
+  filter(Station%in%c("FPT", "SRV"))%>%
+  select(-Position)%>%
+  pivot_wider(names_from = Station, values_from=Temp)%>%
+  filter(!is.na(FPT) & !is.na(SRV))%>%
+  mutate(Diff=FPT-SRV,
+         Month=month(Date, label=T))
+
+ggplot(Data_sum_diff, aes(x=Month, y=Diff, fill=Year, group=interaction(Year, Month)))+
+  geom_boxplot()+
+  geom_hline(yintercept=0, color="red")+
+  scale_fill_viridis_c()+
+  ylab("Temperature difference FPT-SRV")+
+  theme_bw()
+
 # Freeport vs antioch
 
 ggplot(filter(Data_sum, Station%in%c("FPT", "ANH") & Year>=2009 & Year<=2018), aes(x=JDay, y=Temp, color=Station, group=Station))+
