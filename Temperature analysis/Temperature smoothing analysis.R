@@ -278,6 +278,10 @@ modellea3a4 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_d
 
 modellea3a4_vars<-scat_extract(modellea3a4)
 
+modellea3a4_gaus <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 13), by=Year_fac) + 
+                     s(Time_num_s, bs="cr", k=5), control=list(trace=TRUE),
+                   data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
+
 modellea3b4 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 13), by=Year_fac) + 
                      s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE),
                    data = filter(Data, Group==2)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
