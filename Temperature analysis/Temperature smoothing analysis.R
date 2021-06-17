@@ -14,10 +14,6 @@ require(dtplyr)
 require(scales)
 require(parallel)
 
-### TODO
-
-# 1) Try only retaining 1 datapoint per week per station
-
 # Function to extract scat family variables
 
 scat_extract<-function(model){
@@ -114,15 +110,15 @@ Data<-readRDS("Temperature analysis/Discrete Temp Data.Rds")
 ## New best
 modellda <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
                   te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
-                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
+                data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
 
 #AIC: 120728.7
 #BIC: 162087.7
 ## New best
 
 modellda.2 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
-                  te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)), select=TRUE,
-                data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
+                    te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)), select=TRUE,
+                  data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
 #AIC: 120729.9
 #BIC: 161957.2
 
@@ -141,8 +137,8 @@ modelld3a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day
 #BIC: 155211
 
 modelld4a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
-                  te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 6)),
-                data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
+                   te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 6)),
+                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
 
 #AIC: 120732.4
 #BIC: 162066.7
@@ -173,29 +169,29 @@ modelld8a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day
 #BIC: 147318.7
 
 modelld9a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(40, 20), by=Year_fac) + 
-                  te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
-                data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
+                   te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
+                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
 
 #AIC: 119485.3
 #BIC: 167776.6
 
 modelld10a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 30), by=Year_fac) + 
-                  te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
-                data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
+                    te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
+                  data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
 
 #AIC: 105217.7
 #BIC: 162644
 
 modelld11a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
-                  te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 24)),
-                data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
+                    te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 24)),
+                  data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
 
 #AIC: 120166.2
 #BIC: 162078.2
 
 modelld12a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(50, 20), by=Year_fac) + 
-                   te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
-                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
+                    te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
+                  data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
 
 AIC(modelld12a)
 BIC(modelld12a)
@@ -208,8 +204,8 @@ AIC(modelld13a)
 BIC(modelld13a)
 
 modelld14a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 20), by=Year_fac) + 
-                  te(Time_num_s, Julian_day_s, bs=c("cr", "cc"), k=c(5, 12)),
-                data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=5)
+                    te(Time_num_s, Julian_day_s, bs=c("cr", "cc"), k=c(5, 12)),
+                  data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=5)
 #AIC: 120739.6
 #BIC: 162099.7
 
@@ -226,19 +222,19 @@ modellea <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_
 #BIC: 156933.8
 
 modellea2 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 13), by=Year_fac) + 
-                  te(Time_num_s, Julian_day_s, bs=c("cr", "cc"), k=c(5, 13)), family=scat,
-                data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=3)
+                   te(Time_num_s, Julian_day_s, bs=c("cr", "cc"), k=c(5, 13)), family=scat,
+                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=3)
 # 4: In bgam.fitd(G, mf, gp, scale, nobs.extra = 0, rho = rho, coef = coef,  :
 #                  algorithm did not converge
 
 modellea3 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 13), by=Year_fac) + 
-                        s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE),
-                      data = Data, method="fREML", discrete=T, nthreads=8)
+                   s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE),
+                 data = Data, method="fREML", discrete=T, nthreads=8)
 
 cl <- makeCluster(8) 
 modellea3B <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 13), by=Year_fac) + 
-                   s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE),
-                 data = Data, method="REML", discrete=F, cluster=cl)
+                    s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE),
+                  data = Data, method="REML", discrete=F, cluster=cl)
 # Didn't go anywhere in a few hours
 
 
@@ -248,15 +244,15 @@ modellea3C <- gam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_da
 
 
 modellea3a <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(15, 13), by=Year_fac) + 
-                   s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE),
-                 data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
+                    s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE),
+                  data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
 
 modellea3a_vars<-scat_extract(modellea3a)
 
 
 modellea3a2 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(20, 13), by=Year_fac) + 
-                    s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE),
-                  data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
+                     s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE),
+                   data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
 
 modellea3a2_vars<-scat_extract(modellea3a2)
 
@@ -279,8 +275,8 @@ modellea3a4 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_d
 modellea3a4_vars<-scat_extract(modellea3a4)
 
 modellea3a4_gaus <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 13), by=Year_fac) + 
-                     s(Time_num_s, bs="cr", k=5), control=list(trace=TRUE),
-                   data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
+                          s(Time_num_s, bs="cr", k=5), control=list(trace=TRUE),
+                        data = filter(Data, Group==1)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
 
 modellea3b4 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 13), by=Year_fac) + 
                      s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE),
@@ -289,14 +285,14 @@ modellea3b4 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_d
 modellea3b4_vars<-scat_extract(modellea3b4)
 
 modellea3b4_gaus <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 13), by=Year_fac) + 
-                     s(Time_num_s, bs="cr", k=5), control=list(trace=TRUE),
-                   data = filter(Data, Group==2)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=7)
+                          s(Time_num_s, bs="cr", k=5), control=list(trace=TRUE),
+                        data = filter(Data, Group==2)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=7)
 
 scat_vars_final<-map2_dbl(modellea3a4_vars, modellea3b4_vars, ~mean(c(.x, .y)))
 
 modellea_full <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 13), by=Year_fac) + 
-                     s(Time_num_s, bs="cr", k=5), family=scat(theta=scat_vars_final), control=list(trace=TRUE),
-                   data = Data, method="fREML", discrete=T, nthreads=8)
+                       s(Time_num_s, bs="cr", k=5), family=scat(theta=scat_vars_final), control=list(trace=TRUE),
+                     data = Data, method="fREML", discrete=T, nthreads=8)
 
 #Error: cannot allocate vector of size 1.8 Gb
 # In addition: Warning message:
@@ -313,8 +309,8 @@ modellea4 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day
 
 cl <- makeCluster(8) 
 modellea3_full <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 13), by=Year_fac) + 
-                   s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE),
-                 data = Data, method="fREML", discrete=F, cluster=cl)
+                        s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE),
+                      data = Data, method="fREML", discrete=F, cluster=cl)
 # Ran out of memory after first step
 
 modellea3_full <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 13), by=Year_fac) + 
@@ -327,8 +323,8 @@ modellea3_full <- gam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julia
                       data = Data, method="REML")
 
 modellea3_full <- gamm(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 13), by=Year_fac) + 
-                        s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE, nthreads=8),
-                      data = Data, method="REML")
+                         s(Time_num_s, bs="cr", k=5), family=scat, control=list(trace=TRUE, nthreads=8),
+                       data = Data, method="REML")
 # Error: cannot allocate vector of size 624 Kb 
 
 
@@ -341,29 +337,14 @@ modellea3_full <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julia
 
 # Trying to set the scat parameters as starting values instead of fixed values to see if this works better
 modellea3_full2 <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(30, 13), by=Year_fac) + 
-                        s(Time_num_s, bs="cr", k=5), family=scat(theta=c(-3, -0.5200804)), control=list(trace=TRUE),
-                      data = Data, method="fREML", discrete=T, nthreads=8)
+                         s(Time_num_s, bs="cr", k=5), family=scat(theta=c(-3, -0.5200804)), control=list(trace=TRUE),
+                       data = Data, method="fREML", discrete=T, nthreads=8)
 # Taking forever
 
 # Final model -------------------------------------------------------------
-
-require(googleComputeEngineR)
-require(googleCloudStorageR)
-
-vm <- gce_vm(template = "rstudio", zone="us-west1-a",
-             name = "rstudio-server",
-             username = "", password = "",  predefined_type = "e2-highmem-16",
-             dynamic_image = "gcr.io/gcer-public/persistent-rstudio",
-             disk_size_gb=100)
-gce_set_metadata(list(GCS_SESSION_BUCKET = "discretewq"), vm)
-
-#Data used to fit the model are stored in "Simplified data.Rds" as Data_simp
-
-
-modelld <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
-                  te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
-                data = Data, method="fREML", discrete=T, nthreads=16)
-
+modellf <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 13), by=Year_fac) + 
+                 te(Time_num_s, Julian_day_s, bs=c("cr", "cc"), k=c(5, 13)), control=list(trace=TRUE),
+               data = Data, method="fREML", discrete=T, nthreads=8)
 
 # Data prediction ---------------------------------------------------------
 
@@ -441,103 +422,26 @@ newdata_year <- WQ_pred(Full_data=Data,
                         Years=round(min(Data$Year):max(Data$Year)))%>%
   mutate(Group=if_else(is.even(Year), 1, 2))
 
+newdata_all <- WQ_pred(Full_data=Data, 
+                       Julian_days = 1:365,
+                       Years=round(min(Data$Year):max(Data$Year)))
+
+newdata_all_preds<-predict(modellf, newdata=newdata_all, type="response", se.fit=TRUE, discrete=T, n.threads=8) # Create predictions
+
 #saveRDS(newdata_year, file="Temperature analysis/Prediction Data.Rds")
+newdata_year<-readRDS("Temperature analysis/Prediction Data.Rds")
 
-# Perform in the cloud
 
-modellc4_predictions<-predict(modellc4, newdata=newdata_year, type="response", se.fit=TRUE, discrete=T, n.threads=16) # Create predictions
-modelld_predictions<-predict(modelld, newdata=newdata_year, type="response", se.fit=TRUE, discrete=T, n.threads=16) # Create predictions
-
-modellea3b4_gaus_predictions<-predict(modellea3b4_gaus, newdata=filter(newdata_year, Group==2), type="response", se.fit=TRUE, discrete=T, n.threads=7) # Predict for gaussian model
-modellea3b4_predictions<-predict(modellea3b4, newdata=filter(newdata_year, Group==2), type="response", se.fit=TRUE, discrete=T, n.threads=6) # Predict for scat model
-
-newdata<-newdata_year%>%
-  filter(Group==2)%>%
-  st_drop_geometry()%>%
-  as_tibble()%>%
-  mutate(scat_pred=modellea3b4_predictions$fit,
-         scat_SE=modellea3b4_predictions$se.fit,
-         gaus_pred=modellea3b4_gaus_predictions$fit,
-         gaus_SE=modellea3b4_gaus_predictions$se.fit,
-         Diff=scat_pred-gaus_pred)%>%
-  mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-")))) # Create Date variable from Julian Day and Year
-
-newdata_sum<-newdata%>%
-  mutate(Month=month(Date))%>%
-  group_by(Year, SubRegion, Month)%>%
-  summarise(across(c(Diff, scat_pred, scat_SE, gaus_pred, gaus_SE), list(mean=mean, sd=sd)), .groups="drop")%>%
-  mutate(ID=paste(Year, SubRegion, Month))
-
-Data_issues<-Data%>%
-  st_drop_geometry()%>%
-  mutate(ID=paste(Year, SubRegion, Month))%>%
-  filter(ID%in%unique(filter(newdata_sum, abs(Diff_mean)>5)$ID))%>%
-  group_by(Year, SubRegion, Month)%>%
-  summarise(Temp_mean=mean(Temperature), Temp_sd=sd(Temperature), .groups="drop")
-
-newdata_issues<-newdata_sum%>%
-  filter(abs(Diff_mean)>5)%>%
-  left_join(Data_issues, by=c("Year", "SubRegion", "Month"))
-
-ggplot(newdata_issues, aes(x=Temp_mean, xmin=Temp_mean-Temp_sd, xmax=Temp_mean+Temp_sd))+
-  geom_pointrange(aes(y=scat_pred_mean, ymin=scat_pred_mean-scat_pred_sd, ymax=scat_pred_mean+scat_pred_sd, fill="scat"), color="black", shape=21)+
-  geom_pointrange(aes(y=gaus_pred_mean, ymin=gaus_pred_mean-gaus_pred_sd, ymax=gaus_pred_mean+gaus_pred_sd, fill="gaus"), color="black", shape=21)+
-  geom_abline(slope=1, intercept=0)+
-  ylab("Model prediction")+
-  xlab("Measured temperature")+
-  scale_fill_viridis_d()
-
-Data_good<-Data%>%
-  st_drop_geometry()%>%
-  mutate(ID=paste(Year, SubRegion, Month))%>%
-  filter(ID%in%unique(filter(newdata_sum, abs(Diff_mean)<5)$ID))%>%
-  group_by(Year, SubRegion, Month)%>%
-  summarise(Temp_mean=mean(Temperature), Temp_sd=sd(Temperature), .groups="drop")
-
-newdata_good<-newdata_sum%>%
-  filter(abs(Diff_mean)<5)%>%
-  left_join(Data_good, by=c("Year", "SubRegion", "Month"))
-
-ggplot(newdata_good, aes(x=Temp_mean, xmin=Temp_mean-Temp_sd, xmax=Temp_mean+Temp_sd))+
-  geom_pointrange(aes(y=scat_pred_mean, ymin=scat_pred_mean-scat_pred_sd, ymax=scat_pred_mean+scat_pred_sd, fill="scat"), color="black", shape=21)+
-  geom_pointrange(aes(y=gaus_pred_mean, ymin=gaus_pred_mean-gaus_pred_sd, ymax=gaus_pred_mean+gaus_pred_sd, fill="gaus"), color="black", shape=21)+
-  geom_abline(slope=1, intercept=0)+
-  ylab("Model prediction")+
-  xlab("Measured temperature")+
-  scale_fill_viridis_d()
-
-Data_sum<-Data%>%
-  st_drop_geometry()%>%
-  group_by(Year, SubRegion, Month)%>%
-  summarise(Temp_mean=mean(Temperature), Temp_sd=sd(Temperature), .groups="drop")
-
-newdata_sum_plot<-newdata_sum%>%
-  left_join(Data_sum, by=c("Year", "SubRegion", "Month"))
-
-ggplot(newdata_sum_plot, aes(x=Temp_mean, xmin=Temp_mean-Temp_sd, xmax=Temp_mean+Temp_sd))+
-  geom_pointrange(aes(y=scat_pred_mean, ymin=scat_pred_mean-scat_pred_sd, ymax=scat_pred_mean+scat_pred_sd, fill="scat"), color="black", shape=21)+
-  geom_pointrange(aes(y=gaus_pred_mean, ymin=gaus_pred_mean-gaus_pred_sd, ymax=gaus_pred_mean+gaus_pred_sd, fill="gaus"), color="black", shape=21)+
-  geom_abline(slope=1, intercept=0)+
-  ylab("Model prediction")+
-  xlab("Measured temperature")+
-  scale_fill_viridis_d()
-
-# Predictions stored as "modellc4_predictions.Rds"
+modellf_predictions<-predict(modellf, newdata=newdata_year, type="response", se.fit=TRUE, discrete=T, n.threads=8) # Create predictions
+saveRDS(modellf_predictions, file="Temperature analysis/Model outputs and validations/modellf_predictions.Rds")
+# Predictions stored as "modellf_predictions.Rds"
 
 newdata_year<-readRDS("Temperature analysis/model outputs and validations/Prediction Data.Rds")
-modellc4_predictions<-readRDS("Temperature analysis/model outputs and validations/modellc4_predictions.Rds")
-modelld_predictions<-readRDS("Temperature analysis/model outputs and validations/modelld_predictions.Rds")
+modellf_predictions<-readRDS("Temperature analysis/model outputs and validations/modellf_predictions.Rds")
 
 newdata<-newdata_year%>%
-  mutate(Prediction=modellc4_predictions$fit)%>%
-  mutate(SE=modellc4_predictions$se.fit,
-         L95=Prediction-SE*1.96,
-         U95=Prediction+SE*1.96)%>%
-  mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-")))) # Create Date variable from Julian Day and Year
-
-newdata_d<-newdata_year%>%
-  mutate(Prediction=modelld_predictions$fit)%>%
-  mutate(SE=modelld_predictions$se.fit,
+  mutate(Prediction=modellf_predictions$fit)%>%
+  mutate(SE=modellf_predictions$se.fit,
          L95=Prediction-SE*1.96,
          U95=Prediction+SE*1.96)%>%
   mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-")))) # Create Date variable from Julian Day and Year
@@ -563,12 +467,6 @@ newdata_year2<-newdata%>%
   left_join(Data_effort, by=c("SubRegion", "Month", "Year"))%>% 
   filter(!is.na(N))
 
-newdata_year2_d<-newdata_d%>%
-  select(-N)%>%
-  mutate(Month=month(Date))%>%
-  left_join(Data_effort, by=c("SubRegion", "Month", "Year"))%>% 
-  filter(!is.na(N))
-
 Data_year<-Data%>%
   filter(hour(Time)<14 & hour(Time)>10)%>%
   lazy_dt()%>%
@@ -588,17 +486,6 @@ newdata_sum<-newdata_year2%>%
   mutate(L95=Temperature-1.96*SE,
          U95=Temperature+1.96*SE)
 
-newdata_sum_d<-newdata_year2_d%>%
-  mutate(Var=SE^2,
-         Month=month(Date))%>%
-  lazy_dt()%>%
-  group_by(Year, Month, SubRegion)%>%
-  summarise(Temperature=mean(Prediction), SE=sqrt(sum(Var)/(n()^2)))%>%
-  ungroup()%>%
-  as_tibble()%>%
-  mutate(L95=Temperature-1.96*SE,
-         U95=Temperature+1.96*SE)
-
 # Plot by Season for 1 subregion
 ggplot(filter(newdata_sum, SubRegion=="Confluence"))+
   geom_ribbon(aes(x=Year, ymin=L95, ymax=U95), fill="darkorchid4", alpha=0.5)+
@@ -608,7 +495,7 @@ ggplot(filter(newdata_sum, SubRegion=="Confluence"))+
   theme_bw()+
   theme(panel.grid=element_blank())
 
-# Plot by Subregion for 1 season
+# Plot by Subregion for every month
 mapyear<-function(month){
   ggplot(filter(newdata_sum_d, Month==month))+
     geom_ribbon(aes(x=Year, ymin=L95, ymax=U95), fill="firebrick3", alpha=0.5)+
@@ -619,44 +506,14 @@ mapyear<-function(month){
     theme(panel.grid=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
 }
 
-walk(1:12, function(x) ggsave(plot=mapyear(x), filename=paste0("C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Year predictions month ", x, " 11.6.20_d.png"), device=png(), width=15, height=12, units="in"))
+walk(1:12, function(x) ggsave(plot=mapyear(x), filename=paste0("Temperature analysis/Figures/Year predictions month ", x, " 11.6.20_d.png"), device=png(), width=15, height=12, units="in"))
 
 
 # Rasterized predictions --------------------------------------------------
 
-# Function to rasterize season by season. Creates a 4D raster Latitude x Longitude x Year x Season (But Season only has 1 value for the season passed to the function)
-Rasterize_season<-function(season, data, n, out_crs=4326){
-  
-  Years <- data %>%
-    #filter(Season == season) %>%
-    pull(Year) %>%
-    unique()
-  
-  #First rasterize year by year
-  preds<-map(Years, function(x) st_rasterize(data%>%
-                                               filter(Year==x & Season==season)%>%
-                                               dplyr::select(Prediction), 
-                                             template=st_as_stars(st_bbox(Delta), dx=diff(st_bbox(Delta)[c(1, 3)])/n, dy=diff(st_bbox(Delta)[c(2, 4)])/n, values = NA_real_))%>%
-               st_warp(crs=out_crs))
-  
-  # Then bind all years together into 1 raster
-  out <- exec(c, !!!preds, along=list(Year=Years, Season=season))
-}
-
-# Function to rasterize all dates. Creates a 3D raster Latitude x Longitude x Date 
-Rasterize_all <- function(data, var, out_crs=4326, n=100){
-  var<-rlang::enquo(var)
-  rlang::as_name(var)
-  preds<-map(unique(data$Date), function(x) st_rasterize(data%>%
-                                                           filter(Date==x)%>%
-                                                           dplyr::select(!!var), 
-                                                         template=st_as_stars(st_bbox(Delta), dx=diff(st_bbox(Delta)[c(1, 3)])/n, dy=diff(st_bbox(Delta)[c(2, 4)])/n, values = NA_real_))%>%
-               st_warp(crs=out_crs))
-  
-  # Then bind all dates together into 1 raster
-  out <- exec(c, !!!preds, along=list(Date=unique(data$Date)))
-  return(out)
-}
+Delta<-st_read("Delta Subregions")%>%
+  filter(SubRegion%in%unique(Data$SubRegion))%>% # Remove regions outside our domain of interest
+  dplyr::select(SubRegion)
 
 Data_effort <- Data%>%
   st_drop_geometry()%>%
@@ -669,111 +526,31 @@ newdata_rast <- newdata%>%
   left_join(Data_effort, by=c("SubRegion", "Month", "Year"))%>% 
   mutate(across(c(Prediction, SE, L95, U95), ~if_else(is.na(N), NA_real_, .)))
 
-newdata_rast_d <- newdata_d%>%
-  mutate(Month=month(Date))%>%
-  select(-N)%>%
-  left_join(Data_effort, by=c("SubRegion", "Month", "Year"))%>% 
-  mutate(across(c(Prediction, SE, L95, U95), ~if_else(is.na(N), NA_real_, .)))
-
 # Create full rasterization of all predictions for interactive visualizations
-rastered_preds<-Rasterize_all(newdata_rast, Prediction)
-rastered_preds_d<-Rasterize_all(newdata_rast_d, Prediction)
+rastered_preds<-Rasterize_all(newdata_rast, Prediction, region=Delta)
 # Same for SE
-rastered_SE<-Rasterize_all(newdata_rast, SE)
-rastered_SE_d<-Rasterize_all(newdata_rast_d, SE)
+rastered_SE<-Rasterize_all(newdata_rast, SE, region=Delta)
 # Bind SE and predictions together
-rastered_predsSE<-c(rastered_preds, rastered_SE)
-rastered_predsSE_d<-c(rastered_preds_d, rastered_SE_d)
+rastered_predsSE<-c(rastered_preds, rastered_SE, region=Delta)
 
-#saveRDS(rastered_predsSE, file="Shiny app/Rasterized modellc4 predictions.Rds")
-#saveRDS(rastered_predsSE_d, file="Shiny app/Rasterized modelld predictions.Rds")
-
-raster_plot<-function(data, Years=unique(newdata_rast_season$Year), labels="All"){
-  ggplot()+
-    geom_stars(data=data)+
-    facet_grid(Year~Season)+
-    scale_fill_viridis_c(name="Temperature", na.value="white", breaks=seq(6,26,by=1), labels= function(x) ifelse((x/2)==as.integer(x/2), as.character(x), ""),
-                         guide = guide_colorbar(direction="horizontal", title.position = "top", barwidth = 4, ticks.linewidth = 2,
-                                                barheight=0.4, title.hjust=0.5, label.position="bottom", label.theme=element_text(size=8), 
-                                                title.theme=element_text(size=10)))+
-    coord_sf()+
-    ylab("Latitude")+
-    xlab("Longitude")+
-    theme_bw()+
-    {if(labels%in%c("None", "Right")){
-      theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), axis.title.y = element_blank())
-    }}+
-    {if(labels%in%c("None", "Left")){
-      theme(strip.text.y=element_blank())
-    }}+
-    theme(axis.text.x = element_text(angle=45, hjust=1), plot.margin = margin(40,0,0,0), strip.background=element_blank(),
-          panel.grid=element_blank(), legend.position = c(0.5,1.05), legend.background = element_rect(color="black"))
-}
-
-# Surface temperature
-
-newdata_rast_season <- newdata%>%
-  mutate(Month=month(Date))%>%
-  select(-N)%>%
-  filter(Year%in%round(seq(min(Data$Year)+2, max(Data$Year)-2, length.out=9)) & Month%in%c(1,4,7,10))%>%
-  left_join(Data_effort, by=c("SubRegion", "Month", "Year"))%>% 
-  mutate(across(c(Prediction, SE, L95, U95), ~if_else(is.na(N), NA_real_, .)))
-
-newdata_rast_season_d <- newdata_d%>%
-  mutate(Month=month(Date))%>%
-  select(-N)%>%
-  filter(Year%in%seq(1970, 2018, length.out=9) & Month%in%c(1,4,7,10))%>%
-  left_join(Data_effort, by=c("SubRegion", "Month", "Year"))%>% 
-  mutate(across(c(Prediction, SE, L95, U95), ~if_else(is.na(N), NA_real_, .)))
-
-# Rasterize each season
-rastered_preds_season <- map(set_names(c("Winter", "Spring", "Summer", "Fall")), function(x) Rasterize_season(season=x, data=newdata_rast_season, n=100))
-rastered_preds_season_d <- map(set_names(c("Winter", "Spring", "Summer", "Fall")), function(x) Rasterize_season(season=x, data=newdata_rast_season_d, n=100))
-
-# Plot each season
-p<-map2(rastered_preds_season, c("Left", "None", "None", "Right"), ~raster_plot(data=.x, labels=.y))
-p_d<-map2(rastered_preds_season_d, c("Left", "None", "None", "Right"), ~raster_plot(data=.x, labels=.y))
-
-# Use Patchwork to bind plots together. Won't look very good until the plot is saved
-p2<-wrap_plots(p)+plot_layout(nrow=1, heights=c(1,1,1,1))
-p2_d<-wrap_plots(p_d)+plot_layout(nrow=1, heights=c(1,1,1,1))
-
-# Save plots
-ggsave(plot=p2_d, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Rasterized predictions 11.6.20_d.png", device=png(), width=7, height=12, units="in")
+#saveRDS(rastered_predsSE, file="Shiny app/Rasterized modellf predictions.Rds")
 
 # Model error by region ---------------------------------------------------
 
-#modellc4<-readRDS("Temperature analysis/model outputs and validations/modellc4.Rds")
-#modellc4_residuals <- modellc4$residuals
-#saveRDS(modellc4_residuals, file="Temperature analysis/model outputs and validations/modellc4_residuals.Rds")
+#modellf<-readRDS("Temperature analysis/Models/modellf.Rds")
+#modellf_residuals <- modellf$residuals
+#saveRDS(modellf_residuals, file="Temperature analysis/model outputs and validations/modellf_residuals.Rds")
 
-#modellc4_fitted <- modellc4$fitted.values
-#saveRDS(modellc4_fitted, file="Temperature analysis/model outputs and validations/modellc4_fitted.Rds")
+#modellf_fitted <- modellf$fitted.values
+#saveRDS(modellf_fitted, file="Temperature analysis/model outputs and validations/modellf_fitted.Rds")
 
-modelld<-readRDS("Temperature analysis/model outputs and validations/modelld.Rds")
-modelld_residuals <- modelld$residuals
-saveRDS(modelld_residuals, file="Temperature analysis/model outputs and validations/modelld_residuals.Rds")
-
-modelld_fitted <- modelld$fitted.values
-saveRDS(modelld_fitted, file="Temperature analysis/model outputs and validations/modelld_fitted.Rds")
-
-# Stored as modellc4_residuals.Rds
-modellc4_residuals<-readRDS("Temperature analysis/model outputs and validations/modellc4_residuals.Rds")
+# Stored as modellf_residuals.Rds
+modellf_residuals<-readRDS("Temperature analysis/model outputs and validations/modellf_residuals.Rds")
 
 Data_resid<-Data%>%
-  mutate(Residuals = modellc4_residuals)
-
-Data_resid_d<-Data%>%
-  mutate(Residuals = modelld_residuals)
+  mutate(Residuals = modellf_residuals)
 
 Resid_sum<-Data_resid%>%
-  lazy_dt()%>%
-  group_by(Year, Month, SubRegion)%>%
-  summarise(Resid=mean(Residuals), SD=sd(Residuals))%>%
-  ungroup()%>%
-  as_tibble()
-
-Resid_sum_d<-Data_resid_d%>%
   lazy_dt()%>%
   group_by(Year, Month, SubRegion)%>%
   summarise(Resid=mean(Residuals), SD=sd(Residuals))%>%
@@ -792,19 +569,7 @@ p_resid<-ggplot(Resid_sum)+
   theme_bw()+
   theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank(), panel.background = element_rect(fill="black"))
 
-p_resid_d<-ggplot(Resid_sum_d)+
-  geom_tile(aes(x=Year, y=Month, fill=Resid))+
-  scale_fill_gradient2(high = muted("red"),
-                       low = muted("blue"),
-                       breaks=seq(-3,5.5, by=0.5),
-                       guide=guide_colorbar(barheight=40))+
-  scale_x_continuous(breaks=unique(Resid_sum_d$Year), labels = if_else((unique(Resid_sum_d$Year)/2)%% 2 == 0, as.character(unique(Resid_sum_d$Year)), ""))+
-  scale_y_continuous(breaks=unique(Resid_sum_d$Month), labels = if_else(unique(Resid_sum_d$Month)%% 2 == 0, as.character(unique(Resid_sum_d$Month)), ""))+
-  facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
-  theme_bw()+
-  theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank(), panel.background = element_rect(fill="black"))
-
-ggsave(plot=p_resid_d, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Residuals 11.6.20_d.png", device=png(), width=20, height=12, units="in")
+ggsave(plot=p_resid, filename="Temperature analysis/Figures/modellf residuals.png", device=png(), width=20, height=12, units="in")
 
 
 # Plot sampling effort ----------------------------------------------------
@@ -819,14 +584,14 @@ p_effort<-ggplot(Data_effort)+
   theme_bw()+
   theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank())
 
-ggsave(plot=p_effort, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/Effort 11.6.20.png", device=png(), width=20, height=12, units="in")
+ggsave(plot=p_effort, filename="Temperature analysis/Figures/Effort.png", device=png(), width=20, height=12, units="in")
 
 
 # Stratified cross-validation ---------------------------------------------
 set.seed(100)
 Data_split<-Data%>%
-  mutate(Resid=modelld_residuals,
-         Fitted=modelld_fitted)%>%
+  mutate(Resid=modellf_residuals,
+         Fitted=modellf_fitted)%>%
   group_by(SubRegion, Year, Season, Group)%>%
   mutate(Fold=sample(1:10, 1, replace=T))%>%
   ungroup()
