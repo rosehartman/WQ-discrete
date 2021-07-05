@@ -124,3 +124,16 @@ p_D
 
 ggsave(p_D, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/WYtype2.png",
        device="png", width=15, height=15, units="in")
+
+# Plot histogram of WYsum
+
+ggplot(data=filter(WY, WY>=min(Data_D$WY)), aes(x=WYsum))+
+  geom_density()+
+  geom_point(y=0, alpha=0.1)+
+  geom_vline(data=data.frame(WYsum_s_vals), aes(xintercept=WYsum_s_vals), color="red")+
+  theme_bw()
+
+ggplot(data=filter(WY, WY>=min(Data_D$WY)), aes(y=WYsum, x=WY))+
+  geom_point()+
+  geom_hline(data=data.frame(WYsum_s_vals), aes(yintercept=WYsum_s_vals), color="red")+
+  theme_bw()
