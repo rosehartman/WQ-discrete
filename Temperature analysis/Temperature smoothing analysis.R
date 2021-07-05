@@ -95,7 +95,7 @@ Data<-Data%>%
   mutate(Group=if_else(is.even(Year), 1, 2))%>%
   mutate_at(vars(Date_num, Longitude, Latitude, Time_num, Year, Julian_day), list(s=~(.-mean(., na.rm=T))/sd(., na.rm=T))) # Create centered and standardized versions of covariates
 
-#saveRDS(Data, file="Temperature analysis/Discrete Temp Data_2.Rds")
+#saveRDS(Data, file="Temperature analysis/Discrete Temp Data.Rds")
 Data<-readRDS("Temperature analysis/Discrete Temp Data.Rds")
 
 # Model selection ---------------------------------------------------------
@@ -425,18 +425,22 @@ newdata_year <- WQ_pred(Full_data=Data,
 newdata_all <- WQ_pred(Full_data=Data, 
                        Julian_days = 1:365,
                        Years=round(min(Data$Year):max(Data$Year)))
+#saveRDS(newdata_all, file="Temperature analysis/Prediction Data all.Rds")
+newdata_all<-readRDS("Temperature analysis/Prediction Data all.Rds")
 
-newdata_all_preds<-predict(modellf, newdata=newdata_all, type="response", se.fit=TRUE, discrete=T, n.threads=8) # Create predictions
+cl <- makeCluster(8) 
+modellf_predictions_all<-predict(modellf, newdata=newdata_all, type="response", se.fit=FALSE, discrete=T, cluster=cl, newdata.guaranteed=TRUE) # Create predictions
+#saveRDS(modellf_predictions_all, file="Temperature analysis/Model outputs and validations/modellf_predictions_all.Rds")
+
 
 #saveRDS(newdata_year, file="Temperature analysis/Prediction Data.Rds")
 newdata_year<-readRDS("Temperature analysis/Prediction Data.Rds")
 
-
+modellf<-readRDS("Temperature analysis/Models/modellf.Rds")
 modellf_predictions<-predict(modellf, newdata=newdata_year, type="response", se.fit=TRUE, discrete=T, n.threads=8) # Create predictions
-saveRDS(modellf_predictions, file="Temperature analysis/Model outputs and validations/modellf_predictions.Rds")
+#saveRDS(modellf_predictions, file="Temperature analysis/Model outputs and validations/modellf_predictions.Rds")
 # Predictions stored as "modellf_predictions.Rds"
 
-newdata_year<-readRDS("Temperature analysis/model outputs and validations/Prediction Data.Rds")
 modellf_predictions<-readRDS("Temperature analysis/model outputs and validations/modellf_predictions.Rds")
 
 newdata<-newdata_year%>%

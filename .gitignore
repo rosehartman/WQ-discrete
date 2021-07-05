@@ -40,4 +40,9 @@ vignettes/*.pdf
 
 CV_model*
 Shiny app/rsconnect
+
+
+# These files are too large to commit
 Temperature analysis/Models
+Temperature analysis/Prediction Data all.Rds
+Temperature analysis/Model outputs and validations/modellf_predictions_all.Rds
