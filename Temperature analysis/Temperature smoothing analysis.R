@@ -417,6 +417,8 @@ WQ_pred<-function(Full_data=Data,
   return(newdata)
 }
 
+modellf<-readRDS("Temperature analysis/Models/modellf.Rds")
+
 newdata_year <- WQ_pred(Full_data=Data, 
                         Julian_days = yday(ymd(paste("2001", 1:12, "15", sep="-"))),
                         Years=round(min(Data$Year):max(Data$Year)))%>%
@@ -432,11 +434,20 @@ cl <- makeCluster(8)
 modellf_predictions_all<-predict(modellf, newdata=newdata_all, type="response", se.fit=FALSE, discrete=T, cluster=cl, newdata.guaranteed=TRUE) # Create predictions
 #saveRDS(modellf_predictions_all, file="Temperature analysis/Model outputs and validations/modellf_predictions_all.Rds")
 
+## Visualize all predictions
+newdata_all<-newdata_all%>%
+  mutate(Prediction=modellf_predictions_all,
+         Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
+         Month=month(Date, label=T))%>%
+  as_tibble()
+
+ggplot(data=filter(newdata_all, Location==590), aes(x=Date, y=Prediction))+
+  geom_point(aes(color=Month))+
+  geom_line()
+
 
 #saveRDS(newdata_year, file="Temperature analysis/Prediction Data.Rds")
 newdata_year<-readRDS("Temperature analysis/Prediction Data.Rds")
-
-modellf<-readRDS("Temperature analysis/Models/modellf.Rds")
 modellf_predictions<-predict(modellf, newdata=newdata_year, type="response", se.fit=TRUE, discrete=T, n.threads=8) # Create predictions
 #saveRDS(modellf_predictions, file="Temperature analysis/Model outputs and validations/modellf_predictions.Rds")
 # Predictions stored as "modellf_predictions.Rds"
@@ -544,12 +555,12 @@ rastered_predsSE<-c(rastered_preds, rastered_SE, region=Delta)
 #modellf<-readRDS("Temperature analysis/Models/modellf.Rds")
 #modellf_residuals <- modellf$residuals
 #saveRDS(modellf_residuals, file="Temperature analysis/model outputs and validations/modellf_residuals.Rds")
+modellf_residuals<-readRDS("Temperature analysis/model outputs and validations/modellf_residuals.Rds")
 
 #modellf_fitted <- modellf$fitted.values
 #saveRDS(modellf_fitted, file="Temperature analysis/model outputs and validations/modellf_fitted.Rds")
+modellf_fitted<-readRDS("Temperature analysis/model outputs and validations/modellf_fitted.Rds")
 
-# Stored as modellf_residuals.Rds
-modellf_residuals<-readRDS("Temperature analysis/model outputs and validations/modellf_residuals.Rds")
 
 Data_resid<-Data%>%
   mutate(Residuals = modellf_residuals)
@@ -605,42 +616,42 @@ set.seed(NULL)
 
 # Saved as "Split data for cross validation.Rds"
 
-CVd_fit_1=list()
+CVf_fit_1=list()
 #~2 hours per model run
 for(i in 1:10){
-  out<-bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
-             te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
-           data = filter(Data_split, Group==1 & Fold!=i)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
-  saveRDS(out, file=paste0("Temperature analysis/model outputs and validations/CVd_model_1_", i, ".Rds"))
-  CVd_fit_1[[i]]<-predict(out, newdata=filter(Data_split, Group==1 & Fold==i), type="response", se.fit=TRUE, discrete=T, n.threads=4)
+  out<-bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 13), by=Year_fac) + 
+             te(Time_num_s, Julian_day_s, bs=c("cr", "cc"), k=c(5, 13)),
+           data = filter(Data_split, Group==1 & Fold!=i)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
+  saveRDS(out, file=paste0("Temperature analysis/Models/CV/CVf_model_1_", i, ".Rds"))
+  CVf_fit_1[[i]]<-predict(out, newdata=filter(Data_split, Group==1 & Fold==i), type="response", se.fit=FALSE, discrete=T, n.threads=8)
   rm(out)
   gc()
   message(paste0("Finished run ", i, "/10")) 
 }
 
-saveRDS(CVd_fit_1, file="Temperature analysis/model outputs and validations/Group 1 CV predictions d.Rds")
+saveRDS(CVf_fit_1, file="Temperature analysis/model outputs and validations/Group 1 CV predictions f.Rds")
 
-CVd_fit_2=list()
+CVf_fit_2=list()
 for(i in 1:10){
-  out<-bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 20), by=Year_fac) + 
-             te(Time_num_s, Julian_day_s, bs=c("tp", "cc"), k=c(5, 12)),
-           data = filter(Data_split, Group==2 & Fold!=i)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=4)
-  saveRDS(out, file=paste0("Temperature analysis/model outputs and validations/CVd_model_2_", i, ".Rds"))
-  CVd_fit_2[[i]]<-predict(out, newdata=filter(Data_split, Group==2 & Fold==i), type="response", se.fit=TRUE, discrete=T, n.threads=4)
+  out<-bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c("cr", "cc"), k=c(25, 13), by=Year_fac) + 
+             te(Time_num_s, Julian_day_s, bs=c("cr", "cc"), k=c(5, 13)),
+           data = filter(Data_split, Group==2 & Fold!=i)%>%mutate(Year_fac=droplevels(Year_fac)), method="fREML", discrete=T, nthreads=8)
+  saveRDS(out, file=paste0("Temperature analysis/Models/CV/CVf_model_2_", i, ".Rds"))
+  CVf_fit_2[[i]]<-predict(out, newdata=filter(Data_split, Group==2 & Fold==i), type="response", se.fit=FALSE, discrete=T, n.threads=8)
   rm(out)
   gc()
   message(paste0("Finished run ", i, "/10"))  
 }
 
-saveRDS(CVd_fit_2, file="Temperature analysis/model outputs and validations/Group 2 CV predictions d.Rds")
+saveRDS(CVf_fit_2, file="Temperature analysis/model outputs and validations/Group 2 CV predictions f.Rds")
 
 CV_bind<-function(group, fold){
   if(group==1){
-    fit<-CVd_fit_1[[fold]]$fit
+    fit<-CVf_fit_1[[fold]]
   }
   
   if(group==2){
-    fit<-CVd_fit_2[[fold]]$fit
+    fit<-CVf_fit_2[[fold]]
   }
   
   Out<-Data_split%>%
