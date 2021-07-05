@@ -186,7 +186,7 @@ ggsave("C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quali
 
 # Inflow analyses ---------------------------------------------------------
 
-yolo<-st_read("Yolo Bypass Extent")
+yolo<-sf::st_read("Yolo Bypass Extent")
 
 Data_D2<-readRDS("Temperature analysis/Data_D2.Rds")
 
