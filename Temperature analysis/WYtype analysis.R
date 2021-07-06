@@ -135,5 +135,6 @@ ggplot(data=filter(WY, WY>=min(Data_D$WY)), aes(x=WYsum))+
 
 ggplot(data=filter(WY, WY>=min(Data_D$WY)), aes(y=WYsum, x=WY))+
   geom_point()+
+  geom_line()+
   geom_hline(data=data.frame(WYsum_s_vals), aes(yintercept=WYsum_s_vals), color="red")+
   theme_bw()
