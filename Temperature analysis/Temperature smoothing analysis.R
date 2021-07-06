@@ -13,6 +13,7 @@ require(geofacet)
 require(dtplyr)
 require(scales)
 require(parallel)
+source("Utility_functions.R")
 
 # Function to extract scat family variables
 
@@ -512,7 +513,7 @@ ggplot(filter(newdata_sum, SubRegion=="Confluence"))+
 
 # Plot by Subregion for every month
 mapyear<-function(month){
-  ggplot(filter(newdata_sum_d, Month==month))+
+  ggplot(filter(newdata_sum, Month==month))+
     geom_ribbon(aes(x=Year, ymin=L95, ymax=U95), fill="firebrick3", alpha=0.5)+
     geom_line(aes(x=Year, y=Temperature), color="firebrick3")+
     geom_pointrange(data=filter(Data_year, Month==month), aes(x=Year, y=Temperature, ymin=Temperature-SD, ymax=Temperature+SD), size=0.5, alpha=0.4)+
@@ -521,7 +522,7 @@ mapyear<-function(month){
     theme(panel.grid=element_blank(), axis.text.x = element_text(angle=45, hjust=1))
 }
 
-walk(1:12, function(x) ggsave(plot=mapyear(x), filename=paste0("Temperature analysis/Figures/Year predictions month ", x, " 11.6.20_d.png"), device=png(), width=15, height=12, units="in"))
+walk(1:12, function(x) ggsave(plot=mapyear(x), filename=paste0("Temperature analysis/Figures/Year predictions month ", x, " f.png"), device=png(), width=15, height=12, units="in"))
 
 
 # Rasterized predictions --------------------------------------------------
@@ -546,7 +547,7 @@ rastered_preds<-Rasterize_all(newdata_rast, Prediction, region=Delta)
 # Same for SE
 rastered_SE<-Rasterize_all(newdata_rast, SE, region=Delta)
 # Bind SE and predictions together
-rastered_predsSE<-c(rastered_preds, rastered_SE, region=Delta)
+rastered_predsSE<-c(rastered_preds, rastered_SE)
 
 #saveRDS(rastered_predsSE, file="Shiny app/Rasterized modellf predictions.Rds")
 
@@ -645,26 +646,12 @@ for(i in 1:10){
 
 saveRDS(CVf_fit_2, file="Temperature analysis/model outputs and validations/Group 2 CV predictions f.Rds")
 
-CV_bind<-function(group, fold){
-  if(group==1){
-    fit<-CVf_fit_1[[fold]]
-  }
-  
-  if(group==2){
-    fit<-CVf_fit_2[[fold]]
-  }
-  
-  Out<-Data_split%>%
-    filter(Group==group & Fold==fold)%>%
-    mutate(Fitted_CV=fit)
-}
-
-Data_split_CV_d<-map2_dfr(rep(c(1,2), each=10), rep(1:10,2), ~CV_bind(group=.x, fold=.y))%>%
+Data_split_CV_f<-map2_dfr(rep(c(1,2), each=10), rep(1:10,2), ~CV_bind(group=.x, fold=.y))%>%
   mutate(Resid_CV=Fitted_CV-Temperature,
          Fitted_resid=Fitted_CV-Fitted)
 
 # EMP (first year-round survey) started in 1974 so restricting analysis to those years
-Resid_CV_sum_d<-Data_split_CV_d%>%
+Resid_CV_sum_f<-Data_split_CV_f%>%
   filter(Year>=1974)%>%
   lazy_dt()%>%
   group_by(Year, Month, SubRegion)%>%
@@ -676,39 +663,39 @@ RMSE <- function(m, o){
   sqrt(mean((m - o)^2))
 }
 
-CV_sum<-Data_split_CV_d%>%
+CV_sum<-Data_split_CV_f%>%
   st_drop_geometry()%>%
   group_by(Group, Fold)%>%
   summarise(RMSE=sqrt(mean(Resid_CV^2)), 
             r=cor(Fitted_CV, Temperature, method="pearson"), .groups="drop")
 
 # First plot deviation of predicted values from true values
-p_resid_CV<-ggplot(Resid_CV_sum_d)+
+p_resid_CV<-ggplot(Resid_CV_sum_f)+
   geom_tile(aes(x=Year, y=Month, fill=Resid_CV))+
   scale_fill_gradient2(high = muted("red"),
                        low = muted("blue"),
                        breaks=-9:7,
                        guide=guide_colorbar(barheight=40))+
-  scale_x_continuous(breaks=unique(Resid_CV_sum_d$Year), labels = if_else((unique(Resid_CV_sum_d$Year)/2)%% 2 == 0, as.character(unique(Resid_CV_sum_d$Year)), ""))+
-  scale_y_continuous(breaks=unique(Resid_CV_sum_d$Month), labels = if_else(unique(Resid_CV_sum_d$Month)%% 2 == 0, as.character(unique(Resid_CV_sum_d$Month)), ""))+
+  scale_x_continuous(breaks=unique(Resid_CV_sum_f$Year), labels = if_else((unique(Resid_CV_sum_f$Year)/2)%% 2 == 0, as.character(unique(Resid_CV_sum_f$Year)), ""))+
+  scale_y_continuous(breaks=unique(Resid_CV_sum_f$Month), labels = if_else(unique(Resid_CV_sum_f$Month)%% 2 == 0, as.character(unique(Resid_CV_sum_f$Month)), ""))+
   facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
   theme_bw()+
   theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank(), panel.background = element_rect(fill="black"))
 p_resid_CV
-ggsave(plot=p_resid_CV, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/CV Residuals 11.9.20 d.png", device=png(), width=20, height=12, units="in")
+ggsave(plot=p_resid_CV, filename="Temperature analysis/Figures/CV Residuals f.png", device=png(), width=20, height=12, units="in")
 
 
 # Next plot deviation of predicted values from fitted values from full model
-p_resid_CV2<-ggplot(Resid_CV_sum_d)+
+p_resid_CV2<-ggplot(Resid_CV_sum_f)+
   geom_tile(aes(x=Year, y=Month, fill=Fitted_resid))+
   scale_fill_gradient2(high = muted("red"),
                        low = muted("blue"))+
-  scale_x_continuous(breaks=unique(Resid_CV_sum_d$Year), labels = if_else((unique(Resid_CV_sum_d$Year)/2)%% 2 == 0, as.character(unique(Resid_CV_sum_d$Year)), ""))+
-  scale_y_continuous(breaks=unique(Resid_CV_sum_d$Month), labels = if_else(unique(Resid_CV_sum_d$Month)%% 2 == 0, as.character(unique(Resid_CV_sum_d$Month)), ""))+
+  scale_x_continuous(breaks=unique(Resid_CV_sum_f$Year), labels = if_else((unique(Resid_CV_sum_f$Year)/2)%% 2 == 0, as.character(unique(Resid_CV_sum_f$Year)), ""))+
+  scale_y_continuous(breaks=unique(Resid_CV_sum_f$Month), labels = if_else(unique(Resid_CV_sum_f$Month)%% 2 == 0, as.character(unique(Resid_CV_sum_f$Month)), ""))+
   facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
   theme_bw()+
   theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank(), panel.background = element_rect(fill="black"))
-ggsave(plot=p_resid_CV2, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/figures/CV Residuals2 6.16.20.png", device=png(), width=20, height=12, units="in")
+ggsave(plot=p_resid_CV2, filename="Temperature analysis/Figures/CV Residuals2 f.png", device=png(), width=20, height=12, units="in")
 
 
 # Test autocorrelation ----------------------------------------------------

@@ -19,7 +19,7 @@ require(ggiraph)
 require(scales)
 require(readr)
 
-rastered_predsSE<-readRDS("Rasterized modelld predictions.Rds")
+rastered_predsSE<-readRDS("Rasterized modellf predictions.Rds")
 Temp_min<-floor(min(rastered_predsSE$Prediction, na.rm=T)*10)/10
 Temp_max<-floor(max(rastered_predsSE$Prediction, na.rm=T)*10)/10
 

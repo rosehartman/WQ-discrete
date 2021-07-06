@@ -6,6 +6,7 @@ require(lubridate)
 require(dtplyr)
 require(tibble)
 require(mgcv)
+source("Utility_functions.R")
 
 Data<-readRDS("Temperature analysis/Discrete Temp Data.Rds")
 
@@ -41,28 +42,14 @@ saveRDS(Delta_regions, file="Shiny app/Delta subregions.Rds")
 # Rasterized model predictions --------------------------------------------
 
 newdata_year<-readRDS("Temperature analysis/Prediction Data.Rds")
-modelld_predictions<-readRDS("Temperature analysis/Model outputs and validations/modelld_predictions.Rds")
+modellf_predictions<-readRDS("Temperature analysis/Model outputs and validations/modellf_predictions.Rds")
 
 newdata<-newdata_year%>%
-  mutate(Prediction=modelld_predictions$fit)%>%
-  mutate(SE=modelld_predictions$se.fit,
+  mutate(Prediction=modellf_predictions$fit)%>%
+  mutate(SE=modellf_predictions$se.fit,
          L95=Prediction-SE*1.96,
          U95=Prediction+SE*1.96)%>%
   mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-")))) # Create Date variable from Julian Day and Year
-
-Rasterize_all <- function(data, var, out_crs=4326, n=100){
-  var<-rlang::enquo(var)
-  rlang::as_name(var)
-  preds<-map(unique(data$Date), function(x) st_rasterize(data%>%
-                                                           filter(Date==x)%>%
-                                                           dplyr::select(!!var), 
-                                                         template=st_as_stars(st_bbox(Delta), dx=diff(st_bbox(Delta)[c(1, 3)])/n, dy=diff(st_bbox(Delta)[c(2, 4)])/n, values = NA_real_))%>%
-               st_warp(crs=out_crs))
-  
-  # Then bind all years together into 1 raster
-  out <- exec(c, !!!preds, along=list(Date=unique(data$Date)))
-  return(out)
-}
 
 newdata_rast <- newdata%>%
   mutate(Month=month(Date))%>%
@@ -71,21 +58,21 @@ newdata_rast <- newdata%>%
   mutate(across(c(Prediction, SE, L95, U95), ~if_else(is.na(N), NA_real_, .)))
 
 # Create full rasterization of all predictions for interactive visualizations
-rastered_preds<-Rasterize_all(newdata_rast, Prediction)
+rastered_preds<-Rasterize_all(newdata_rast, Prediction, region=Delta)
 # Same for SE
-rastered_SE<-Rasterize_all(newdata_rast, SE)
+rastered_SE<-Rasterize_all(newdata_rast, SE, region=Delta)
 # Bind SE and predictions together
 rastered_predsSE<-c(rastered_preds, rastered_SE)
 
-saveRDS(rastered_predsSE, file="Shiny app/Rasterized modelld predictions.Rds")
+saveRDS(rastered_predsSE, file="Shiny app/Rasterized modellf predictions.Rds")
 
 
 # Model evaluation data ---------------------------------------------------
 # Stored as modelld_residuals.Rds
-modelld_residuals<-readRDS("Temperature analysis/Model outputs and validations/modelld_residuals.Rds")
+modellf_residuals<-readRDS("Temperature analysis/Model outputs and validations/modellf_residuals.Rds")
 
 Data_resid<-Data%>%
-  mutate(Residuals = modelld_residuals)
+  mutate(Residuals = modellf_residuals)
 
 Resid_sum<-Data_resid%>%
   lazy_dt()%>%
@@ -94,23 +81,10 @@ Resid_sum<-Data_resid%>%
   ungroup()%>%
   as_tibble()
 
-CV_fit_1<-readRDS("Temperature analysis/Model outputs and validations/Group 1 CV predictions d.Rds")
-CV_fit_2<-readRDS("Temperature analysis/Model outputs and validations/Group 2 CV predictions d.Rds")
+CV_fit_1<-readRDS("Temperature analysis/Model outputs and validations/Group 1 CV predictions f.Rds")
+CV_fit_2<-readRDS("Temperature analysis/Model outputs and validations/Group 2 CV predictions f.Rds")
 Data_split<-readRDS("Temperature analysis/Split data for cross validation.Rds")
 
-CV_bind<-function(group, fold){
-  if(group==1){
-    fit<-CV_fit_1[[fold]]$fit
-  }
-  
-  if(group==2){
-    fit<-CV_fit_2[[fold]]$fit
-  }
-  
-  Out<-Data_split%>%
-    filter(Group==group & Fold==fold)%>%
-    mutate(Fitted_CV=fit)
-}
 
 Data_split_CV<-map2_dfr(rep(c(1,2), each=10), rep(1:10,2), ~CV_bind(group=.x, fold=.y))%>%
   mutate(Resid_CV=Fitted_CV-Temperature,
@@ -144,7 +118,7 @@ saveRDS(CV_sum, file="Shiny app/CV_sum.Rds")
 
 # Time correction ---------------------------------------------------------
 
-modelld<-readRDS("C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Models/modelld.Rds")
+modellf<-readRDS("C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Models/modellf.Rds")
 Noon<-((12*3600)-mean(Data$Time_num))/sd(Data$Time_num)
 
 Times<-expand_grid(Time_num_s=c(seq(floor(min(Data$Time_num_s)*10)/10, ceiling(max(Data$Time_num_s)*10)/10, by=0.1), Noon),
@@ -156,7 +130,7 @@ Times<-expand_grid(Time_num_s=c(seq(floor(min(Data$Time_num_s)*10)/10, ceiling(m
 ### Need to install earlier version of mgcv for this to work
 ## devtools::install_version("mgcv", version = "1.8-31", repos = "http://cran.us.r-project.org")
 
-Time_correction<-predict(modelld, newdata=Times, type="terms", terms="te(Time_num_s,Julian_day_s)")
+Time_correction<-predict(modellf, newdata=Times, type="terms", terms="te(Time_num_s,Julian_day_s)")
 
 Times<-Times%>%
   mutate(Correction=as.vector(Time_correction))%>%

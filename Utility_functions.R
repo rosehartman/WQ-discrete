@@ -132,3 +132,17 @@ predict_plot<-function(data, base, scale_fun, ...){
     theme(strip.background=element_blank(), axis.text = element_blank(), axis.ticks=element_blank(), panel.grid=element_blank())
   
 }
+
+CV_bind<-function(group, fold){
+  if(group==1){
+    fit<-CVf_fit_1[[fold]]
+  }
+  
+  if(group==2){
+    fit<-CVf_fit_2[[fold]]
+  }
+  
+  Out<-Data_split%>%
+    filter(Group==group & Fold==fold)%>%
+    mutate(Fitted_CV=fit)
+}
