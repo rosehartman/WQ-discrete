@@ -143,4 +143,6 @@ Times<-Times%>%
   filter(Time_num_s!=Noon)%>%
   select(Time, Month, Correction)
 
+ggplot(Times, aes(x=as.numeric(Time), y=Correction))+geom_point()+facet_wrap(~Month)
+
 saveRDS(Times, file="Shiny app/Time_correction.Rds")

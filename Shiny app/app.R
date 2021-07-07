@@ -330,8 +330,8 @@ server <- function(input, output, session) {
                                                actual measured values. The generalized additive model was fit to an integrated
                                                discrete water quality dataset."),
                                         tags$p("The model was fit with the R package", tags$code("mgcv"), "with the following model structure:"), 
-                                        tags$p(align="left", tags$code("bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c('tp', 'cc'), k=c(25, 20), by=Year_fac) + 
-                                        te(Time_num_s, Julian_day_s, bs=c('tp', 'cc'), k=c(5, 12)),
+                                        tags$p(align="left", tags$code("bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s, d=c(2,1), bs=c('cr', 'cc'), k=c(25, 13), by=Year_fac) + 
+        te(Time_num_s, Julian_day_s, bs=c('cr', 'cc'), k=c(5, 13)), control=list(trace=TRUE),
     data = Data, method='fREML', discrete=T)")),
                                         tags$p("The first tab 'Model evaluation' presents the uncertainty in model predictions 
                                                and should be explored to understand the limitations of the model."),

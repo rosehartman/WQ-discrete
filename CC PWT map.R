@@ -41,9 +41,9 @@ p<-ggplot()+
   geom_sf(data=yolo, color=NA, fill="gray80", alpha=0.5)+
   geom_sf(data=base, fill="slategray3", color="slategray4")+
   geom_sf(data=locations_points)+
-  geom_sf(data=stations, aes(fill=Region), shape=21, color="black", size=2)+
+  geom_sf(data=stations, aes(fill=Region), shape=21, color="black", size=3)+
   geom_sf_text(data=locations_text, aes(label=Location), lineheight = 1)+
-  scale_fill_manual(values=c("#2F4858", "#F6AE2D", "#F26419", "#709255"), guide="none")+
+  scale_fill_manual(values=c("#FFB17A", "#886176", "#69995D", "#E34A6F"), guide="none")+
   theme_void()
 
-ggsave("C:/Users/sbashevkin/OneDrive - deltacouncil/IEP/Climate change PWT/CC PWT map.png", plot=p, device="png", width=8, height=8, units = "in")
+ggsave("CC PWT map.png", plot=p, device="png", width=8, height=8, units = "in")
