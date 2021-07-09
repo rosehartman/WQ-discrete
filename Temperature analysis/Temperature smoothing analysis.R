@@ -434,13 +434,13 @@ newdata_all<-readRDS("Temperature analysis/Prediction Data all.Rds")
 cl <- makeCluster(8) 
 modellf_predictions_all<-predict(modellf, newdata=newdata_all, type="response", se.fit=FALSE, discrete=T, cluster=cl, newdata.guaranteed=TRUE) # Create predictions
 #saveRDS(modellf_predictions_all, file="Temperature analysis/Model outputs and validations/modellf_predictions_all.Rds")
+modellf_predictions_all<-readRDS("Temperature analysis/Model outputs and validations/modellf_predictions_all.Rds")
 
 ## Visualize all predictions
 newdata_all<-newdata_all%>%
   mutate(Prediction=modellf_predictions_all,
          Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
-         Month=month(Date, label=T))%>%
-  as_tibble()
+         Month=month(Date))
 
 ggplot(data=filter(newdata_all, Location==590), aes(x=Date, y=Prediction))+
   geom_point(aes(color=Month))+
@@ -543,13 +543,23 @@ newdata_rast <- newdata%>%
   mutate(across(c(Prediction, SE, L95, U95), ~if_else(is.na(N), NA_real_, .)))
 
 # Create full rasterization of all predictions for interactive visualizations
-rastered_preds<-Rasterize_all(newdata_rast, Prediction, region=Delta)
+rastered_preds<-Rasterize_all(newdata_rast, Prediction, region=Delta, cores=5)
 # Same for SE
-rastered_SE<-Rasterize_all(newdata_rast, SE, region=Delta)
+rastered_SE<-Rasterize_all(newdata_rast, SE, region=Delta, cores=5)
 # Bind SE and predictions together
 rastered_predsSE<-c(rastered_preds, rastered_SE)
 
 #saveRDS(rastered_predsSE, file="Shiny app/Rasterized modellf predictions.Rds")
+
+
+# rasterize predictions for all dates-----------------------------------------------
+
+newdata_all_rast <- newdata_all%>%
+  select(-N)%>%
+  left_join(Data_effort, by=c("SubRegion", "Month", "Year"))%>% 
+  mutate(Prediction=if_else(is.na(N), NA_real_, Prediction))
+
+rastered_preds_all<-Rasterize_all(newdata_all_rast, Prediction, region=Delta, cores=5)
 
 # Model error by region ---------------------------------------------------
 

@@ -46,20 +46,37 @@ model_validation<-function(model, response, tag_annotation="A"){
 }
 
 # Function to rasterize all dates. Creates a 3D raster Latitude x Longitude x Date 
-Rasterize_all <- function(data, var, region=Delta, out_crs=4326, n=100){
+Rasterize_all <- function(data, var, region=Delta, out_crs=4326, n=100, cores=NA){
   require(stars)
   require(purrr)
   require(sf)
   var<-rlang::enquo(var)
   rlang::as_name(var)
-  preds<-map(unique(data$Date), function(x) st_rasterize(data%>%
-                                                           filter(Date==x)%>%
-                                                           dplyr::select(!!var), 
-                                                         template=st_as_stars(st_bbox(region), dx=diff(st_bbox(region)[c(1, 3)])/n, dy=diff(st_bbox(region)[c(2, 4)])/n, values = NA_real_))%>%
+  
+  if(!is.na(cores)){
+    require(furrr)
+  plan(multisession, workers = cores, gc=TRUE)
+    fun<-furrr::future_map
+  }else{
+    fun<-purrr::map
+  }
+  
+  raster_template<-st_as_stars(st_bbox(region), dx=diff(st_bbox(region)[c(1, 3)])/n, dy=diff(st_bbox(region)[c(2, 4)])/n, values = NA_real_)
+  
+  data<-data%>%
+    select(!!var, Date)%>%
+    group_by(Date)
+  
+  data_split<-group_split(data, .keep=FALSE)
+  
+  preds<-fun(data_split, function(x) st_rasterize(x, template=raster_template)%>%
                st_warp(crs=out_crs))
+  if(!is.na(cores)){
+    plan(sequential)
+  }
   
   # Then bind all dates together into 1 raster
-  out <- exec(c, !!!preds, along=list(Date=unique(data$Date)))
+  out <- exec(c, !!!preds, along=list(Date=group_keys(data)$Date))
   return(out)
 }
 
