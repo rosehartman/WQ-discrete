@@ -446,6 +446,13 @@ ggplot(data=filter(newdata_all, Location==590), aes(x=Date, y=Prediction))+
   geom_point(aes(color=Month))+
   geom_line()
 
+newdata_all_sum<-newdata_all%>%
+  lazy_dt()%>%
+  group_by(Month, Year, Location)%>%
+  summarise(Monthly_mean=mean(Prediction, na.rm=T), Monthly_sd=sd(Prediction, na.rm=T))%>%
+  as_tibble()
+saveRDS(newdata_all_sum, file="Temperature analysis/Model outputs and validations/newdata_all_sum.Rds")
+
 
 #saveRDS(newdata_year, file="Temperature analysis/Prediction Data.Rds")
 newdata_year<-readRDS("Temperature analysis/Prediction Data.Rds")
@@ -538,18 +545,24 @@ Data_effort <- Data%>%
 
 newdata_rast <- newdata%>%
   mutate(Month=month(Date))%>%
+  left_join(newdata_all_sum, by=c("Month", "Year", "Location"))%>%
   select(-N)%>%
   left_join(Data_effort, by=c("SubRegion", "Month", "Year"))%>% 
-  mutate(across(c(Prediction, SE, L95, U95), ~if_else(is.na(N), NA_real_, .)))
+  mutate(across(c(Prediction, SE, L95, U95, Monthly_mean, Monthly_sd), ~if_else(is.na(N), NA_real_, .)))
 
 # Create full rasterization of all predictions for interactive visualizations
-rastered_preds<-Rasterize_all(newdata_rast, Prediction, region=Delta, cores=5)
+rastered_preds<-Rasterize_all(newdata_rast, Prediction, region=Delta, cores=8)
 # Same for SE
-rastered_SE<-Rasterize_all(newdata_rast, SE, region=Delta, cores=5)
-# Bind SE and predictions together
-rastered_predsSE<-c(rastered_preds, rastered_SE)
+rastered_SE<-Rasterize_all(newdata_rast, SE, region=Delta, cores=8)
+# Same for Monthly_mean
+rastered_Monthly_mean<-Rasterize_all(newdata_rast, Monthly_mean, region=Delta, cores=8)
+# Same for Monthly_sd
+rastered_Monthly_sd<-Rasterize_all(newdata_rast, Monthly_sd, region=Delta, cores=8)
 
-#saveRDS(rastered_predsSE, file="Shiny app/Rasterized modellf predictions.Rds")
+# Bind SE and predictions together
+rastered_predsSE<-c(rastered_preds, rastered_SE, rastered_Monthly_mean, rastered_Monthly_sd)
+
+saveRDS(rastered_predsSE, file="Shiny app/Rasterized modellf predictions.Rds")
 
 
 # rasterize predictions for all dates-----------------------------------------------
