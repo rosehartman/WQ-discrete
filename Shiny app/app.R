@@ -193,12 +193,8 @@ ui <- fluidPage(
                      conditionalPanel(condition="input.Tab!='Raw data'",
                                       actionBttn("Download", "Download data", style="simple", color="royal", icon=icon("file-download"))),
                      h1("Plot options"),
-                     conditionalPanel(condition="input.Tab=='Rasters' && !input.Habitat", 
-                                      radioGroupButtons("variable",
-                                                        "Plot:",
-                                                        choices = c("Predicted temperature"="Prediction", "Standard Error"="SE"), selected="Prediction", individual = TRUE, 
-                                                        checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), 
-                                                                          no = tags$i(class = "fa fa-circle-o", style = "color: steelblue")))),
+                     conditionalPanel(condition="input.Tab=='Rasters' || input.Tab=='Time series'", 
+                                      uiOutput("variable_choice")),
                      conditionalPanel(condition="input.Tab=='Rasters' || input.Tab=='Time series'", 
                                       prettySwitch("Habitat",HTML("<b>Plot habitat suitability?</b>"), status = "success", fill = TRUE, bigger=TRUE),
                                       conditionalPanel(condition="input.Habitat",
@@ -384,6 +380,10 @@ server <- function(input, output, session) {
                 out<-tags$span(h2("Raterized plots of model-predicted surface water temperatures"),
                                p("Model predictions have been spatially and temporally trimmed to the extent of the integrated dataset. Predictions were only generated for
                                  regions sampled in each month and year. The spatial extent of these raster plots changes over time due to variability in this sampling effort."),
+                               p("You can choose between four temperature metrics: Predicted temperature, Standard error, Monthly mean, or Monthly sd. 
+                                  The Predicted temperature is the model-predicted temperature from the 15th of each month and the Standard error is the corresponding standard error of these Predicted temperature values.
+                                  The Monthly mean is the mean of model-predicted temperatures for each day of each month and the Monthly sd 
+                                  is the corresponding standard deviation of temperature predictions among the days in each month."),
                                p("Plots can be facetted by year, month, or both. Facetted plots will be slower to load."),
                                p("Year and month sliders can be used to animate through time-series. This works best with fewer facets."),
                                p(tags$b("It is highly recommended to also 'fix' the scale when scrolling or animating through time so the color scale does not
@@ -395,16 +395,19 @@ server <- function(input, output, session) {
                     out<-tags$span(h2("Time series plots"),
                                    p("Select spatial regions of interest and plot a timeseries for those regions."),
                                    p("Model predictions have been spatially and temporally trimmed to the extent of the integrated dataset. Predictions were only generated for
-                                 regions sampled in each month and year. Explore the Raster plots, or the sample size plots in the 'Model evaluation' tab to see how the 
-                                     spatial extent of sampling has changed over time."),
+                                      regions sampled in each month and year. Explore the Raster plots, or the sample size plots in the 'Model evaluation' tab to see how the 
+                                      spatial extent of sampling has changed over time."),
+                                   p("You can choose between two temperature metrics: Predicted temperature or Monthly mean. The Predicted temperature is the model-predicted temperature from the 15th of each month.
+                                      The Monthly mean is the mean of model-predicted temperatures for each day of each month. Predicted temperature is plotted along with its corresponding standard error (SE) while 
+                                      Monthly mean is plotted along with the standard deviation of temperature predictions among the days in each month."),
                                    p("You can visualize changes in the extent of suitable habitat for a species of interest by clicking the 'Habitat suitability' slider. Select the same option in the 
                                      'Rasters' tab to explore the spatial distribution of suitable habitat."),
                                    p("You have the choice to draw your own spatial regions, or select from a set of pre-set regions based on the EDSM sub-regions (controlled with the slider)."),
                                    p("In either case, you can draw rectangles or polygons on the map to select any spatial areas they touch. You can also drop a marker to select invididual cells or regions.
-                                 There are also buttons for editing or deleting your drawn areas. Hover over the buttons to see their use. The map will update to highlight the areas you've selected.
-                                 It may take a few seconds to load."),
+                                      There are also buttons for editing or deleting your drawn areas. Hover over the buttons to see their use. The map will update to highlight the areas you've selected.
+                                      It may take a few seconds to load."),
                                    p("If you want to average across all the areas you select to produce one time-series, leave the facets option on 'None'. 
-                                   But if you want to plot each region separately, switch it to 'Region'. You can also choose to facet plots by month."),
+                                      But if you want to plot each region separately, switch it to 'Region'. You can also choose to facet plots by month."),
                                    p("Use the month slider to control which month is represented on the plot. To plot the full time-series across all months, switch the slider labeled 'Plot all months?'"),
                                    p("These plots are interactive, so hover to reveal the data values. For the time-series plot, you need to hover over the points (i.e., vertices in the line)."),
                                    tags$em("NOTE: If you select areas that span multiple regions with different sample sizes, different subsets of spatial locations will be included in the averaged
@@ -420,6 +423,7 @@ server <- function(input, output, session) {
                                    p("By default, time-of-day effects will be eliminated by correcting temperature data to noon. 
                                      This correction is applied using the value of the time-of-day smoother in the GAM presented in the other 3 tabs.
                                      You can disable this correction using the slider to the left."),
+                                   p("If you wish to download the raw data, please visit the", tags$a("EDI data publication.", href="https://portal.edirepository.org/nis/mapbrowse?scope=edi&identifier=731", target="_blank")),
                                    tags$em("Plots facetted by month will be slow to load, especially if a large number of stations are selected."))
                 }
             }
@@ -447,11 +451,12 @@ server <- function(input, output, session) {
                    the integrated dataset used to fit these models."))
         } else{
             if(input$Tab=="Rasters"){
-                p("This will download the rasterized model predictions in tif format. Only the variable (Predicted Temperature or Standard Error) 
-                  selected under 'Plot options' will be downloaded. To download both, you must download 2 separate files selecting a different variable each time.")
+                p("This will download the rasterized model predictions in tif format. Only the variable (Predicted Temperature, Standard Error, Monthly mean, or Monthly sd) 
+                  selected under 'Plot options' will be downloaded. To download more than one, you must download separate files selecting a different variable each time.")
             }else{
                 span(p("This will download the model predictions converted to a time-series format. Only predictions from selected areas on the map will be included."),
-                     p(code("Prediction"), "represents the model-predicted temperature in °C, while", code("SE"), "represents the standard error."),
+                     p(code("Temp"), "represents the selected temperature metric (Predicted or Monthly mean) in °C, while", code("uncertainty"), 
+                       "represents the corresponding uncertainty value (standard error for predicted temperature and monthly sd for monthly mean)."),
                      p("Data will be averaged for each date across the region of interest."),
                      h5("If you select", tags$b("Region"), "in the", tags$b("Facet"), "selections under", tags$b('Plot options,'), "your
                        data will come divided by regions. Otherwise, the data will be averaged across all selected regions", style="color:DarkOrchid"))
@@ -501,6 +506,7 @@ server <- function(input, output, session) {
     # Uncertainty plot --------------------------------------------------------
     
     output$summary_stats <- renderUI({
+        req(input$Uncertainty)
         if(input$Uncertainty=="Cross-validation"){
             choices <- c("Mean residuals", "Mean magnitude of residuals", "SD of residuals", "RMSE", "Pearson's correlation")
         } else{
@@ -556,7 +562,7 @@ server <- function(input, output, session) {
                        tooltip=paste0( "<table>", tooltip, "</table>" ),
                        ID=1:n())
         } else{
-            if(input$Uncertainty_value%in%c("RMSE", "Pearson's correlation")){
+            if(input$Uncertainty_value%in%c("RMSE", "Pearson's correlation") & input$Uncertainty=="Cross-validation"){
                 str_model1 <- paste0("<tr><td>Data grouping: &nbsp</td><td>%s</td></tr>",
                                      "<tr><td>Median: &nbsp</td><td>%s</td></tr>")
                 
@@ -599,18 +605,18 @@ server <- function(input, output, session) {
         }else{
             
             p_resid<-ggplot(Data)+
-                {if(input$Uncertainty_value=="Mean" | input$Uncertainty=="Sample size of measured values"){
+                {if(input$Uncertainty_value=="Mean residuals" | input$Uncertainty=="Sample size of measured values"){
                     geom_tile_interactive(aes(x=Year, y=Month, fill=Fill, color=Fill, tooltip=tooltip, data_id=ID))
                 }else{ 
-                    if(input$Uncertainty_value=="Mean magnitude"){
+                    if(input$Uncertainty_value=="Mean magnitude of residuals"){
                         geom_tile_interactive(aes(x=Year, y=Month, fill=Fill_mag, color=Fill_mag, tooltip=tooltip, data_id=ID))
                     }else{
                         geom_tile_interactive(aes(x=Year, y=Month, fill=Fill_SD, color=Fill_SD, tooltip=tooltip, data_id=ID))
                     }
                     
                 }}+
-                {if(input$Uncertainty_value=="Mean" & !input$Uncertainty=="Sample size of measured values"){
-                    scale_fill_gradient2(name=paste("Mean", tolower(input$Uncertainty), "(°C)"),
+                {if(input$Uncertainty_value=="Mean residuals" & !input$Uncertainty=="Sample size of measured values"){
+                    scale_fill_gradient2(name=paste("Mean", if_else(input$Uncertainty=="Model residuals", "model residuals (°C)", "cross-validation residuals (°C)")),
                                          high = muted("red"),
                                          low = muted("blue"),
                                          breaks=seq(-9,6.5, by=0.5),
@@ -624,14 +630,14 @@ server <- function(input, output, session) {
                                                                   title.hjust=0.5, label.position="bottom"),
                                              aesthetics = c("color", "fill"))
                     }else{
-                        if(input$Uncertainty_value=="Mean magnitude"){
-                            scale_fill_viridis_c(name=paste("Mean magnitude of", tolower(input$Uncertainty), "(°C)"),
+                        if(input$Uncertainty_value=="Mean magnitude of residuals"){
+                            scale_fill_viridis_c(name=paste("Mean magnitude of", if_else(input$Uncertainty=="Model residuals", "model residuals (°C)", "cross-validation residuals (°C)")),
                                                  breaks=seq(0,9, by=0.5),
                                                  guide=guide_colorbar(direction="horizontal", title.position = "top", ticks.linewidth = 1,
                                                                       title.hjust=0.5, label.position="bottom"),
                                                  aesthetics = c("color", "fill")) 
                         }else{
-                            scale_fill_viridis_c(name=paste("Standard deviation in", tolower(input$Uncertainty), "(°C)"),
+                            scale_fill_viridis_c(name=paste("Standard deviation in", if_else(input$Uncertainty=="Model residuals", "model residuals (°C)", "cross-validation residuals (°C)")),
                                                  breaks=seq(0,4.5, by=0.5),
                                                  guide=guide_colorbar(direction="horizontal", title.position = "top", ticks.linewidth = 1,
                                                                       title.hjust=0.5, label.position="bottom"),
@@ -641,8 +647,8 @@ server <- function(input, output, session) {
                     
                 }}+
                 scale_x_continuous(breaks=seq(1970, 2020, by=10))+
-                {if(setequal(1:12, input$Months)){
-                    scale_y_discrete(breaks=levels(Data$Month), labels = if_else(sort(as.integer(unique(month(sample(1:12, 100, replace=T), label=T)))+1)%% 2 == 0, levels(Data$Month), ""))
+                {if(setequal(month(1:12, label=T), levels(Data$Month))){
+                    scale_y_discrete(breaks=levels(Data$Month), labels = if_else(sort(as.integer(unique(month(1:12, label=T)))+1)%% 2 == 0, levels(Data$Month), ""))
                 }}+
                 facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen())+
                 theme_bw()+
@@ -652,7 +658,7 @@ server <- function(input, output, session) {
                       axis.ticks=element_line(size=0.1), axis.ticks.length = unit(0.2, units="lines"),
                       legend.position="top", legend.key.width = unit(50, "native"), legend.justification="center",
                       legend.box.spacing = unit(0.2, "lines"),legend.box.margin=margin(b=-50))+
-                {if(input$Uncertainty_value=="Mean" & !input$Uncertainty=="Sample size of measured values"){
+                {if(input$Uncertainty_value=="Mean residuals" & !input$Uncertainty=="Sample size of measured values"){
                     theme(panel.background = element_rect(fill="black"))
                 }else{
                     theme(panel.background = element_rect(fill="white"))
@@ -716,6 +722,22 @@ server <- function(input, output, session) {
         sliderInput("Month3",
                     "Select month:", min=min(Data_filtered()$Month), max=max(Data_filtered()$Month), value =  min(Data_filtered()$Month), step=1, round=T, sep="", 
                     animate=animationOptions(interval=1000, loop=T), width="100%")
+    })
+    
+    
+    output$variable_choice<-renderUI({
+        
+        choices <- c("Predicted temperature"="Prediction", "Standard Error"="SE", "Monthly mean"="Monthly_mean", "Monthly sd"="Monthly_sd")
+        
+        if(input$Habitat | input$Tab=="Time series"){
+            choices<-choices[c(1,3)]
+        }
+        radioGroupButtons("variable",
+                          "Plot:",
+                          choices=choices, 
+                          selected="Prediction", individual = TRUE, 
+                          checkIcon = list( yes = tags$i(class = "fa fa-circle", style = "color: steelblue"), 
+                                            no = tags$i(class = "fa fa-circle-o", style = "color: steelblue")))
     })
     
     output$facet_options<-renderUI({
@@ -782,7 +804,7 @@ server <- function(input, output, session) {
                 out<-c(NA, NA)
             } else{
                 out<-TempData()%>%
-                    pull(Prediction)%>%
+                    pull(all_of(input$variable))%>%
                     range(na.rm=T)
             }
             
@@ -790,7 +812,7 @@ server <- function(input, output, session) {
     })
     
     PlotData<-reactive({
-        req(TempData(), input$Facet)
+        req(TempData(), input$Facet, input$variable)
         Data<-TempData()%>%
             {if(input$Facet!='Month' & input$Facet!='Year x Month' & input$Facet!='Month x Year'){
                 filter(., month(Date)==input$Month)
@@ -804,9 +826,9 @@ server <- function(input, output, session) {
             }}%>%
             {if(input$Habitat){
                 mutate(., Suitability=case_when(
-                    Prediction<min(input$Habitat_range) ~ input$Habitat_range_low,
-                    Prediction>=min(input$Habitat_range) & Prediction <=max(input$Habitat_range) ~ input$Habitat_range_med,
-                    Prediction>max(input$Habitat_range) ~ input$Habitat_range_high
+                    .data[[input$variable]]<min(input$Habitat_range) ~ input$Habitat_range_low,
+                    .data[[input$variable]]>=min(input$Habitat_range) & .data[[input$variable]] <=max(input$Habitat_range) ~ input$Habitat_range_med,
+                    .data[[input$variable]]>max(input$Habitat_range) ~ input$Habitat_range_high
                 ))%>%
                     mutate(Suitability=factor(Suitability, levels=c(input$Habitat_range_low, input$Habitat_range_med, input$Habitat_range_high)))
             }else{
@@ -817,7 +839,7 @@ server <- function(input, output, session) {
     )
     
     Plot<-reactive({
-        req(input$variable, input$Facet)
+        req(input$variable, input$Facet, input$Scale)
         if(input$Facet%in%c("None", "Year")){
             req(input$Month)
         }
@@ -828,9 +850,14 @@ server <- function(input, output, session) {
                 theme(text=element_text(size=50))
             return(p)
         }
-        if(input$variable=="Prediction"){
-            Breaks<-seq(6,30,by=0.5)
-            Labels<- function(x) ifelse(x==as.integer(x), as.character(x), "")
+        if(input$variable%in%c("Prediction", "Monthly_mean")){
+            if(input$Scale=="No"){
+                Breaks<-seq(5,30,by=0.25)
+                Labels<- function(x) ifelse((x*2)==as.integer(x*2), as.character(x), "")
+            }else{
+                Breaks<-seq(5,30,by=0.5)
+                Labels<- function(x) ifelse((x)==as.integer(x), as.character(x), "")
+            }
             
         }else{
             Breaks<-seq(0,5,by=0.05)
@@ -849,7 +876,11 @@ server <- function(input, output, session) {
                                   guide = guide_legend(direction="horizontal", title.position = "top",
                                                        title.hjust=0.5, label.position="bottom"))
             }else{
-                scale_fill_viridis_c(limits=Scale(), expand=expansion(0,0), name=if_else(input$variable=="Prediction", "Temperature (°C)", "Standard error"), na.value="white", breaks=Breaks, labels= Labels,
+                scale_fill_viridis_c(limits=Scale(), expand=expansion(0,0), name=case_when(input$variable=="Prediction"~ "Temperature (°C)", 
+                                                                                           input$variable=="SE"~ "Standard error (°C)", 
+                                                                                           input$variable=="Monthly_mean"~ "Monthly mean temperature (°C)", 
+                                                                                           input$variable=="Monthly_sd"~ "Monthly standard deviation (°C)"), 
+                                     na.value="white", breaks=Breaks, labels= Labels,
                                      guide = guide_colorbar(direction="horizontal", title.position = "top", ticks.linewidth = 2,
                                                             title.hjust=0.5, label.position="bottom"))
             }}+
@@ -893,11 +924,21 @@ server <- function(input, output, session) {
     
     # Draw your own regions/areas of interest -------------------------------------------------
     
+    uncertainty_name<-reactive({
+        req(input$variable)
+        if(!input$variable%in%c("Prediction", "Monthly_mean")){
+            stop("Something went wrong and input$variable has a value it shouldn't for the uncertainty_name() reactive")
+        }
+        recode(input$variable, Prediction="SE", Monthly_mean="Monthly_sd")
+    })
+    
     all_points<-reactive({
-        select(TempData(), Prediction)%>%
+        req(input$variable)
+        select(TempData(), all_of(input$variable))%>%
             aggregate(by=c(as.Date("1960-01-01"), Sys.Date()), function(x) length(which(!is.na(x))))%>%
             filter(time==as.Date("1960-01-01"))%>%
-            mutate(Prediction=na_if(Prediction, 0))%>%
+            select(Temp=all_of(input$variable))%>%
+            mutate(Temp=na_if(Temp, 0))%>%
             st_as_sf()%>%
             rename(N=`1960-01-01`)%>%
             mutate(ID=as.character(1:n()),)%>%
@@ -1091,7 +1132,7 @@ server <- function(input, output, session) {
                     summarise(geometry=st_union(geometry), .groups="drop")
                 
                 Low<-TempData()%>%
-                    select(Prediction)%>%
+                    select(all_of(input$variable))%>%
                     aggregate(by=Points, function(x) length(which(!is.na(x) & x<min(input$Habitat_range))), join=st_within, as_points=F)%>%
                     st_as_sf(long=F)%>%
                     st_drop_geometry()%>%
@@ -1099,7 +1140,7 @@ server <- function(input, output, session) {
                     pivot_longer(cols=c(-Region), names_to="Date", values_to="Low")
                 
                 Med<-TempData()%>%
-                    select(Prediction)%>%
+                    select(all_of(input$variable))%>%
                     aggregate(by=Points, function(x) length(which(!is.na(x) & x>=min(input$Habitat_range) & x <=max(input$Habitat_range))), join=st_within, as_points=F)%>%
                     st_as_sf(long=F)%>%
                     st_drop_geometry()%>%
@@ -1107,7 +1148,7 @@ server <- function(input, output, session) {
                     pivot_longer(cols=c(-Region), names_to="Date", values_to="Med")
                 
                 High<-TempData()%>%
-                    select(Prediction)%>%
+                    select(all_of(input$variable))%>%
                     aggregate(by=Points, function(x) length(which(!is.na(x) & x>max(input$Habitat_range))), join=st_within, as_points=F)%>%
                     st_as_sf(long=F)%>%
                     st_drop_geometry()%>%
@@ -1131,26 +1172,26 @@ server <- function(input, output, session) {
                 
             }else{
                 Low<-TempData()%>%
-                    select(Prediction)%>%
-                    aggregate(by=st_union(Points()), function(x) length(which(!is.na(x) & x<min(input$Habitat_range))), join=st_within, as_points=F)%>%
+                    select(all_of(input$variable))%>%
+                    aggregate(by=st_union(Points())%>%st_make_valid(), function(x) length(which(!is.na(x) & x<min(input$Habitat_range))), join=st_within, as_points=F)%>%
                     st_as_sf(as_points=T, long=T)%>%
                     st_drop_geometry()%>%
                     as_tibble()%>%
-                    rename(Low=Prediction)
+                    rename(Low=all_of(input$variable))
                 Med<-TempData()%>%
-                    select(Prediction)%>%
-                    aggregate(by=st_union(Points()), function(x) length(which(!is.na(x) & x>=min(input$Habitat_range) & x <=max(input$Habitat_range))), join=st_within, as_points=F)%>%
+                    select(all_of(input$variable))%>%
+                    aggregate(by=st_union(Points())%>%st_make_valid(), function(x) length(which(!is.na(x) & x>=min(input$Habitat_range) & x <=max(input$Habitat_range))), join=st_within, as_points=F)%>%
                     st_as_sf(as_points=T, long=T)%>%
                     st_drop_geometry()%>%
                     as_tibble()%>%
-                    rename(Med=Prediction)
+                    rename(Med=all_of(input$variable))
                 High<-TempData()%>%
-                    select(Prediction)%>%
-                    aggregate(by=st_union(Points()), function(x) length(which(!is.na(x) & x>max(input$Habitat_range))), join=st_within, as_points=F)%>%
+                    select(all_of(input$variable))%>%
+                    aggregate(by=st_union(Points())%>%st_make_valid(), function(x) length(which(!is.na(x) & x>max(input$Habitat_range))), join=st_within, as_points=F)%>%
                     st_as_sf(as_points=T, long=T)%>%
                     st_drop_geometry()%>%
                     as_tibble()%>%
-                    rename(High=Prediction)
+                    rename(High=all_of(input$variable))
                 
                 out<-full_join(Low, Med, by="Date")%>%
                     full_join(High, by="Date")%>%
@@ -1174,22 +1215,23 @@ server <- function(input, output, session) {
                     group_by(Region)%>%
                     summarise(geometry=st_union(geometry), .groups="drop")
                 TempData()%>%
-                    select(Prediction)%>%
+                    select(all_of(input$variable))%>%
                     aggregate(by=Points, mean, na.rm=T, join=st_within, as_points=F)%>%
                     st_as_sf(long=F)%>%
                     st_drop_geometry()%>%
                     mutate(Region=Points$Region)%>%
-                    pivot_longer(cols=c(-Region), names_to="Date", values_to="Prediction")%>%
+                    pivot_longer(cols=c(-Region), names_to="Date", values_to=input$variable)%>%
                     left_join(TempData()%>%
-                                  select(SE)%>%
-                                  mutate(SE=SE^2)%>%
+                                  select(uncertainty=all_of(uncertainty_name()))%>%
+                                  mutate(uncertainty=uncertainty^2)%>%
                                   aggregate(by=Points, function(x) sqrt(sum(x, na.rm=T)/(length(x)^2)), join=st_within, as_points=F)%>%
                                   st_as_sf(long=F)%>%
                                   st_drop_geometry()%>%
                                   mutate(Region=Points$Region)%>%
-                                  pivot_longer(cols=c(-Region), names_to="Date", values_to="SE"), by=c("Region", "Date"))%>%
-                    mutate(Prediction=if_else(is.nan(Prediction), NA_real_, Prediction),
-                           SE=na_if(SE, 0)
+                                  pivot_longer(cols=c(-Region), names_to="Date", values_to="uncertainty"), by=c("Region", "Date"))%>%
+                    rename(Temp=all_of(input$variable))%>%
+                    mutate(Temp=if_else(is.nan(Temp), NA_real_, Temp),
+                           uncertainty=na_if(uncertainty, 0)
                     )%>%
                     mutate(Date=parse_date_time(Date, "%Y-%m-%d"))%>%
                     complete(Date=parse_date_time(Data_dates(), "%Y-%m-%d"), Region=unique(Points()$Region))%>%
@@ -1197,23 +1239,24 @@ server <- function(input, output, session) {
                            Year=year(Date))
             } else{
                 TempData()%>%
-                    select(Prediction)%>%
-                    aggregate(by=st_union(Points()), mean, na.rm=T, join=st_within, as_points=F)%>%
+                    select(all_of(input$variable))%>%
+                    aggregate(by=st_union(Points())%>%st_make_valid(), mean, na.rm=T, join=st_within, as_points=F)%>%
                     st_as_sf(as_points=T, long=T)%>%
                     st_drop_geometry()%>%
                     as_tibble()%>%
                     left_join(TempData()%>%
-                                  select(SE)%>%
-                                  mutate(SE=SE^2)%>%
-                                  aggregate(by=st_union(Points()), function(x) sqrt(sum(x, na.rm=T)/(length(x)^2)), join=st_within, as_points=F)%>%
+                                  select(uncertainty=all_of(uncertainty_name()))%>%
+                                  mutate(uncertainty=uncertainty^2)%>%
+                                  aggregate(by=st_union(Points())%>%st_make_valid(), function(x) sqrt(sum(x, na.rm=T)/(length(x)^2)), join=st_within, as_points=F)%>%
                                   st_as_sf(as_points=T, long=T)%>%
                                   st_drop_geometry()%>%
                                   as_tibble(), by="Date")%>%
-                    mutate(across(c(Prediction, SE), ~if_else(is.nan(.x), NA_real_, .x)))%>%
+                    rename(Temp=all_of(input$variable))%>%
+                    mutate(across(c(Temp, uncertainty), ~if_else(is.nan(.x), NA_real_, .x)))%>%
                     complete(Date=parse_date_time(Data_dates(), "%Y-%m-%d"))%>%
                     mutate(Month=month(Date),
                            Year=year(Date),
-                           SE=na_if(SE, 0))
+                           uncertainty=na_if(uncertainty, 0))
                 
             }
         }
@@ -1279,13 +1322,19 @@ server <- function(input, output, session) {
             
         }else{
             
-            str_model <- paste0("<tr><td>Mean: &nbsp</td><td>%s</td></tr>",
-                                "<tr><td>Lower SE: &nbsp</td><td>%s</td></tr>", 
-                                "<tr><td>Upper SE: &nbsp</td><td>%s</td></tr>")
+            if(input$variable=="Prediction"){
+                str_model <- paste0("<tr><td>Mean: &nbsp</td><td>%s</td></tr>",
+                                    "<tr><td>Lower SE: &nbsp</td><td>%s</td></tr>", 
+                                    "<tr><td>Upper SE: &nbsp</td><td>%s</td></tr>")
+            }else{
+                str_model <- paste0("<tr><td>Mean: &nbsp</td><td>%s</td></tr>",
+                                    "<tr><td>Lower SD: &nbsp</td><td>%s</td></tr>", 
+                                    "<tr><td>Upper SD: &nbsp</td><td>%s</td></tr>")
+            }
             
             Data<-timeseries_data_month()%>%
                 rowwise()%>%
-                mutate(tooltip=sprintf(str_model, round(Prediction, 2), round(Prediction-SE, 2), round(Prediction+SE, 2)))%>%
+                mutate(tooltip=sprintf(str_model, round(Temp, 2), round(Temp-uncertainty, 2), round(Temp+uncertainty, 2)))%>%
                 ungroup()%>%
                 mutate(ID=1:n(),
                        tooltip=paste0( "<table>", tooltip, "</table>" ))%>%
@@ -1299,7 +1348,7 @@ server <- function(input, output, session) {
                     }
                 }}
             
-            ggplot(Data, aes(x=Date, y=Prediction, ymin=Prediction-SE, ymax=Prediction+SE, group=Group))+
+            ggplot(Data, aes(x=Date, y=Temp, ymin=Temp-uncertainty, ymax=Temp+uncertainty, group=Group))+
                 geom_ribbon(alpha=0.4, fill="firebrick3")+
                 geom_line(color="firebrick3", 
                           size=if_else(input$Facet=="Region" & input$Regions_all, 0.3, 0.5))+
@@ -1316,7 +1365,7 @@ server <- function(input, output, session) {
                         facet_wrap(~Region)
                     }
                 }}+
-                ylab("Temperature ± SE (°C)")+
+                ylab(if_else(input$variable=="Prediction", "Temperature ± SE (°C)", "Temperature ± SD (°C)"))+
                 theme_bw()+
                 theme(strip.background=element_blank())+
                 {if(input$Facet=="Region" & input$Regions_all){
