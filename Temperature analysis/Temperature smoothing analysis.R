@@ -448,7 +448,7 @@ ggplot(data=filter(newdata_all, Location==590), aes(x=Date, y=Prediction))+
 
 newdata_all_sum<-newdata_all%>%
   lazy_dt()%>%
-  group_by(Month, Year, Location)%>%
+  group_by(Month, Year, Location, Latitude, Longitude)%>%
   summarise(Monthly_mean=mean(Prediction, na.rm=T), Monthly_sd=sd(Prediction, na.rm=T))%>%
   as_tibble()
 saveRDS(newdata_all_sum, file="Temperature analysis/Model outputs and validations/newdata_all_sum.Rds")
@@ -545,7 +545,9 @@ Data_effort <- Data%>%
 
 newdata_rast <- newdata%>%
   mutate(Month=month(Date))%>%
-  left_join(newdata_all_sum, by=c("Month", "Year", "Location"))%>%
+  left_join(newdata_all_sum%>%
+              select(-Latitude, -Longitude), 
+            by=c("Month", "Year", "Location"))%>%
   select(-N)%>%
   left_join(Data_effort, by=c("SubRegion", "Month", "Year"))%>% 
   mutate(across(c(Prediction, SE, L95, U95, Monthly_mean, Monthly_sd), ~if_else(is.na(N), NA_real_, .)))
