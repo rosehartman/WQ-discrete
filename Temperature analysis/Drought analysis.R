@@ -375,6 +375,7 @@ p_D2_CC_gam_D<-predict_plot(data=newdata_D2_CC_pred_rast_D,
                        na.value=NA, 
                        palette="Blue-Red 3", 
                        breaks=seq(-12, 6, by=2)/10,
+                       limits=c(-1.23, 0.75),
                        name="Temperature change\nper change in\ntotal inflow\n(°C/monthly sd[cfs])")
 
 ggsave(p_D2_CC_gam_D, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/model 3 inflow temp inflow_CC model.png",
@@ -851,6 +852,7 @@ p_D2_gam_PREC<-predict_plot(data=newdata_D2_PREC_pred_rast,
                             na.value=NA, 
                             palette="Blue-Red 3", 
                             breaks=seq(-12, 6, by=2)/10,
+                            limits=c(-1.23, 0.75),
                             name="Temperature change\nper change in\nprecipitation\n(°C/monthly sd[cfs])")
 
 ggsave(p_D2_gam_PREC, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Figure 7 model 5 precip temp.png",
