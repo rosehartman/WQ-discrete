@@ -167,10 +167,25 @@ ggsave(p_D2_nomonth_gam, filename="C:/Users/sbashevkin/deltacouncil/Science Extr
 
 ### Model validation ----------------
 
-p_D2_nomonth_check<-model_validation(D2_nomonth_gam_AR, Data_D2$Temperature)
+p_D2_nomonth_check<-model_validation(D2_nomonth_gam_AR, Data_D2$Temperature, type="Inflow")
 
 ggsave(p_D2_nomonth_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/model 2 inflow nomonth model validation.png",
        device="png", width=10, height=7, units="in")
+
+### Slope summary -----------------------------------------------------------
+
+Slope_summary_D2_nomonth<-D2_newdata%>%
+  mutate(Slope=D2_nomonth_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):TOT_mean30_s"],
+         Slope_se=D2_nomonth_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):TOT_mean30_s"])%>%
+  mutate(across(c(Slope, Slope_se), ~(.x/TOT_mean30_s)/sd(Data_D2$TOT_mean30)))%>%
+  mutate(Slope_se=abs(Slope_se))%>%
+  mutate(Slope_l99.9=Slope-Slope_se*qnorm(0.9995),
+         Slope_u99.9=Slope+Slope_se*qnorm(0.9995),
+         Date=as.Date(Julian_day, origin=as.Date(paste("2000", "01", "01", sep="-"))),
+         Sig=if_else(Slope_u99.9>0 & Slope_l99.9<0, "ns", "*"))%>%
+  arrange(Month, SubRegion, Slope)%>%
+  group_by(Month, SubRegion)%>%
+  summarise(Slope_mean=mean(Slope), .groups="drop")
 
 ## Fit month-adjusted models ------------------------------------------------
 
@@ -232,14 +247,14 @@ ggsave(p_D2_gam, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - D
 
 ### Model validation ----------------
 
-p_D2_check<-model_validation(D2_gam_AR, Data_D2$Temperature)
+p_D2_check<-model_validation(D2_gam_AR, Data_D2$Temperature, type="Inflow")
 
 ggsave(p_D2_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Figure 3 model 1 inflow model validation.png",
        device="png", width=10, height=7, units="in")
 
 #### Create dataframe of slopes for each month and region --------
 
-Slope_summary<-D2_newdata%>%
+Slope_summary_D2<-D2_newdata%>%
   mutate(Slope=D2_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):TOT_mean30_s_month"],
          Slope_se=D2_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):TOT_mean30_s_month"])%>%
   mutate(across(c(Slope, Slope_se), ~(.x/TOT_mean30_s_month)))%>%
@@ -252,7 +267,7 @@ Slope_summary<-D2_newdata%>%
   group_by(Month, SubRegion)%>%
   summarise(Slope_mean=mean(Slope), Slope_u99.9_max=max(Slope_u99.9), Slope_u99.9_min=min(Slope_u99.9), Slope_l99.9_max=min(Slope_l99.9), Slope_l99.9_min=max(Slope_l99.9), .groups="drop")
 
-P_slope_sum<-ggplot(Slope_summary)+
+P_slope_sum<-ggplot(Slope_summary_D2)+
   geom_vline(xintercept=0)+
   geom_linerange(aes(y=reorder(month(Month, label=T), desc(month(Month, label=T))), xmax=Slope_l99.9_max, xmin=Slope_u99.9_max), size=1, color="#d7191c")+
   geom_linerange(aes(y=reorder(month(Month, label=T), desc(month(Month, label=T))), xmax=Slope_l99.9_min, xmin=Slope_u99.9_min), size=2, color="#fdae61")+
@@ -379,10 +394,25 @@ ggsave(p_D2_CC_gam_CC, filename="C:/Users/sbashevkin/deltacouncil/Science Extran
 
 ## Model validation -----------------
 
-p_D2_CC_check<-model_validation(D2_CC_gam_AR, Data_D2$Temperature)
+p_D2_CC_check<-model_validation(D2_CC_gam_AR, Data_D2$Temperature, type="Inflow")
 
 ggsave(p_D2_CC_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/model 3 inflow_CC model validation.png",
        device="png", width=10, height=7, units="in")
+
+## Slope summary -----------------------------------------------------------
+
+Slope_summary_D2_CC<-D2_newdata%>%
+  mutate(Slope=D2_CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):TOT_mean30_s_month"],
+         Slope_se=D2_CC_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):TOT_mean30_s_month"])%>%
+  mutate(across(c(Slope, Slope_se), ~(.x/TOT_mean30_s_month)))%>%
+  mutate(Slope_se=abs(Slope_se))%>%
+  mutate(Slope_l99.9=Slope-Slope_se*qnorm(0.9995),
+         Slope_u99.9=Slope+Slope_se*qnorm(0.9995),
+         Date=as.Date(Julian_day, origin=as.Date(paste("2000", "01", "01", sep="-"))),
+         Sig=if_else(Slope_u99.9>0 & Slope_l99.9<0, "ns", "*"))%>%
+  arrange(Month, SubRegion, Slope)%>%
+  group_by(Month, SubRegion)%>%
+  summarise(Slope_mean=mean(Slope), .groups="drop")
 
 # Use salinity instead of geography ---------------------------------------
 
@@ -570,7 +600,7 @@ ggsave(p_D3, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discr
 
 ### Model validation
 
-p_D3_check<-model_validation(D3_gam_AR, Data_D3$Temperature)
+p_D3_check<-model_validation(D3_gam_AR, Data_D3$Temperature, type="Inflow")
 
 ggsave(p_D3_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/model 4 inflow salinity model validation.png",
        device="png", width=10, height=7, units="in")
@@ -789,7 +819,7 @@ ggsave(p_D2_PREC_variogram, filename="C:/Users/sbashevkin/deltacouncil/Science E
 
 ## Model validation ----------------------------------------------------------
 
-p_D2_PREC_check<-model_validation(D2_gam_PREC_AR, Data_D2$Temperature)
+p_D2_PREC_check<-model_validation(D2_gam_PREC_AR, Data_D2$Temperature, type="Inflow")
 
 ggsave(p_D2_PREC_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/model 5 precip model validation.png",
        device="png", width=10, height=7, units="in")
@@ -825,3 +855,50 @@ p_D2_gam_PREC<-predict_plot(data=newdata_D2_PREC_pred_rast,
 
 ggsave(p_D2_gam_PREC, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Figure 7 model 5 precip temp.png",
        device="png", width=7, height=5, units="in")
+
+## Slope summary -----------------------------------------------------------
+
+Slope_summary_D2_PREC<-D2_newdata%>%
+  mutate(Slope=D2_PREC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):PREC_mean30_s_month"],
+         Slope_se=D2_PREC_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):PREC_mean30_s_month"])%>%
+  mutate(across(c(Slope, Slope_se), ~(.x/PREC_mean30_s_month)))%>%
+  mutate(Slope_se=abs(Slope_se))%>%
+  mutate(Slope_l99.9=Slope-Slope_se*qnorm(0.9995),
+         Slope_u99.9=Slope+Slope_se*qnorm(0.9995),
+         Date=as.Date(Julian_day, origin=as.Date(paste("2000", "01", "01", sep="-"))),
+         Sig=if_else(Slope_u99.9>0 & Slope_l99.9<0, "ns", "*"))%>%
+  arrange(Month, SubRegion, Slope)%>%
+  group_by(Month, SubRegion)%>%
+  summarise(Slope_mean=mean(Slope), .groups="drop")
+
+
+# Combine all slope summaries and plot pairs plot -------------------------
+
+Slope_summary<-Slope_summary_D2_nomonth%>%
+  rename(Model_1=Slope_mean)%>%
+  left_join(Slope_summary_D2%>%
+              select(Month, SubRegion, Model_2=Slope_mean),
+            by=c("Month", "SubRegion"))%>%
+  left_join(Slope_summary_D2_CC%>%
+              rename(Model_3=Slope_mean),
+            by=c("Month", "SubRegion"))%>%
+  left_join(Slope_summary_D2_PREC%>%
+              rename(Model_5=Slope_mean),
+            by=c("Month", "SubRegion"))
+
+pairs(formula=~Model_1 + Model_2 + Model_3 + Model_5, data=Slope_summary)
+
+w_ggally_cor <- wrap(ggally_cor, lineheight=5, display_grid=FALSE)
+
+slope_comparison<-ggpairs(Slope_summary, 
+                          aes(color=month(Month, label=TRUE)), 
+                          columns=3:6, 
+                          labeller=as_labeller(function(x) str_replace(x, "_", " ")))+
+  scale_color_viridis_d(end=0.9, aesthetics=c("fill", "color"))+
+  theme_bw()+
+  theme(strip.background = element_blank(), axis.text.x = element_text(angle=45, hjust=1))
+
+
+
+ggsave(slope_comparison, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Slope comparison.png",
+       device="png", width=8, height=10, units="in")
