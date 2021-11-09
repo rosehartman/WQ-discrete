@@ -240,6 +240,7 @@ p_D2_gam<-predict_plot(data=newdata_D2_pred_rast,
                        na.value=NA, 
                        palette="Blue-Red 3", 
                        breaks=seq(-12, 6, by=2)/10,
+                       limits=c(-1.23, 0.75),
                        name="Temperature change\nper change in\ntotal inflow\n(°C/monthly sd[cfs])")
 
 ggsave(p_D2_gam, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Figure 4 model 1 inflow temp.png",
@@ -652,7 +653,7 @@ p_sal_mean<-ggplot()+
   xlab("Longitude")+
   ylab("Latitude")+
   theme_bw()+
-  theme(legend.position = c(0.25, 0.8), legend.background=element_rect(color="black"))
+  theme(legend.position = c(0.3, 0.85), legend.background=element_rect(color="black"))
 
 p_sal_sd<-ggplot()+
   geom_stars(data=water_sd)+
@@ -662,7 +663,7 @@ p_sal_sd<-ggplot()+
   xlab("Longitude")+
   ylab("Latitude")+
   theme_bw()+
-  theme(legend.position = c(0.25, 0.8), legend.background=element_rect(color="black"))
+  theme(legend.position = c(0.3, 0.85), legend.background=element_rect(color="black"))
 
 p_sal<-p_sal_mean+p_sal_sd+plot_annotation(tag_levels="A")
 
@@ -764,8 +765,6 @@ D3_gam_AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1
                    te(Salinity_l_s, Julian_day_s, bs=c("tp", "cc"), k=c(15, 13), by=TOT_mean30_s_month) + 
                    s(Time_num_s, k=5), family=scat, rho=D3_salr, AR.start=Start, data = Data_D3, method="fREML", discrete=T, nthreads=2)
 
-
-
 # Plot monthly sd of inflow for each dataset ------------------------------
 
 dayflow_sum<-dayflow%>%
@@ -799,6 +798,52 @@ p_inflow<-ggplot(data=dayflow_sum2, aes(x=Year, y=TOT_mean30_mean, ymin=TOT_mean
 
 ggsave(p_inflow, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/inflow by month and year.png",
        device="png", width=9, height=9, units="in")
+
+
+
+# Plot tempertaures from model 1 -------------------------------
+D2_newdata_temps<-D2_newdata%>%
+  mutate(TOT_mean30_s_month=0)
+
+D2_pred_temps<-predict(D2_gam_AR, newdata=D2_newdata_temps, type="response", se.fit=TRUE, discrete=T, n.threads=4)
+
+D2_temps<-D2_newdata_temps%>%
+  mutate(Temperature=D2_pred_temps$fit,
+         SE=D2_pred_temps$se.fit,
+         Date=as.Date(Julian_day, origin=as.Date(paste("2000", "01", "01", sep="-"))),
+         Month=month(Date, label=T))%>%
+  group_by(Month)%>%
+  summarise(SD=sd(Temperature), Temperature=mean(Temperature))
+
+p_D2_temps<-ggplot(D2_temps, aes(x=Month, y=Temperature, ymin=Temperature-SD, ymax=Temperature+SD))+
+  geom_pointrange()+
+  ylab("Temperature (°C)")+
+  theme_bw()
+
+ggsave(p_D2_temps, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Figure 8 average temps.png",
+       device="png", width=7, height=5, units="in")
+
+
+## Alternative spatial plot
+
+D2_pred_temps<-predict(D2_gam_AR, newdata=D2_newdata_temps, type="response", se.fit=TRUE, discrete=T, n.threads=4)
+
+D2_temps<-D2_newdata_temps%>%
+  mutate(Temperature=D2_pred_temps$fit,
+         SE=D2_pred_temps$se.fit,
+         Date=as.Date(Julian_day, origin=as.Date(paste("2000", "01", "01", sep="-"))),
+         Month=month(Date, label=T))%>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)%>%
+  st_transform(crs=st_crs(Delta2))
+
+D2_temps_rast<-Rasterize_all(D2_temps, Temperature, region=Delta2)
+
+predict_plot(data=D2_temps_rast, 
+             base=base, 
+             scale_fill_viridis_c, 
+             guide=guide_colorbar(barheight=15), 
+             na.value=NA,  
+             name="Temperature (°C)")
 
 # Now try precipitation ---------------------------------------------------
 
