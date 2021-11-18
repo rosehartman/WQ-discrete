@@ -451,8 +451,8 @@ newdata_all_sum<-newdata_all%>%
   group_by(Month, Year, Location, Latitude, Longitude)%>%
   summarise(Monthly_mean=mean(Prediction, na.rm=T), Monthly_sd=sd(Prediction, na.rm=T))%>%
   as_tibble()
-saveRDS(newdata_all_sum, file="Temperature analysis/Model outputs and validations/newdata_all_sum.Rds")
-
+#saveRDS(newdata_all_sum, file="Temperature analysis/Model outputs and validations/newdata_all_sum.Rds")
+newdata_all_sum<-readRDS("Temperature analysis/Model outputs and validations/newdata_all_sum.Rds")
 
 #saveRDS(newdata_year, file="Temperature analysis/Prediction Data.Rds")
 newdata_year<-readRDS("Temperature analysis/Prediction Data.Rds")

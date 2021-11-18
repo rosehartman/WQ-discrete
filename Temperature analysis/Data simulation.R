@@ -9,6 +9,7 @@ require(mgcv)
 require(itsadug)
 require(lubridate)
 require(patchwork)
+source("Utility_functions.R")
 # Stop plotting scientific notation
 options(scipen=999)
 
@@ -33,7 +34,8 @@ max_effort<-Data_effort%>%
   group_by(SubRegion)%>%
   summarise(Max=max(N), .groups="drop")
 
-Slope_summary<-readRDS("Temperature analysis/Slope summary.Rds")
+Slope_summary<-readRDS("Temperature analysis/Slope summary.Rds")%>%
+  mutate(Month=as.integer(Month))
 
 newdata_stations<-Data_CC4%>%
   select(Station, Latitude, Longitude)%>%
@@ -205,21 +207,6 @@ CC_newdata<-readRDS("Temperature analysis/Climate Change Prediction Data.Rds")%>
   mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
          Month=month(Date, label = T))
 
-## Function to rasterize all dates. Creates a 3D raster Latitude x Longitude x Date 
-Rasterize_all <- function(data, var, out_crs=4326, n=100){
-  var<-rlang::enquo(var)
-  rlang::as_name(var)
-  preds<-map(unique(data$Date), function(x) st_rasterize(data%>%
-                                                           filter(Date==x)%>%
-                                                           dplyr::select(!!var), 
-                                                         template=st_as_stars(st_bbox(Delta), dx=diff(st_bbox(Delta)[c(1, 3)])/n, dy=diff(st_bbox(Delta)[c(2, 4)])/n, values = NA_real_))%>%
-               st_warp(crs=out_crs))
-  
-  # Then bind all dates together into 1 raster
-  out <- exec(c, !!!preds, along=list(Date=unique(data$Date)))
-  return(out)
-}
-
 ## Function to fit models on simulated data
 sim_tester<-function(data, sim){
   
@@ -259,7 +246,7 @@ sim_tester<-function(data, sim){
       st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)%>%
       st_transform(crs=st_crs(Delta))
     
-    newdata_CC_pred_rast<-Rasterize_all(newdata_CC_pred2, Slope)
+    newdata_CC_pred_rast<-Rasterize_all(newdata_CC_pred2, Slope, region=Delta)
     
     Slope_mean<-round(mean(newdata_CC_pred2$Slope, na.rm=T),4)
     Slope_median<-round(median(newdata_CC_pred2$Slope, na.rm=T),4)
@@ -322,7 +309,7 @@ sim_test_processer<-function(sim_results, data_type, model_type){
     ylab("Model-estimated slope (Temperature change per year [°C])")+
     theme_bw()+
     {if(model_type=="NULL"){
-      theme(strip.background = element_blank(), plot.title = element_text(hjust = 0.5), legend.position = "none", axis.text.x=element_text(angle=45, hjust=1))
+      theme(strip.background = element_blank(), plot.title = element_text(hjust = 0.5), axis.text.x=element_text(angle=45, hjust=1))
     }else{
       theme(strip.background = element_blank(), plot.title = element_text(hjust = 0.5))
     }}

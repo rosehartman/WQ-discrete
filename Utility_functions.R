@@ -1,24 +1,9 @@
-model_validation<-function(model, response, tag_annotation="A", type="Climate change"){
+model_validation<-function(model, response, tag_annotation="A"){
   require(mgcv)
   require(patchwork)
   require(ggplot2)
   require(tibble)
   require(itsadug)
-  
-  if(type=="Climate change"){
-    fitted_label<-"Fitted values"
-    linear_label<-"Linear predictor"
-    response_label<-"Response"
-    resid_quant_label<-"Residuals"
-  }
-  
-  if(type=="Inflow"){
-    fitted_label<-"Predicted temperature (°C)"
-    linear_label<-fitted_label
-    response_label<-"Observed temperature (°C)"
-    resid_quant_label<-"Residual quantiles"
-  }
-  
   
   sum<-summary(model)
   resids <- resid_gam(model, incl_na=TRUE)
@@ -33,7 +18,7 @@ model_validation<-function(model, response, tag_annotation="A", type="Climate ch
     geom_abline(intercept=0, slope=1, color="firebrick3", size=1)+
     geom_point(size=0.5)+
     xlab("Theoretical quantiles")+
-    ylab(resid_quant_label)+
+    ylab("Residual quantiles")+
     theme_bw()
   
   p_hist<-ggplot(data.frame(Residuals=resids), aes(x=Residuals))+
@@ -45,7 +30,7 @@ model_validation<-function(model, response, tag_annotation="A", type="Climate ch
   
   p_pred_resid<-ggplot(tibble(Predictor=linpred, Residuals=resids), aes(x=Predictor, y=Residuals))+
     geom_point(size=0.5)+
-    xlab(linear_label)+
+    xlab("Predicted temperature (°C)")+
     theme_bw()
   
   fitted<-predict(model, type = "response")
@@ -53,8 +38,8 @@ model_validation<-function(model, response, tag_annotation="A", type="Climate ch
   p_fitted_resid<-ggplot(data=tibble(Fitted=fitted, Response=response), aes(x=Fitted, y=Response))+
     geom_point(size=0.5)+
     annotate("label", x=10, y=30, label=paste0("R^2 == ", round(sum$r.sq, 4)), parse=T)+
-    xlab(fitted_label)+
-    ylab(response_label)+
+    xlab("Predicted temperature (°C)")+
+    ylab("Observed temperature (°C)")+
     theme_bw()
   
   p_check<-(p_qq|p_pred_resid)/(p_hist|p_fitted_resid)+plot_annotation(tag_levels=tag_annotation)

@@ -1,4 +1,4 @@
-mapplot<-function(data, type="paper", point=tibble(Latitude=37.999664, Longitude=-121.317443), yolo){
+mapplot<-function(data, type="paper", point=tibble(Latitude=37.999664, Longitude=-121.317443), yolo=NULL){
   
   require(dplyr)
   require(sf)
@@ -106,6 +106,8 @@ mapplot<-function(data, type="paper", point=tibble(Latitude=37.999664, Longitude
       st_transform(crs=st_crs(SubRegions))%>%
       st_union()%>%
       st_crop(SubRegions)
+  }else{
+    labels<-filter(labels, label!="Yolo Bypass")
   }
   
   pout<-ggplot(states)+

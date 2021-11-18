@@ -167,7 +167,7 @@ ggsave(p_D2_nomonth_gam, filename="C:/Users/sbashevkin/deltacouncil/Science Extr
 
 ### Model validation ----------------
 
-p_D2_nomonth_check<-model_validation(D2_nomonth_gam_AR, Data_D2$Temperature, type="Inflow")
+p_D2_nomonth_check<-model_validation(D2_nomonth_gam_AR, Data_D2$Temperature)
 
 ggsave(p_D2_nomonth_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/model 2 inflow nomonth model validation.png",
        device="png", width=10, height=7, units="in")
@@ -248,7 +248,7 @@ ggsave(p_D2_gam, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - D
 
 ### Model validation ----------------
 
-p_D2_check<-model_validation(D2_gam_AR, Data_D2$Temperature, type="Inflow")
+p_D2_check<-model_validation(D2_gam_AR, Data_D2$Temperature)
 
 ggsave(p_D2_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/Figure 3 model 1 inflow model validation.png",
        device="png", width=10, height=7, units="in")
@@ -396,7 +396,7 @@ ggsave(p_D2_CC_gam_CC, filename="C:/Users/sbashevkin/deltacouncil/Science Extran
 
 ## Model validation -----------------
 
-p_D2_CC_check<-model_validation(D2_CC_gam_AR, Data_D2$Temperature, type="Inflow")
+p_D2_CC_check<-model_validation(D2_CC_gam_AR, Data_D2$Temperature)
 
 ggsave(p_D2_CC_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/model 3 inflow_CC model validation.png",
        device="png", width=10, height=7, units="in")
@@ -602,7 +602,7 @@ ggsave(p_D3, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discr
 
 ### Model validation
 
-p_D3_check<-model_validation(D3_gam_AR, Data_D3$Temperature, type="Inflow")
+p_D3_check<-model_validation(D3_gam_AR, Data_D3$Temperature)
 
 ggsave(p_D3_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/model 4 inflow salinity model validation.png",
        device="png", width=10, height=7, units="in")
@@ -865,7 +865,7 @@ ggsave(p_D2_PREC_variogram, filename="C:/Users/sbashevkin/deltacouncil/Science E
 
 ## Model validation ----------------------------------------------------------
 
-p_D2_PREC_check<-model_validation(D2_gam_PREC_AR, Data_D2$Temperature, type="Inflow")
+p_D2_PREC_check<-model_validation(D2_gam_PREC_AR, Data_D2$Temperature)
 
 ggsave(p_D2_PREC_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta Inflow temperature/Figures/model 5 precip model validation.png",
        device="png", width=10, height=7, units="in")

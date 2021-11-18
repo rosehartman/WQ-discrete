@@ -1,3 +1,5 @@
+#devtools::install_github("sbashevkin/discretewq", ref="v1.1.0")
+
 require(sp)
 require(gstat)
 require(spacetime)
@@ -23,6 +25,14 @@ require(patchwork)
 require(ggstance)
 require(discretewq)
 source("Utility_functions.R")
+
+mygrid <- data.frame(
+  name = c("Upper Sacramento River Ship Channel", "Cache Slough and Lindsey Slough", "Lower Sacramento River Ship Channel", "Liberty Island", "Suisun Marsh", "Middle Sacramento River", "Lower Cache Slough", "Steamboat and Miner Slough", "Upper Mokelumne River", "Lower Mokelumne River", "Georgiana Slough", "Sacramento River near Ryde", "Sacramento River near Rio Vista", "Grizzly Bay", "West Suisun Bay", "Mid Suisun Bay", "Honker Bay", "Confluence", "Lower Sacramento River", "San Joaquin River at Twitchell Island", "San Joaquin River at Prisoners Pt", "Disappointment Slough", "Lower San Joaquin River", "Franks Tract", "Holland Cut", "San Joaquin River near Stockton", "Mildred Island", "Middle River", "Old River", "Upper San Joaquin River", "Grant Line Canal and Old River", "Victoria Canal"),
+  row = c(2, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 7, 7, 8, 8, 8),
+  col = c(7, 4, 6, 5, 2, 8, 6, 7, 9, 9, 8, 7, 6, 2, 1, 2, 3, 4, 5, 6, 8, 9, 5, 6, 7, 9, 8, 8, 7, 9, 8, 7),
+  code = c(" 1", " 1", " 2", " 3", " 8", " 4", " 5", " 6", " 7", " 9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "30", "29", "31"),
+  stringsAsFactors = FALSE
+)
 
 # Create overall dataset --------------------------
 
@@ -277,16 +287,16 @@ Data_CC4.3 <- Data_CC4%>%
 
 CC_gam8d7b_NOAR5 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
                           te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
-                          s(Time_num_s, k=5), family=scat, data = Data_CC4.3, method="fREML", discrete=T, nthreads=2)
+                          s(Time_num_s, k=5), family=scat, data = Data_CC4.3, method="fREML", discrete=T, nthreads=4)
 r6 <- start_value_rho(CC_gam8d7b_NOAR5, plot=TRUE)
 
 #########Best Model####################
 
 CC_gam8d7b_AR7 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
                         te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
-                        s(Time_num_s, k=5), family=scat, rho=r6, AR.start=Start, data = Data_CC4.3, method="fREML", discrete=T, nthreads=2)
-#AIC: 199986.6
-#BIC: 202820.8
+                        s(Time_num_s, k=5), family=scat, rho=r6, AR.start=Start, data = Data_CC4.3, method="fREML", discrete=T, nthreads=4)
+#AIC: 199876.5
+#BIC: 202706.4
 
 #########Best Model####################
 
@@ -296,89 +306,17 @@ CC_gam8d7b_AR7B <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d
                         s(Time_num_s, k=5), family=scat, rho=r6*2, AR.start=Start, data = Data_CC4.3, method="fREML", discrete=T, nthreads=4)
 #AIC: 192436.7
 
-resid_norm_CC_gam8d7b_AR7<-resid_gam(CC_gam8d7b_AR7, incl_na=TRUE, return_all=T)
 
-Data_vario<-Data_CC4.3%>%
-  mutate(Resid=resid_norm_CC_gam8d7b_AR7$norm_res,
-         Resid_uncorrected=resid_norm_CC_gam8d7b_AR7$res)
+# Create spatiotemporal variogram -----------------------------------------
 
-Data_coords<-Data_vario%>%
-  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326)%>%
-  st_transform(crs=26910)%>%
-  st_coordinates()%>%
-  as_tibble()%>%
-  mutate(across(c(X,Y), ~(.x-mean(.x))/1000))
+p_variogram_AR7B<-ST_variogram(CC_gam8d7b_AR7, Data_CC4.3, 5)
 
-Data_vario<-bind_cols(Data_vario%>%
-                        select(Date, Resid, Resid_uncorrected), Data_coords)
-sp<-SpatialPoints(coords=data.frame(X=Data_vario$X, Y=Data_vario$Y))
-sp2<-STIDF(sp, time=Data_vario$Date, 
-           data=data.frame(Residuals=Data_vario$Resid, Residuals_uncorrected=Data_vario$Resid_uncorrected))
-CC_gam8d7b_AR7_vario<-variogramST(Residuals~1, data=sp2, tunit="weeks", cores=4, tlags=(30/7)*0:10)
-CC_gam8d7b_AR7_vario_uncorrected<-variogramST(Residuals_uncorrected~1, data=sp2, tunit="weeks", cores=5, tlags=(30/7)*0:10)
-
-CC_gam8d7b_AR7_vario_plot<-CC_gam8d7b_AR7_vario%>%
-  mutate(monthlag=as.integer(as.factor(timelag))-0.5)
-
-CC_gam8d7b_AR7_vario_uncorrected_plot<-CC_gam8d7b_AR7_vario_uncorrected%>%
-  mutate(monthlag=as.integer(as.factor(timelag))-0.5)
-
-p_time<-ggplot(CC_gam8d7b_AR7_vario_plot, aes(x=monthlag, y=gamma, color=spacelag, group=spacelag))+
-  geom_line()+
-  geom_point()+
-  scale_color_viridis_c(name="Distance (km)")+
-  scale_x_continuous(breaks=c(2,4,6,8,10))+
-  xlab("Time difference (months)")+
-  theme_bw()+
-  theme(legend.justification = "left")
-
-p_space<-ggplot(CC_gam8d7b_AR7_vario_plot, aes(x=spacelag, y=gamma, color=monthlag, group=monthlag))+
-  geom_line()+
-  geom_point()+
-  scale_color_viridis_c(breaks=c(2,4,6,8,10), name="Time difference\n(months)")+
-  xlab("Distance (km)")+
-  theme_bw()+
-  theme(legend.justification = "left")
-
-p_variogram<-p_time/p_space+plot_annotation(tag_levels="A")
-
-ggsave(p_variogram, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Figure S6 variogram.png",
+ggsave(p_variogram, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure S6 variogram.png",
        device="png", width=8, height=5, units="in")
 
-
 # Trying higher rho
-resid_norm_CC_gam8d7b_AR7B<-resid_gam(CC_gam8d7b_AR7B, incl_na=TRUE, return_all=T)
 
-Data_varioB<-Data_CC4.3%>%
-  mutate(Resid=resid_norm_CC_gam8d7b_AR7B$norm_res,
-         Resid_uncorrected=resid_norm_CC_gam8d7b_AR7B$res)
-
-Data_coordsB<-Data_varioB%>%
-  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326)%>%
-  st_transform(crs=26910)%>%
-  st_coordinates()%>%
-  as_tibble()%>%
-  mutate(across(c(X,Y), ~(.x-mean(.x))/1000))
-
-Data_varioB<-bind_cols(Data_varioB%>%
-                        select(Date, Resid, Resid_uncorrected), Data_coordsB)
-spB<-SpatialPoints(coords=data.frame(X=Data_varioB$X, Y=Data_varioB$Y))
-sp2B<-STIDF(spB, time=Data_varioB$Date, 
-           data=data.frame(Residuals=Data_varioB$Resid, Residuals_uncorrected=Data_varioB$Resid_uncorrected))
-CC_gam8d7b_AR7B_vario<-variogramST(Residuals~1, data=sp2B, tunit="weeks", cores=5, tlags=(30/7)*0:10)
-
-CC_gam8d7b_AR7B_vario_plot<-CC_gam8d7b_AR7B_vario%>%
-  mutate(monthlag=as.integer(as.factor(timelag))-0.5)
-
-ggplot(CC_gam8d7b_AR7B_vario_plot, aes(x=monthlag, y=gamma, color=spacelag, group=spacelag))+
-  geom_line()+
-  geom_point()+
-  scale_color_viridis_c(name="Distance (km)")+
-  scale_x_continuous(breaks=c(2,4,6,8,10))+
-  ylim(0.6, 1.2)+
-  xlab("Time difference (months)")+
-  theme_bw()+
-  theme(legend.justification = "left")
+p_variogram<-ST_variogram(CC_gam8d7b_AR7B, Data_CC4.3, 5)
 
 ## Now gamma is too high for time points > 1 lag. So sticking with original Rho
   
@@ -391,6 +329,7 @@ gam.check(CC_gam8d7b_AR7)
 
 
 # Find SubRegion and Month combinations with representation in the data
+# For filtering the newdata after predictions
 Data_CC4_effort<-Data_CC4%>%
   distinct(SubRegion, Month)%>%
   mutate(Keep=TRUE) 
@@ -411,10 +350,8 @@ CC_newdata<-newdata%>%
 
 #saveRDS(CC_newdata, "Temperature analysis/Climate Change Prediction Data.Rds")
 CC_newdata<-readRDS("Temperature analysis/Climate Change Prediction Data.Rds")
-# For filtering the newdata after predictions
 
 CC_pred<-predict(CC_gam8d7b_AR7, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
-
 
 Delta<-st_read("Delta Subregions")%>%
   select(SubRegion)%>%
@@ -422,41 +359,20 @@ Delta<-st_read("Delta Subregions")%>%
 
 newdata_CC_pred<-CC_newdata%>%
   mutate(Slope=CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
-         Slope_se=CC_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
-         Intercept=CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s)"]+CC_pred$fit[,"s(Time_num_s)"])%>%
+         Slope_se=CC_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"])%>%
   mutate(across(c(Slope, Slope_se), ~(.x/Year_s)/sd(Data$Year)))%>%
   mutate(Slope_se=abs(Slope_se))%>%
   mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
          Month=month(Date, label = T),
          Slope_l99=Slope-Slope_se*qnorm(0.9995),
-         Slope_u99=Slope+Slope_se*qnorm(0.9995))%>%
-  mutate(Sig=if_else(Slope_u99>0 & Slope_l99<0, "ns", "*"))%>%
+         Slope_u99=Slope+Slope_se*qnorm(0.9995),
+         Sig=if_else(Slope_u99>0 & Slope_l99<0, "ns", "*"))
+
+newdata_CC_pred_rast<-newdata_CC_pred%>%
   filter(Sig=="*")%>%
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)%>%
-  st_transform(crs=st_crs(Delta))
-
-
-# Create dataframe of slope deviations for each month and region f --------
-
-Slope_summary<-CC_newdata%>%
-  mutate(Slope=CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
-         Slope_se=CC_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"])%>%
-  mutate(across(c(Slope, Slope_se), ~(.x/Year_s)/sd(Data$Year)))%>%
-  mutate(Slope_se=abs(Slope_se))%>%
-  mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
-         Month=month(Date),
-         Slope_l99=Slope-Slope_se*qnorm(0.9995),
-         Slope_u99=Slope+Slope_se*qnorm(0.9995),
-         Sig=if_else(Slope_u99>0 & Slope_l99<0, "ns", "*"))%>%
-  group_by(Month, SubRegion)%>%
-  summarise(Slope=mean(Slope), Slope_se=mean(Slope_se), Sig_prop=length(which(Sig=="*"))/n(), .groups="drop")%>%
-  mutate(Slope_mean=mean(Slope), 
-         Slope_mult=Slope/Slope_mean,
-         Slope_se_mean=mean(Slope_se), 
-         Slope_se_mult=Slope/Slope_se_mean)
-#saveRDS(Slope_summary, "Temperature analysis/Slope summary.Rds")
-
-newdata_CC_pred_rast<-Rasterize_all(newdata_CC_pred, Slope, region=Delta)
+  st_transform(crs=st_crs(Delta))%>%
+  Rasterize_all(., Slope, region=Delta)
 
 # Create background raster of all locations
 base<-CC_newdata%>%
@@ -480,38 +396,36 @@ ggsave(p_CC_gam, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - D
 
 # Plot all slopes, significant or not
 
-newdata_CC_pred_all<-CC_newdata%>%
-  mutate(Slope=CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
-         Slope_se=CC_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
-         Intercept=CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s)"]+CC_pred$fit[,"s(Time_num_s)"])%>%
-  mutate(across(c(Slope, Slope_se), ~(.x/Year_s)/sd(Data$Year)))%>%
-  mutate(Slope_se=abs(Slope_se))%>%
-  mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
-         Month=month(Date, label = T),
-         Slope_l99=Slope-Slope_se*qnorm(0.9995),
-         Slope_u99=Slope+Slope_se*qnorm(0.9995))%>%
+newdata_CC_pred_all_rast<-newdata_CC_pred%>%
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)%>%
-  st_transform(crs=st_crs(Delta))
+  st_transform(crs=st_crs(Delta))%>%
+  Rasterize_all(., Slope, region=Delta)
 
-newdata_CC_pred_all_rast<-Rasterize_all(newdata_CC_pred_all, Slope, region=Delta)
+p_CC_gam_all<-predict_plot(data=newdata_CC_pred_all_rast, 
+                           base=base, 
+                           scale_fill_viridis_c, 
+                           guide=guide_colorbar(barheight=20), 
+                           na.value=NA, 
+                           breaks=(-6:7)/100, 
+                           name="Temperature change\nper year (°C)")
 
-p_CC_gam_all<-ggplot()+
-  geom_sf(data=base, color=NA, fill="gray80", lwd=0)+
-  geom_stars(data=newdata_CC_pred_all_rast)+
-  facet_wrap(~month(Date, label=T), drop=F)+
-  scale_fill_viridis_c(breaks=(-6:7)/100, name="Temperature change\nper year (°C)", na.value=NA)+
-  ylab("Latitude")+
-  xlab("Longitude")+
-  coord_sf()+
-  theme_bw()+
-  theme(strip.background=element_blank(), axis.text.x = element_text(angle=45, hjust=1), panel.grid=element_blank())
-
-ggsave(p_CC_gam_all, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Climate change signal all_BDSC.png",
+ggsave(p_CC_gam_all, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Climate change signal all.png",
        device="png", width=7, height=5, units="in")
+
+# Create dataframe of slope deviations for each month and region f --------
+
+Slope_summary<-newdata_CC_pred%>%
+  group_by(Month, SubRegion)%>%
+  summarise(Slope=mean(Slope), Slope_se=mean(Slope_se), Sig_prop=length(which(Sig=="*"))/n(), .groups="drop")%>%
+  mutate(Slope_mean=mean(Slope), 
+         Slope_mult=Slope/Slope_mean,
+         Slope_se_mean=mean(Slope_se), 
+         Slope_se_mult=Slope/Slope_se_mean)
+#saveRDS(Slope_summary, "Temperature analysis/Slope summary.Rds")
 
 # Plot slope summary for each region and month
 p_slope_sum<-ggplot(Slope_summary)+
-  geom_pointrange(aes(y=reorder(month(Month, label=T), desc(month(Month, label=T))), x=Slope, xmax=Slope+Slope_se, xmin=Slope-Slope_se, fill=Sig_prop, color=Sig_prop))+
+  geom_pointrange(aes(y=reorder(Month, desc(Month)), x=Slope, xmax=Slope+Slope_se, xmin=Slope-Slope_se, fill=Sig_prop, color=Sig_prop))+
   facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen(width=15))+
   geom_vline(xintercept=0)+
   scale_y_discrete(breaks=c("Jan", "Mar", "May", "Jul", "Sep", "Nov"))+
@@ -523,7 +437,7 @@ p_slope_sum<-ggplot(Slope_summary)+
   theme(axis.text.x=element_text(angle=45, hjust=1), text=element_text(size=16), legend.position=c(0.4, 0.65), 
         legend.background = element_rect(color="black"), panel.background = element_rect(color="black"), legend.margin=margin(10,10,15,10))
 
-ggsave(p_slope_sum, file="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Climate change slopes.png",
+ggsave(p_slope_sum, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Climate change slopes.png",
        device="png", width=15, height=18, units="in")
 
 # Plot all slopes with CIs
@@ -545,25 +459,16 @@ SubRegion_levels<-c("Upper Sacramento River Ship Channel", "Middle Sacramento Ri
                     "Middle River", "Grant Line Canal and Old River",
                     "Victoria Canal", "Upper San Joaquin River")
 
-Slope_sum2<-CC_newdata%>%
-  mutate(Slope=CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
-         Slope_se=CC_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"])%>%
-  mutate(across(c(Slope, Slope_se), ~(.x/Year_s)/sd(Data$Year)))%>%
-  mutate(Slope_se=abs(Slope_se))%>%
-  mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
-         Month=month(Date),
-         Slope_l99=Slope-Slope_se*qnorm(0.9995),
-         Slope_u99=Slope+Slope_se*qnorm(0.9995),
-         Sig=if_else(Slope_u99>0 & Slope_l99<0, "ns", "*"))%>%
+Slope_sum2<-newdata_CC_pred%>%
   group_by(Month, SubRegion)%>%
   summarise(Slope_mean=mean(Slope), Slope_u99_max=max(Slope_u99), Slope_u99_min=min(Slope_u99), Slope_l99_max=min(Slope_l99), Slope_l99_min=max(Slope_l99), .groups="drop")%>%
   mutate(SubRegion=factor(SubRegion, levels=SubRegion_levels))
 
 P_slope_sum2<-ggplot(Slope_sum2)+
   geom_vline(xintercept=0)+
-  geom_linerange(aes(y=reorder(month(Month, label=T), desc(month(Month, label=T))), xmax=Slope_l99_max, xmin=Slope_u99_max), size=1, color="#d7191c")+
-  geom_linerange(aes(y=reorder(month(Month, label=T), desc(month(Month, label=T))), xmax=Slope_l99_min, xmin=Slope_u99_min), size=2, color="#fdae61")+
-  geom_point(aes(y=reorder(month(Month, label=T), desc(month(Month, label=T))), x=Slope_mean), size=1, color="#2c7bb6")+
+  geom_linerange(aes(y=reorder(Month, desc(Month)), xmax=Slope_l99_max, xmin=Slope_u99_max), size=1, color="#d7191c")+
+  geom_linerange(aes(y=reorder(Month, desc(Month)), xmax=Slope_l99_min, xmin=Slope_u99_min), size=2, color="#fdae61")+
+  geom_point(aes(y=reorder(Month, desc(Month)), x=Slope_mean), size=1, color="#2c7bb6")+
   facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen(width=18))+
   scale_y_discrete(breaks=c("Jan", "Mar", "May", "Jul", "Sep", "Nov"))+
   ylab("Month")+
@@ -592,7 +497,7 @@ p_effort<-ggplot(Data_effort)+
   theme(axis.text.x=element_text(angle=45, hjust=1), panel.grid=element_blank(), text=element_text(size=16), legend.position=c(0.4, 0.65), 
         legend.background = element_rect(color="black"), panel.background = element_rect(color="black"), legend.margin=margin(10,10,15,10))
 
-ggsave(p_effort, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure S1 Climate change effort2.png",
+ggsave(p_effort, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure S1 Climate change effort.png",
        device="png", width=15, height=18, units="in")
 
 # Now try a model with higher spatial K value -----------------------------
@@ -601,16 +506,17 @@ ggsave(p_effort, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discr
 
 CC_gam8d7b_AR8 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(50, 13)) + 
                         te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
-                        s(Time_num_s, k=5), family=scat, rho=r6, AR.start=Start, data = Data_CC4.3, method="fREML", discrete=T, nthreads=2)
-#AIC: 199626.8
-#BIC: 203545
+                        s(Time_num_s, k=5), family=scat, rho=r6, AR.start=Start, data = Data_CC4.3, method="fREML", discrete=T, nthreads=4)
+#AIC: 199510.1
+#BIC: 203406.4
+
+gam.check(CC_gam8d7b_AR8)
 
 CC_pred_AR8<-predict(CC_gam8d7b_AR8, newdata=CC_newdata, type="terms", se.fit=TRUE, discrete=T, n.threads=4)
 
 newdata_CC_pred_AR8<-CC_newdata%>%
   mutate(Slope=CC_pred_AR8$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
-         Slope_se=CC_pred_AR8$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
-         Intercept=CC_pred_AR8$fit[,"te(Julian_day_s,Latitude_s,Longitude_s)"]+CC_pred_AR8$fit[,"s(Time_num_s)"])%>%
+         Slope_se=CC_pred_AR8$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"])%>%
   mutate(across(c(Slope, Slope_se), ~(.x/Year_s)/sd(Data$Year)))%>%
   mutate(Slope_se=abs(Slope_se))%>%
   mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
@@ -639,12 +545,10 @@ ggsave(p_CC_gam_AR8, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet
 
 # Recreate gam check plots ------------------------------------------------
 
-
 p_check<-model_validation(CC_gam8d7b_AR7, Data_CC4.3$Temperature)
 
-ggsave(p_check, filename="C:/Users/sbashevkin/OneDrive - deltacouncil/Discrete water quality analysis/Manuscripts/Climate change/Figures/Figure 3 Climate change model validation.png",
+ggsave(p_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure 3 Climate change model validation.png",
        device="png", width=10, height=7, units="in")
-
 
 # Fit separate models to each 25 year period ------------------------------
 
@@ -679,12 +583,12 @@ model_fitter<-function(start_year){
   
   noAR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
                      te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
-                     s(Time_num_s, k=5), family=scat, data = data, method="fREML", discrete=T, nthreads=2)
+                     s(Time_num_s, k=5), family=scat, data = data, method="fREML", discrete=T, nthreads=4)
   r <- start_value_rho(noAR, plot=TRUE)
   
   AR <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
                           te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
-                          s(Time_num_s, k=5), family=scat, rho=r, AR.start=Start, data = data, method="fREML", discrete=T, nthreads=2)
+                          s(Time_num_s, k=5), family=scat, rho=r, AR.start=Start, data = data, method="fREML", discrete=T, nthreads=4)
   
   message(paste(start_year, "finished"))
   return(AR)
@@ -761,7 +665,7 @@ p_period<-ggplot()+
   geom_sf(data=base_period, color=NA, fill="gray80", lwd = 0)+
   geom_stars(data=preds_period_rast)+
   facet_grid(month(Date)~year(Date), drop=F, labeller=as_labeller(c(set_names(as.character(month(1:12, label=T)), 1:12), set_names(paste0(start_years, "-", start_years+25), start_years))))+
-  scale_fill_continuous_diverging(palette="Blue-Red 3", name="Temperature change\nper year (°C)", guide=guide_colorbar(barheight=20), na.value=NA)+
+  scale_fill_continuous_diverging(palette="Blue-Red 3", name="Temperature change\nper year (°C)", breaks=seq(-0.05, 0.15, by=0.05), guide=guide_colorbar(barheight=20), na.value=NA)+
   ylab("Latitude")+
   xlab("Longitude")+
   coord_sf()+
@@ -779,14 +683,6 @@ preds_period_sum<-preds_period%>%
   summarise(Slope=mean(Slope), .groups="drop")%>%
   complete(Month, SubRegion, Year)%>%
   mutate(Years=paste0(Year, "-", Year+25))
-
-mygrid <- data.frame(
-  name = c("Upper Sacramento River Ship Channel", "Cache Slough and Lindsey Slough", "Lower Sacramento River Ship Channel", "Liberty Island", "Suisun Marsh", "Middle Sacramento River", "Lower Cache Slough", "Steamboat and Miner Slough", "Upper Mokelumne River", "Lower Mokelumne River", "Georgiana Slough", "Sacramento River near Ryde", "Sacramento River near Rio Vista", "Grizzly Bay", "West Suisun Bay", "Mid Suisun Bay", "Honker Bay", "Confluence", "Lower Sacramento River", "San Joaquin River at Twitchell Island", "San Joaquin River at Prisoners Pt", "Disappointment Slough", "Lower San Joaquin River", "Franks Tract", "Holland Cut", "San Joaquin River near Stockton", "Mildred Island", "Middle River", "Old River", "Upper San Joaquin River", "Grant Line Canal and Old River", "Victoria Canal"),
-  row = c(2, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 7, 7, 8, 8, 8),
-  col = c(7, 4, 6, 5, 2, 8, 6, 7, 9, 9, 8, 7, 6, 2, 1, 2, 3, 4, 5, 6, 8, 9, 5, 6, 7, 9, 8, 8, 7, 9, 8, 7),
-  code = c(" 1", " 1", " 2", " 3", " 8", " 4", " 5", " 6", " 7", " 9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "30", "29", "31"),
-  stringsAsFactors = FALSE
-)
 
 ggplot(preds_period_sum)+
   geom_line(aes(x=Years, y=Slope, color=Month, group=Month))+
@@ -870,16 +766,7 @@ p_map<-ggplot()+
 
 ## Now Plot a more summarized version of the slopes for final figure
 
-PHRA_slopes<-CC_newdata%>%
-  mutate(Slope=CC_pred$fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"],
-         Slope_se=CC_pred$se.fit[,"te(Julian_day_s,Latitude_s,Longitude_s):Year_s"])%>%
-  mutate(across(c(Slope, Slope_se), ~(.x/Year_s)/sd(Data$Year)))%>%
-  mutate(Slope_se=abs(Slope_se))%>%
-  mutate(Date=as.Date(Julian_day, origin=as.Date(paste(Year, "01", "01", sep="-"))),
-         Month=month(Date),
-         Slope_l99=Slope-Slope_se*qnorm(0.9995),
-         Slope_u99=Slope+Slope_se*qnorm(0.9995),
-         Sig=if_else(Slope_u99>0 & Slope_l99<0, "ns", "*"))%>%
+PHRA_slopes<-newdata_CC_pred%>%
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326)%>%
   st_transform(crs=st_crs(PHRA))%>%
   st_join(PHRA)%>%
@@ -893,7 +780,7 @@ PHRA_slopes<-CC_newdata%>%
 
 p_PHRA_sum<-ggplot(PHRA_slopes%>%mutate(PHRA=factor(PHRA, levels=rev(levels(PHRA_slopes$PHRA)))))+
   geom_vline(xintercept=0)+
-  geom_pointrange(aes(y=month(Month, label=T), x=Slope_mean, xmin=Slope_mean-Slope_sd, xmax=Slope_mean+Slope_sd, fill=Sig_prop), shape=21, size=1, color="black")+
+  geom_pointrange(aes(y=Month, x=Slope_mean, xmin=Slope_mean-Slope_sd, xmax=Slope_mean+Slope_sd, fill=Sig_prop), shape=21, size=1, color="black")+
   facet_wrap(~PHRA, ncol=1)+
   scale_y_discrete(limits=rev, breaks=month(1:12, label=T)[c(1,3,5,7,9,11)])+
   xlab("Temperature change per year (°C)")+
