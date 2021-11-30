@@ -401,6 +401,27 @@ newdata_CC_pred_all_rast<-newdata_CC_pred%>%
   st_transform(crs=st_crs(Delta))%>%
   Rasterize_all(., Slope, region=Delta)
 
+
+up <- viridisLite::magma(n=10, direction=-1)              
+low <- viridisLite::viridis(n=10, begin=0.567, end=0.9)
+s<-seq(-0.02, 0.06, length.out=21)
+s_rescaled<-rescale(s)
+
+predict_plot(data=newdata_CC_pred_all_rast, 
+             base=base, 
+             scale_fill_gradientn, 
+             guide=guide_colorbar(barheight=20), 
+             colours=c(low,"white", up),
+             values=c(seq(s_rescaled[1], s_rescaled[which(s==0)-1], length.out=10), 
+                      s_rescaled[which(s==0)], 
+                      seq(s_rescaled[which(s==0)+1], s_rescaled[length(s_rescaled)], length.out=10)),
+             na.value=NA, 
+             breaks=(-6:7)/100, 
+             limits=c(-0.02, 0.06),
+             name="Temperature change\nper year (°C)")
+
+# or scale_fill_continuous_divergingx with either Roma or Spectral palettes
+
 p_CC_gam_all<-predict_plot(data=newdata_CC_pred_all_rast, 
                            base=base, 
                            scale_fill_viridis_c, 
@@ -409,7 +430,7 @@ p_CC_gam_all<-predict_plot(data=newdata_CC_pred_all_rast,
                            breaks=(-6:7)/100, 
                            name="Temperature change\nper year (°C)")
 
-ggsave(p_CC_gam_all, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Climate change signal all.png",
+ggsave(p_CC_gam_all, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure S7 Climate change signal all.png",
        device="png", width=7, height=5, units="in")
 
 # Create dataframe of slope deviations for each month and region f --------
@@ -476,7 +497,7 @@ P_slope_sum2<-ggplot(Slope_sum2)+
   theme_bw()+
   theme(axis.text.x=element_text(angle=45, hjust=1), text=element_text(size=16), panel.background = element_rect(color="black"))
 
-ggsave(P_slope_sum2, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure S7 Climate change all slopes.png",
+ggsave(P_slope_sum2, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure S8 Climate change all slopes.png",
        device="png", width=15, height=18, units="in")
 
 # Plot sampling effort for each region, month. and year
