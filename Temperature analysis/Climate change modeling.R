@@ -385,8 +385,10 @@ base<-CC_newdata%>%
 
 p_CC_gam<-predict_plot(data=newdata_CC_pred_rast, 
              base=base, 
-             scale_fill_viridis_c, 
+             scale_fill_continuous_diverging, 
              guide=guide_colorbar(barheight=20), 
+             palette="Blue-Red 3",
+             limits=c(0, 0.057),
              na.value=NA, 
              breaks=(-6:7)/100, 
              name="Temperature change\nper year (°C)")
@@ -401,31 +403,12 @@ newdata_CC_pred_all_rast<-newdata_CC_pred%>%
   st_transform(crs=st_crs(Delta))%>%
   Rasterize_all(., Slope, region=Delta)
 
-
-up <- viridisLite::magma(n=10, direction=-1)              
-low <- viridisLite::viridis(n=10, begin=0.567, end=0.9)
-s<-seq(-0.02, 0.06, length.out=21)
-s_rescaled<-rescale(s)
-
-predict_plot(data=newdata_CC_pred_all_rast, 
-             base=base, 
-             scale_fill_gradientn, 
-             guide=guide_colorbar(barheight=20), 
-             colours=c(low,"white", up),
-             values=c(seq(s_rescaled[1], s_rescaled[which(s==0)-1], length.out=10), 
-                      s_rescaled[which(s==0)], 
-                      seq(s_rescaled[which(s==0)+1], s_rescaled[length(s_rescaled)], length.out=10)),
-             na.value=NA, 
-             breaks=(-6:7)/100, 
-             limits=c(-0.02, 0.06),
-             name="Temperature change\nper year (°C)")
-
-# or scale_fill_continuous_divergingx with either Roma or Spectral palettes
-
 p_CC_gam_all<-predict_plot(data=newdata_CC_pred_all_rast, 
                            base=base, 
-                           scale_fill_viridis_c, 
+                           scale_fill_continuous_diverging, 
                            guide=guide_colorbar(barheight=20), 
+                           palette="Blue-Red 3",
+                           limits=c(-0.015, 0.057),
                            na.value=NA, 
                            breaks=(-6:7)/100, 
                            name="Temperature change\nper year (°C)")
@@ -553,8 +536,10 @@ newdata_CC_pred_rast_AR8<-Rasterize_all(newdata_CC_pred_AR8, Slope, region=Delta
 
 p_CC_gam_AR8<-predict_plot(data=newdata_CC_pred_rast_AR8, 
                            base=base, 
-                           scale_fill_viridis_c, 
+                           scale_fill_continuous_diverging, 
                            guide=guide_colorbar(barheight=20), 
+                           palette="Blue-Red 3",
+                           limits=c(0, 0.057),
                            na.value=NA, 
                            breaks=(-6:7)/100, 
                            name="Temperature change\nper year (°C)")
