@@ -323,9 +323,9 @@ p_variogram<-ST_variogram(CC_gam8d7b_AR7B, Data_CC4.3, 5)
 #timelag is the average of successive specified tlags. It must be computing correlation between tlags. 
 
 gam.check(CC_gam8d7b_AR7)
-# s(Time_num_s) is OK (p=0.460)
-# te(Julian_day_s,Latitude_s,Longitude_s):Year_s is OK: significant p-value but edf is 82.9 compared ot k' of 300.0
-# te(Julian_day_s,Latitude_s,Longitude_s) may be able to be improved (edf=223.3 and k'=299.0)
+# s(Time_num_s) is OK (p=0.33)
+# te(Julian_day_s,Latitude_s,Longitude_s):Year_s is OK: significant p-value but edf is 82.45 compared to k' of 300.0
+# te(Julian_day_s,Latitude_s,Longitude_s) may be able to be improved (edf=222.36 and k'=299.0)
 
 
 # Find SubRegion and Month combinations with representation in the data
