@@ -5,7 +5,9 @@
 # Update EMLassemblyline and load
 
 #remotes::install_github("EDIorg/EMLassemblyline")
+devtools::install_github("sbashevkin/discretewq", ref="v1.1.0", force=TRUE)
 library(EMLassemblyline)
+require(EML)
 library(dplyr)
 library(readr)
 
@@ -30,7 +32,7 @@ data<-discretewq::wq()%>%
          Sample_depth_surface, Sample_depth_bottom, Tide, Temperature, Temperature_bottom, 
          Conductivity, Salinity, Secchi, Microcystis, Chlorophyll, Notes)
 
-write_csv(data, file.path(path_data, "Delta_Integrated_WQ.csv"), )
+write_csv(data, file.path(path_data, "Delta_Integrated_WQ.csv"))
 # Create metadata templates ---------------------------------------------------
 
 # Below is a list of boiler plate function calls for creating metadata templates.
@@ -61,8 +63,6 @@ EMLassemblyline::template_table_attributes(
 # Create categorical variables template (required when attributes templates
 # contains variables with a "categorical" class)
 
-
-#### NEED TO DO THIS AND BELOW ###
 EMLassemblyline::template_categorical_variables(
   path = path_templates, 
   data.path = path_data)
@@ -83,7 +83,9 @@ EMLassemblyline::template_geographic_coverage(
 # Once all your metadata templates are complete call this function to create 
 # the EML.
 
-EMLassemblyline::make_eml(
+ID<-"edi.731.2"
+
+wq_eml<-EMLassemblyline::make_eml(
   path = path_templates,
   data.path = path_data,
   eml.path = path_eml, 
@@ -95,4 +97,17 @@ EMLassemblyline::make_eml(
   data.table.quote.character=c('"','"'),
   user.id = "sbashevkin",
   user.domain = "EDI", 
-  package.id = "edi.731.1")
+  package.id = ID,
+  return.obj=TRUE)
+
+changelog<-list(changeScope="Metadata and data",
+                     oldValue="See previous version (1)",
+                     changeDate=Sys.Date(),
+                     comment="Fixed EMP timezone issue. In the previous (first) version of this dataset, we had imported EMP data assuming that times were recorded in local time (PST/PDT). 
+                              However, the Environmental Monitoring Program (EMP) dataset records times in PST year-round. This version (2) has corrected that issue and all datetimes
+                              are now correctly in local Pacific time.")
+class(changelog)<-c("emld", "list")
+
+wq_eml$dataset$maintenance$changeHistory<-changelog
+write_eml(wq_eml, file.path(path_eml, paste0(ID, ".xml")))
+eml_validate(file.path(path_eml, paste0(ID, ".xml")))

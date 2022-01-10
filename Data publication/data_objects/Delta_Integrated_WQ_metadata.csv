@@ -1,9 +1,9 @@
 Survey,Abbreviation,Agency,Survey_focus,Start_year,Season,Frequency,Data_source,Surface_sample_depth,Bottom_sample_depth
-Fall Midwater Trawl,FMWT,CDFW,Fish,1967,Sep-Dec,Monthly,ftp://ftp.dfg.ca.gov/TownetFallMidwaterTrawl/FMWT Data/,Surface bucket,0.3 m
-Summer Townet Survey,STN,CDFW,Fish,1959,Jun-Aug,2X monthly,ftp://ftp.dfg.ca.gov/TownetFallMidwaterTrawl/TNS MS Access Data/TNS data/,Surface bucket,0.3 m
-Spring Kodiak Trawl,SKT,CDFW,Fish,2002,Jan-May & Dec,Monthly,ftp://ftp.dfg.ca.gov/Delta Smelt/,Surface bucket,NA
-20-mm Survey,20mm,CDFW,Fish,1995,Mar-Jul,2X monthly,ftp://ftp.dfg.ca.gov/Delta Smelt/,Surface bucket,NA
-San Francisco Bay Study,Bay Study,CDFW,Fish,1980,All year,Monthly,ftp://ftp.dfg.ca.gov/BayStudy/AccessDatabase/,0 - 1 m,0.5 m
+Fall Midwater Trawl,FMWT,CDFW,Fish,1967,Sep-Dec,Monthly,https://filelib.wildlife.ca.gov/Public/TownetFallMidwaterTrawl/FMWT%20Data/,Surface bucket,0.3 m
+Summer Townet Survey,STN,CDFW,Fish,1959,Jun-Aug,2X monthly,https://filelib.wildlife.ca.gov/Public/TownetFallMidwaterTrawl/TNS%20MS%20Access%20Data/TNS%20data/,Surface bucket,0.3 m
+Spring Kodiak Trawl,SKT,CDFW,Fish,2002,Jan-May & Dec,Monthly,https://filelib.wildlife.ca.gov/Public/Delta%20Smelt/,Surface bucket,NA
+20-mm Survey,20mm,CDFW,Fish,1995,Mar-Jul,2X monthly,https://filelib.wildlife.ca.gov/Public/Delta%20Smelt/,Surface bucket,NA
+San Francisco Bay Study,Bay Study,CDFW,Fish,1980,All year,Monthly,https://filelib.wildlife.ca.gov/Public/BayStudy/AccessDataBase/,0 - 1 m,0.5 m
 Enhanced Delta Smelt Monitoring,EDSM,USFWS,Fish,2016,Jan-Mar & Jul-Dec,Weekly,https://portal.edirepository.org/nis/metadataviewer?packageid=edi.415.3,0.3 m or bucket if choppy,0.3 ? 0.6 m
 Delta Juvenile Fish Monitoring Program,DJFMP,USFWS,Fish,1976,All year,3X weekly,https://portal.edirepository.org/nis/mapbrowse?packageid=edi.244.4,0.3 m or bucket if choppy,NA
 Suisun Marsh Fish Study,Suisun Study,UC Davis,Fish,1979,All year,Monthly,Personal communication,0.3 m,NA

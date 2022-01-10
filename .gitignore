@@ -47,3 +47,4 @@ Temperature analysis/Models
 Temperature analysis/Prediction Data all.Rds
 Temperature analysis/Model outputs and validations/modellf_predictions_all.Rds
 Temperature analysis/Model outputs and validations/newdata_all_sum.Rds
+Data publication/data_objects/Delta_Integrated_WQ.csv
