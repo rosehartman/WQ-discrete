@@ -5,7 +5,7 @@
 # Update EMLassemblyline and load
 
 #remotes::install_github("EDIorg/EMLassemblyline")
-devtools::install_github("sbashevkin/discretewq", ref="v1.1.0", force=TRUE)
+devtools::install_github("sbashevkin/discretewq")
 library(EMLassemblyline)
 require(EML)
 library(dplyr)
@@ -100,12 +100,18 @@ wq_eml<-EMLassemblyline::make_eml(
   package.id = ID,
   return.obj=TRUE)
 
-changelog<-list(changeScope="Metadata and data",
+changelog<-list(list(changeScope="Metadata and data",
                      oldValue="See previous version (1)",
-                     changeDate=Sys.Date(),
+                     changeDate="2022-01-10",
                      comment="Fixed EMP timezone issue. In the previous (first) version of this dataset, we had imported EMP data assuming that times were recorded in local time (PST/PDT). 
                               However, the Environmental Monitoring Program (EMP) dataset records times in PST year-round. This version (2) has corrected that issue and all datetimes
-                              are now correctly in local Pacific time.")
+                              are now correctly in local Pacific time."),
+                list(changeScope="Metadata and data",
+                     oldValue="See previous version (2)",
+                     changeDate=Sys.Date(),
+                     comment="1) Updated to newest versions of the source datasets.
+                              2) Added new surveys: Yolo Bypass Fish Monitoring Program, Stockton Dissolved Oxygen survey, and Smelt Larva Survey.
+                              3) Added USGS and EMP nutrient data."))
 class(changelog)<-c("emld", "list")
 
 wq_eml$dataset$maintenance$changeHistory<-changelog
