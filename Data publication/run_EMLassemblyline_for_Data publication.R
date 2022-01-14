@@ -22,15 +22,20 @@ path_eml <- file.path(root, "eml")
 
 # Add data ----------------------------------------------------------------
 
-data<-discretewq::wq()%>%
+data<-discretewq::wq(Sources = c("EMP", "STN", "FMWT", "EDSM", "DJFMP", "SDO", "SKT", "SLS", "20mm", "Suisun", "Baystudy", "USBR", "USGS", "YBFMP"))%>%
   mutate(Date=as.character(Date, format="%Y-%m-%d"),
          Datetime=as.character(Datetime),
          Notes=stringr::str_replace_all(Notes, '"', "'"),# Replace full quotes with single quotes to avoid data read errors
          Notes=stringr::str_replace_all(Notes, stringr::fixed('\n'), " "), # Replace line breaks with space to avoid data read errors
   Notes=stringr::str_replace_all(Notes, stringr::fixed('\r'), " "))%>% # Replace line breaks with space to avoid data read errors
   select(Source, Station=StationID, Latitude, Longitude, Field_coords, Date, Datetime, Depth, 
-         Sample_depth_surface, Sample_depth_bottom, Tide, Temperature, Temperature_bottom, 
-         Conductivity, Salinity, Secchi, Microcystis, Chlorophyll, Notes)
+         Sample_depth_surface, Sample_depth_nutr_surface, Sample_depth_bottom, Tide, Temperature, Temperature_bottom, 
+         Conductivity, Conductivity_bottom, Salinity, Salinity_bottom, Secchi, Microcystis, Chlorophyll, 
+         DissolvedOxygen, DissolvedOxygen_bottom, DissolvedOxygenPercent, DissolvedOxygenPercent_bottom,
+         pH, pH_bottom, TotAlkalinity, TotAmmonia, DissAmmonia_Sign, DissAmmonia, 
+         DissBromide, DissCalcium, TotChloride, DissChloride, DissNitrateNitrite_Sign, 
+         DissNitrateNitrite, DOC, TOC, DON, TON, DissOrthophos_Sign, DissOrthophos, TotPhos, 
+         DissSilica, TDS, TSS, VSS, TKN, Notes)
 
 write_csv(data, file.path(path_data, "Delta_Integrated_WQ.csv"))
 # Create metadata templates ---------------------------------------------------
