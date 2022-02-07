@@ -88,7 +88,11 @@ EMLassemblyline::template_geographic_coverage(
 # Once all your metadata templates are complete call this function to create 
 # the EML.
 
-ID<-"edi.731.2"
+# Sandbox
+ID<-"edi.750.1"
+
+# EDI
+#ID<-"edi.731.3"
 
 wq_eml<-EMLassemblyline::make_eml(
   path = path_templates,

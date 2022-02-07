@@ -194,5 +194,5 @@ Data_D2<-readRDS("Temperature analysis/Data_D2.Rds")
 
 p_D2_final<-mapplot(Data_D2, yolo=yolo)
 
-ggsave("C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta inflow temperature/Figures/Figure 2 map.png", plot=p_D2_final, device="png", width=8, height=8, units = "in")
+ggsave("C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Delta inflow temperature/Figures/Figure 2 map.tiff", plot=p_D2_final, device="tiff", width=8, height=8, units = "in", dpi=400)
 

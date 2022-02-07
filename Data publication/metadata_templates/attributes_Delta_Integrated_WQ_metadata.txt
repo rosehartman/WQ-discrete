@@ -8,4 +8,4 @@ Season	"Months in which data are primarily collected, although some sampling may
 Frequency	"Normal frequency of sampling, although this has changed over time for many of the surveys"	character				
 Data_source	Raw data source	character				
 Surface_sample_depth	"Depth below surface at which surface water samples were collected. Surface bucket indicates samples collected by scooping water with a bucket from the surface. ""recorded"" indicates that the actual depth of the sample (from the surface) is recorded in the dataset in Sample_depth_surface."	character				
-Bottom_sample_depth	"Depth above the bottom at which bottom temperature data were generally collected. ""recorded"" indicates that the actual depth of the sample (from the surface) is recorded in the dataset in Sample_depth_bottom."	character			NA	Bottom samples were not collected
+Bottom_sample_depth	"Depth above the bottom at which bottom temperature data were generally collected. ""recorded"" indicates that the actual depth of the sample (from the surface) is recorded in the dataset in Sample_depth_bottom."	character				
