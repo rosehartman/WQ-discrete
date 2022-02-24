@@ -24,8 +24,9 @@ Source	SLS	Smelt Larva Survey
 Source	STN	Summer Townet Survey
 Source	Suisun	Suisun Marsh Fish Study
 Source	USBR	USBR Sacramento Deepwater Shipping Channel Survey
-Source	USGS	USGS San Francisco Bay Survey
+Source	USGS_SFBS	USGS San Francisco Bay Survey
 Source	YBFMP	Yolo Bypass Fish Monitoring Program
+Source	USGS_CAWSC	USGS California Water Science Center discrete water quality data
 Tide	Ebb	Ebb tide
 Tide	Flood	Flood tide
 Tide	High Slack	High Slack tide

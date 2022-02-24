@@ -11,7 +11,7 @@
     </allow>
   </access>
   <dataset>
-    <title>Six decades (1959-2020) of water quality in the upper San Francisco Estuary: an integrated database of 11 discrete monitoring surveys in the Sacramento San Joaquin Delta, Suisun Bay, and Suisun Marsh</title>
+    <title>Six decades (1959-2021) of water quality in the upper San Francisco Estuary: an integrated database of 15 discrete monitoring surveys in the Sacramento San Joaquin Delta, Suisun Bay, Suisun Marsh, and San Francisco Bay</title>
     <creator>
       <individualName>
         <givenName>Samuel</givenName>
@@ -32,7 +32,7 @@
       <electronicMailAddress>Sarah.Perry@water.ca.gov</electronicMailAddress>
       <userId directory="https://orcid.org">https://orcid.org/0000-0002-3708-6675</userId>
     </creator>
-    <pubDate>2022-02-07</pubDate>
+    <pubDate>2022-02-09</pubDate>
     <abstract>
       <para>
     The upper San Francisco Estuary (SFE) is simultaneously a central
@@ -42,12 +42,12 @@
     monitoring has been conducted for over 50 years, mainly under the
     auspices of the Interagency Ecological Program for the San Francisco
     Estuary (https://iep.ca.gov/). We integrated water quality data from
-    11 boat-based long-term monitoring surveys in the upper SFE. This
+    15 boat-based long-term monitoring surveys in the upper SFE. This
     integrated dataset includes measurements of temperature (surface and
     bottom), conductivity (surface), salinity (surface), Secchi depth,
     qualitative concentration of the toxic alga
     <emphasis>Microcystis</emphasis> (surface), and Chlorophyll-a
-    concentration (surface) from 1959 - 2020. The component surveys
+    concentration (surface) from 1959 - 2021. The component surveys
     range in sampling frequency from thrice weekly to monthly and range
     in duration from 5 – 60 years. Most component surveys sample at
     fixed stations, but the Enhanced Delta Smelt Monitoring survey uses
@@ -70747,7 +70747,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 1</geographicDescription>
+        <geographicDescription>USGS_SFBS 1</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-121.84</westBoundingCoordinate>
           <eastBoundingCoordinate>-121.84</eastBoundingCoordinate>
@@ -70756,7 +70756,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 10</geographicDescription>
+        <geographicDescription>USGS_SFBS 10</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.208333</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.208333</eastBoundingCoordinate>
@@ -70765,7 +70765,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 11</geographicDescription>
+        <geographicDescription>USGS_SFBS 11</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.266667</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.266667</eastBoundingCoordinate>
@@ -70774,7 +70774,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 12</geographicDescription>
+        <geographicDescription>USGS_SFBS 12</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.311667</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.311667</eastBoundingCoordinate>
@@ -70783,7 +70783,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 12.5</geographicDescription>
+        <geographicDescription>USGS_SFBS 12.5</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.315</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.315</eastBoundingCoordinate>
@@ -70792,7 +70792,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 13</geographicDescription>
+        <geographicDescription>USGS_SFBS 13</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.37</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.37</eastBoundingCoordinate>
@@ -70801,7 +70801,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 14</geographicDescription>
+        <geographicDescription>USGS_SFBS 14</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.405</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.405</eastBoundingCoordinate>
@@ -70810,7 +70810,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 15</geographicDescription>
+        <geographicDescription>USGS_SFBS 15</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.436667</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.436667</eastBoundingCoordinate>
@@ -70819,7 +70819,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 16</geographicDescription>
+        <geographicDescription>USGS_SFBS 16</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.446667</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.446667</eastBoundingCoordinate>
@@ -70828,7 +70828,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 17</geographicDescription>
+        <geographicDescription>USGS_SFBS 17</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.421667</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.421667</eastBoundingCoordinate>
@@ -70837,7 +70837,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 18</geographicDescription>
+        <geographicDescription>USGS_SFBS 18</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.421667</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.421667</eastBoundingCoordinate>
@@ -70846,7 +70846,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 19</geographicDescription>
+        <geographicDescription>USGS_SFBS 19</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.471667</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.471667</eastBoundingCoordinate>
@@ -70855,7 +70855,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 2</geographicDescription>
+        <geographicDescription>USGS_SFBS 2</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-121.851667</westBoundingCoordinate>
           <eastBoundingCoordinate>-121.851667</eastBoundingCoordinate>
@@ -70864,7 +70864,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 20</geographicDescription>
+        <geographicDescription>USGS_SFBS 20</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.393333</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.393333</eastBoundingCoordinate>
@@ -70873,7 +70873,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 21</geographicDescription>
+        <geographicDescription>USGS_SFBS 21</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.358333</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.358333</eastBoundingCoordinate>
@@ -70882,7 +70882,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 22</geographicDescription>
+        <geographicDescription>USGS_SFBS 22</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.358333</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.358333</eastBoundingCoordinate>
@@ -70891,7 +70891,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 23</geographicDescription>
+        <geographicDescription>USGS_SFBS 23</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.336667</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.336667</eastBoundingCoordinate>
@@ -70900,7 +70900,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 24</geographicDescription>
+        <geographicDescription>USGS_SFBS 24</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.338333</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.338333</eastBoundingCoordinate>
@@ -70909,7 +70909,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 24.5</geographicDescription>
+        <geographicDescription>USGS_SFBS 24.5</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.333328</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.333328</eastBoundingCoordinate>
@@ -70918,7 +70918,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 25</geographicDescription>
+        <geographicDescription>USGS_SFBS 25</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.325</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.325</eastBoundingCoordinate>
@@ -70927,7 +70927,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 25.5</geographicDescription>
+        <geographicDescription>USGS_SFBS 25.5</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.319169</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.319169</eastBoundingCoordinate>
@@ -70936,7 +70936,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 26</geographicDescription>
+        <geographicDescription>USGS_SFBS 26</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.313333</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.313333</eastBoundingCoordinate>
@@ -70945,7 +70945,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 26.5</geographicDescription>
+        <geographicDescription>USGS_SFBS 26.5</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.302245</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.302245</eastBoundingCoordinate>
@@ -70954,7 +70954,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 27</geographicDescription>
+        <geographicDescription>USGS_SFBS 27</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.291667</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.291667</eastBoundingCoordinate>
@@ -70963,7 +70963,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 27.5</geographicDescription>
+        <geographicDescription>USGS_SFBS 27.5</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.281678</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.281678</eastBoundingCoordinate>
@@ -70972,7 +70972,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 28</geographicDescription>
+        <geographicDescription>USGS_SFBS 28</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.27</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.27</eastBoundingCoordinate>
@@ -70981,7 +70981,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 28.5</geographicDescription>
+        <geographicDescription>USGS_SFBS 28.5</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.235</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.235</eastBoundingCoordinate>
@@ -70990,7 +70990,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 29</geographicDescription>
+        <geographicDescription>USGS_SFBS 29</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.245</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.245</eastBoundingCoordinate>
@@ -70999,7 +70999,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 29.5</geographicDescription>
+        <geographicDescription>USGS_SFBS 29.5</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.21833</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.21833</eastBoundingCoordinate>
@@ -71008,7 +71008,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 3</geographicDescription>
+        <geographicDescription>USGS_SFBS 3</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-121.88</westBoundingCoordinate>
           <eastBoundingCoordinate>-121.88</eastBoundingCoordinate>
@@ -71017,7 +71017,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 30</geographicDescription>
+        <geographicDescription>USGS_SFBS 30</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.19</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.19</eastBoundingCoordinate>
@@ -71026,7 +71026,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 30.5</geographicDescription>
+        <geographicDescription>USGS_SFBS 30.5</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.177256</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.177256</eastBoundingCoordinate>
@@ -71035,7 +71035,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 31</geographicDescription>
+        <geographicDescription>USGS_SFBS 31</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.158333</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.158333</eastBoundingCoordinate>
@@ -71044,7 +71044,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 31.5</geographicDescription>
+        <geographicDescription>USGS_SFBS 31.5</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.145833</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.145833</eastBoundingCoordinate>
@@ -71053,7 +71053,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 32</geographicDescription>
+        <geographicDescription>USGS_SFBS 32</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.133333</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.133333</eastBoundingCoordinate>
@@ -71062,7 +71062,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 33</geographicDescription>
+        <geographicDescription>USGS_SFBS 33</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.121667</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.121667</eastBoundingCoordinate>
@@ -71071,7 +71071,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 33.5</geographicDescription>
+        <geographicDescription>USGS_SFBS 33.5</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.112337</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.112337</eastBoundingCoordinate>
@@ -71080,7 +71080,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 34</geographicDescription>
+        <geographicDescription>USGS_SFBS 34</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.098333</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.098333</eastBoundingCoordinate>
@@ -71089,7 +71089,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 35</geographicDescription>
+        <geographicDescription>USGS_SFBS 35</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.078333</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.078333</eastBoundingCoordinate>
@@ -71098,7 +71098,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 36</geographicDescription>
+        <geographicDescription>USGS_SFBS 36</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.066667</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.066667</eastBoundingCoordinate>
@@ -71107,7 +71107,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 4</geographicDescription>
+        <geographicDescription>USGS_SFBS 4</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-121.935</westBoundingCoordinate>
           <eastBoundingCoordinate>-121.935</eastBoundingCoordinate>
@@ -71116,7 +71116,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 405</geographicDescription>
+        <geographicDescription>USGS_SFBS 405</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.123333</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.123333</eastBoundingCoordinate>
@@ -71125,7 +71125,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 407</geographicDescription>
+        <geographicDescription>USGS_SFBS 407</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.093333</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.093333</eastBoundingCoordinate>
@@ -71134,7 +71134,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 411</geographicDescription>
+        <geographicDescription>USGS_SFBS 411</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.058333</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.058333</eastBoundingCoordinate>
@@ -71143,7 +71143,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 5</geographicDescription>
+        <geographicDescription>USGS_SFBS 5</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-121.98</westBoundingCoordinate>
           <eastBoundingCoordinate>-121.98</eastBoundingCoordinate>
@@ -71152,7 +71152,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 6</geographicDescription>
+        <geographicDescription>USGS_SFBS 6</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.035</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.035</eastBoundingCoordinate>
@@ -71161,7 +71161,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 649</geographicDescription>
+        <geographicDescription>USGS_SFBS 649</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-121.8</westBoundingCoordinate>
           <eastBoundingCoordinate>-121.8</eastBoundingCoordinate>
@@ -71170,7 +71170,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 650</geographicDescription>
+        <geographicDescription>USGS_SFBS 650</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-121.775</westBoundingCoordinate>
           <eastBoundingCoordinate>-121.775</eastBoundingCoordinate>
@@ -71179,7 +71179,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 651</geographicDescription>
+        <geographicDescription>USGS_SFBS 651</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-121.763333</westBoundingCoordinate>
           <eastBoundingCoordinate>-121.763333</eastBoundingCoordinate>
@@ -71188,7 +71188,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 652</geographicDescription>
+        <geographicDescription>USGS_SFBS 652</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-121.746667</westBoundingCoordinate>
           <eastBoundingCoordinate>-121.746667</eastBoundingCoordinate>
@@ -71197,7 +71197,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 653</geographicDescription>
+        <geographicDescription>USGS_SFBS 653</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-121.72</westBoundingCoordinate>
           <eastBoundingCoordinate>-121.72</eastBoundingCoordinate>
@@ -71206,7 +71206,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 654</geographicDescription>
+        <geographicDescription>USGS_SFBS 654</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-121.708333</westBoundingCoordinate>
           <eastBoundingCoordinate>-121.708333</eastBoundingCoordinate>
@@ -71215,7 +71215,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 655</geographicDescription>
+        <geographicDescription>USGS_SFBS 655</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-121.701667</westBoundingCoordinate>
           <eastBoundingCoordinate>-121.701667</eastBoundingCoordinate>
@@ -71224,7 +71224,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 657</geographicDescription>
+        <geographicDescription>USGS_SFBS 657</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-121.688333</westBoundingCoordinate>
           <eastBoundingCoordinate>-121.688333</eastBoundingCoordinate>
@@ -71233,7 +71233,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 659</geographicDescription>
+        <geographicDescription>USGS_SFBS 659</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-121.666667</westBoundingCoordinate>
           <eastBoundingCoordinate>-121.666667</eastBoundingCoordinate>
@@ -71242,7 +71242,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 662</geographicDescription>
+        <geographicDescription>USGS_SFBS 662</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-121.673333</westBoundingCoordinate>
           <eastBoundingCoordinate>-121.673333</eastBoundingCoordinate>
@@ -71251,7 +71251,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 7</geographicDescription>
+        <geographicDescription>USGS_SFBS 7</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.096667</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.096667</eastBoundingCoordinate>
@@ -71260,7 +71260,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 8</geographicDescription>
+        <geographicDescription>USGS_SFBS 8</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.151667</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.151667</eastBoundingCoordinate>
@@ -71269,7 +71269,7 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS 9</geographicDescription>
+        <geographicDescription>USGS_SFBS 9</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-122.185</westBoundingCoordinate>
           <eastBoundingCoordinate>-122.185</eastBoundingCoordinate>
@@ -71475,13 +71475,427 @@
           <southBoundingCoordinate>38.282465</southBoundingCoordinate>
         </boundingCoordinates>
       </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11303500</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.2663293</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.2663293</eastBoundingCoordinate>
+          <northBoundingCoordinate>37.6760406</northBoundingCoordinate>
+          <southBoundingCoordinate>37.6760406</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11447650</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.5013437</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.5013437</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.45601954</northBoundingCoordinate>
+          <southBoundingCoordinate>38.45601954</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11455478</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.7371772</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.7371772</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.093252</northBoundingCoordinate>
+          <southBoundingCoordinate>38.093252</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11455350</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.6691667</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.6691667</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.21277778</northBoundingCoordinate>
+          <southBoundingCoordinate>38.21277778</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11455315</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.684286</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.684286</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.2430111</northBoundingCoordinate>
+          <southBoundingCoordinate>38.2430111</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11455142</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.6438889</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.6438889</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.34166667</northBoundingCoordinate>
+          <southBoundingCoordinate>38.34166667</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11455143</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.658186</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.658186</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.3354111</northBoundingCoordinate>
+          <southBoundingCoordinate>38.3354111</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11455146</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.6675306</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.6675306</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.32885</northBoundingCoordinate>
+          <southBoundingCoordinate>38.32885</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11447890</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.5182865</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.5182865</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.25769218</northBoundingCoordinate>
+          <southBoundingCoordinate>38.25769218</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11337190</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.6888428</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.6888428</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.0521424</northBoundingCoordinate>
+          <southBoundingCoordinate>38.0521424</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11312685</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.5108333</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.5108333</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.00305556</northBoundingCoordinate>
+          <southBoundingCoordinate>38.00305556</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11313440</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.6669444</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.6669444</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.0558333</northBoundingCoordinate>
+          <southBoundingCoordinate>38.0558333</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11455420</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.6889444</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.6889444</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.14904444</northBoundingCoordinate>
+          <southBoundingCoordinate>38.14904444</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11455139</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.6377417</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.6377417</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.36513889</northBoundingCoordinate>
+          <southBoundingCoordinate>38.36513889</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11313434</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.5644444</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.5644444</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.0272222</northBoundingCoordinate>
+          <southBoundingCoordinate>38.0272222</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11313460</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.5572222</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.5572222</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.05944444</northBoundingCoordinate>
+          <southBoundingCoordinate>38.05944444</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11455508</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.88755</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.88755</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.04953056</northBoundingCoordinate>
+          <southBoundingCoordinate>38.04953056</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11313431</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.5819444</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.5819444</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.01638889</northBoundingCoordinate>
+          <southBoundingCoordinate>38.01638889</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-382006121401601</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.6711083</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.6711083</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.33500556</northBoundingCoordinate>
+          <southBoundingCoordinate>38.33500556</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11455166</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.6659722</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.6659722</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.29041667</northBoundingCoordinate>
+          <southBoundingCoordinate>38.29041667</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11455167</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.662225</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.662225</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.2903861</northBoundingCoordinate>
+          <southBoundingCoordinate>38.2903861</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11455335</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.6666667</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.6666667</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.2561111</northBoundingCoordinate>
+          <southBoundingCoordinate>38.2561111</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11336685</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.5072222</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.5072222</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.2233333</northBoundingCoordinate>
+          <southBoundingCoordinate>38.2233333</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11455140</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.6447222</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.6447222</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.34916667</northBoundingCoordinate>
+          <southBoundingCoordinate>38.34916667</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11455280</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.7091667</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.7091667</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.27555556</northBoundingCoordinate>
+          <southBoundingCoordinate>38.27555556</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11455276</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.6924278</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.6924278</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.3078583</northBoundingCoordinate>
+          <southBoundingCoordinate>38.3078583</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-381142122015801</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-122.0328139</westBoundingCoordinate>
+          <eastBoundingCoordinate>-122.0328139</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.19489444</northBoundingCoordinate>
+          <southBoundingCoordinate>38.19489444</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-380631122032201</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-122.0559806</westBoundingCoordinate>
+          <eastBoundingCoordinate>-122.0559806</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.10853056</northBoundingCoordinate>
+          <southBoundingCoordinate>38.10853056</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-381614121415301</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.698</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.698</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.2705111</northBoundingCoordinate>
+          <southBoundingCoordinate>38.2705111</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11313405</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.572174</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.572174</eastBoundingCoordinate>
+          <northBoundingCoordinate>37.96992306</northBoundingCoordinate>
+          <southBoundingCoordinate>37.96992306</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-381424121405601</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.6821556</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.6821556</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.23989167</northBoundingCoordinate>
+          <southBoundingCoordinate>38.23989167</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-382010121402301</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.672925</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.672925</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.33616667</northBoundingCoordinate>
+          <southBoundingCoordinate>38.33616667</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11337080</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.686111</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.686111</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.1033333</northBoundingCoordinate>
+          <southBoundingCoordinate>38.1033333</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11336680</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.491111</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.491111</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.22555556</northBoundingCoordinate>
+          <southBoundingCoordinate>38.22555556</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11455385</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.6580028</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.6580028</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.19395556</northBoundingCoordinate>
+          <southBoundingCoordinate>38.19395556</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11313452</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.5788889</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.5788889</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.0711111</northBoundingCoordinate>
+          <southBoundingCoordinate>38.0711111</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11455095</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.5836417</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.5836417</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.47686944</northBoundingCoordinate>
+          <southBoundingCoordinate>38.47686944</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11312672</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.53</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.53</eastBoundingCoordinate>
+          <northBoundingCoordinate>37.8708333</northBoundingCoordinate>
+          <southBoundingCoordinate>37.8708333</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11447903</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.5175</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.5175</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.2372222</northBoundingCoordinate>
+          <southBoundingCoordinate>38.2372222</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11313315</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.5702283</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.5702283</eastBoundingCoordinate>
+          <northBoundingCoordinate>37.89103627</northBoundingCoordinate>
+          <southBoundingCoordinate>37.89103627</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11336790</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.496111</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.496111</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.09638889</northBoundingCoordinate>
+          <southBoundingCoordinate>38.09638889</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11336930</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.571111</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.571111</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.1061111</northBoundingCoordinate>
+          <southBoundingCoordinate>38.1061111</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11311300</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.4538889</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.4538889</eastBoundingCoordinate>
+          <northBoundingCoordinate>37.9925</northBoundingCoordinate>
+          <southBoundingCoordinate>37.9925</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11447830</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.5791667</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.5791667</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.32916667</northBoundingCoordinate>
+          <southBoundingCoordinate>38.32916667</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11304810</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.3302245</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.3302245</eastBoundingCoordinate>
+          <northBoundingCoordinate>37.93547987</northBoundingCoordinate>
+          <southBoundingCoordinate>37.93547987</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11312676</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.5341175</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.5341175</eastBoundingCoordinate>
+          <northBoundingCoordinate>37.9427017</northBoundingCoordinate>
+          <southBoundingCoordinate>37.9427017</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
       <temporalCoverage>
         <rangeOfDates>
           <beginDate>
             <calendarDate>1959-06-13</calendarDate>
           </beginDate>
           <endDate>
-            <calendarDate>2020-07-10</calendarDate>
+            <calendarDate>2022-08-25</calendarDate>
           </endDate>
         </rangeOfDates>
       </temporalCoverage>
@@ -71499,10 +71913,11 @@
       <changeHistory>
         <changeScope>Metadata and data</changeScope>
         <oldValue>See previous version (2)</oldValue>
-        <changeDate>2022-02-07</changeDate>
+        <changeDate>2022-02-09</changeDate>
         <comment>1) Updated to newest versions of the source datasets.
-                              2) Added new surveys: Yolo Bypass Fish Monitoring Program, Stockton Dissolved Oxygen survey, and Smelt Larva Survey.
-                              3) Added USGS and EMP nutrient data.</comment>
+                              2) Added new surveys: Yolo Bypass Fish Monitoring Program, Stockton Dissolved Oxygen survey, Smelt Larva Survey, and USGS California Water Science Center monitoring data.
+                              3) Renamed the USGS survey to USGS_SFBS because of the addition of the other USGS survey: USGS_CAWSC.
+                              4) Added USGS_SFBS and EMP nutrient data.</comment>
       </changeHistory>
     </maintenance>
     <contact>
@@ -71523,7 +71938,7 @@
   </para>
           <para>
     To create an integrated database of discrete water quality
-    measurements in the San Francisco Estuary, we combined data from 14
+    measurements in the San Francisco Estuary, we combined data from 15
     boat-based surveys with the R statistical programming language (R
     Core Team 2020). The data integration code was packaged into the R
     package discretewq v2.2.0: https://github.com/sbashevkin/discretewq
@@ -71537,18 +71952,19 @@
     data alongside fish samples. These include the California Department
     of Fish and Wildlife (CDFW) Fall Midwater Trawl (FMWT), CDFW Summer
     Townet Survey (STN), CDFW Spring Kodiak Trawl (SKT), CDFW 20-mm
-    Survey (20mm), CDFW San Francisco Bay Study (Bay Study), CDFW Smelt
+    Survey (20mm), CDFW San Francisco Bay Study (Baystudy), CDFW Smelt
     Larva Survey (SLS), California Department of Water Resources (DWR)
     Yolo Bypass Fish Monitoring Program (YBFMP), United States Fish and
     Wildlife Service (USFWS) Enhanced Delta Smelt Monitoring (EDSM),
     USFWS Delta Juvenile Fish Monitoring Program (DJFMP), and University
-    of California, Davis Suisun Marsh Fish Study (Suisun Study). An
-    additional 3 surveys are primarily focused on water quality data:
-    the DWR Environmental Monitoring Program (EMP), DWR Stockton
-    Dissolved Oxygen Survey (SDO), United States Bureau of Reclamation
-    Sacramento Deepwater Shipping Channel Survey (SDSCS), and the United
-    States Geological Survey San Francisco Bay Survey (SFBS) (see
-    Delta_Integrated_WQ_metadata.csv).
+    of California, Davis Suisun Marsh Fish Study (Suisun). An additional
+    4 surveys are primarily focused on water quality data: the DWR
+    Environmental Monitoring Program (EMP), DWR Stockton Dissolved
+    Oxygen Survey (SDO), United States Bureau of Reclamation Sacramento
+    Deepwater Shipping Channel Survey (USBR), the United States
+    Geological Survey (USGS) San Francisco Bay Survey (USGS_SFBS), and
+    the USGS California Water Science Center monitoring (USGS_CAWSC)
+    (see Delta_Integrated_WQ_metadata.csv).
   </para>
           <para>
     The primary aim of this data integration was to combine datasets to
@@ -71556,13 +71972,13 @@
     Francisco Estuary. The focal water quality variables included water
     temperature, conductivity (or salinity), Secchi depth,
     <emphasis>Microcystis</emphasis> concentration, and chlorophyll
-    concentration. Key nutrient variables were retained from the SFBS
-    and EMP surveys. These variables were all collected from the surface
-    of the water column. In addition, water temperature from the bottom
-    of the water column was retained when available. Not all surveys
-    measured all focal variables. Some surveys (particularly the water
-    quality surveys) measured more water quality variables than were
-    retained in this integrated dataset.
+    concentration. Key nutrient variables were retained from the
+    USGS_SFBS, USGS_CAWSC, and EMP surveys. These variables were all
+    collected from the surface of the water column. In addition, water
+    temperature from the bottom of the water column was retained when
+    available. Not all surveys measured all focal variables. Some
+    surveys (particularly the water quality surveys) measured more water
+    quality variables than were retained in this integrated dataset.
   </para>
           <para>
     While we describe some of the methods here, it is highly recommended
@@ -71577,19 +71993,20 @@
     Methods for measuring water quality variables were generally
     consistent among the component surveys, but there were slight
     differences. All surface water samples were collected within the
-    upper 1 m, but the exact depth differed slightly among studies. SFBS
-    collected some surface temperatures at depths of 2 m, but we only
-    retained samples collected at 1 m or shallower for compatibility
-    with the other studies. The only exception to this is for nutrient
-    data collected by the SFBS survey. Nutrient samples were sometimes
-    collected deeper than the surface water quality data. In these
-    cases, we selected the shallowest nutrient data available. The
-    maximum depth of surface nutrient data is 4 m and these depths are
-    available in the dataset. Bottom temperature samples were collected
-    within 1 m of the bottom (see Delta_Integrated_WQ_metadata.csv).
-    More detailed methods and protocols for most component surveys can
-    be found in the data source links in
-    Delta_Integrated_WQ_metadata.csv or the provenance citations.
+    upper 1 m, but the exact depth differed slightly among studies.
+    USGS_SFBS collected some surface temperatures at depths of 2 m, but
+    we only retained samples collected at 1 m or shallower for
+    compatibility with the other studies. The only exception to this is
+    for nutrient data collected by the USGS_SFBS survey. Nutrient
+    samples were sometimes collected deeper than the surface water
+    quality data. In these cases, we selected the shallowest nutrient
+    data available. The maximum depth of surface nutrient data is 4 m
+    and these depths are available in the dataset. Bottom temperature
+    samples were collected within 1 m of the bottom (see
+    Delta_Integrated_WQ_metadata.csv). More detailed methods and
+    protocols for most component surveys can be found in the data source
+    links in Delta_Integrated_WQ_metadata.csv or the provenance
+    citations.
   </para>
           <para>
     2.1. Water temperature
@@ -71607,7 +72024,7 @@
     2.2. Conductivity/Salinity
   </para>
           <para>
-    Most surveys reported specific conductivity except SFBS which
+    Most surveys reported specific conductivity except USGS_SFBS which
     reported salinity. DJFMP and EDSM could not verify their
     conductivity metric for data collected before June 2019 so
     conductivity values collected before that date are removed from the
@@ -71646,9 +72063,9 @@
           <para>
     Chlorophyll-a methods differed slightly among surveys. EMP filtered
     water samples through a 1 µm glass fiber filter and measured
-    Chlorophyll concentrations in the lab. SDSCS and SFBS used sonde
-    probes to measure chlorophyll in the field but USGS calibrated these
-    field measurements with filtered water samples collected and
+    Chlorophyll concentrations in the lab. USBR and USGS_SFBS used sonde
+    probes to measure chlorophyll in the field but USGS_SFBS calibrated
+    these field measurements with filtered water samples collected and
     analyzed similar to EMP.
   </para>
           <para>
@@ -71658,9 +72075,9 @@
     EMP collected and preserved nutrients samples in accordance with
     standard protocols (Interagency Ecological Program et al. 2021a),
     after which they were processed in a lab. Nutrients were filtered in
-    the field when applicable. USGS collected, preserved, and processed
-    dissolved inorganic nutrients in a similar manner to EMP. Both
-    surveys collected water using a fixed flow-through pump.
+    the field when applicable. USGS_SFBS collected, preserved, and
+    processed dissolved inorganic nutrients in a similar manner to EMP.
+    Both surveys collected water using a fixed flow-through pump.
   </para>
           <para>
     3. Data integration methods
@@ -71810,6 +72227,11 @@
     USBR, R. Dahlgren, L. Loken, and E. Van Nieuwenhuyse. 2020. Monthly
     vertical profiles of water quality in the Sacramento Deep Water Ship
     Channel 2012-2019.
+  </para>
+          <para>
+    U.S. Geological Survey. 2022. USGS water data for the Nation: U.S.
+    Geological Survey National Water Information System database,
+    accessed February 7, 2022, at https://doi.org/10.5066/F7P55KJN
   </para>
         </description>
       </methodStep>
@@ -72743,6 +73165,32 @@
           </contact>
         </dataSource>
       </methodStep>
+      <methodStep>
+        <description>This provenance metadata does not contain entity specific information.</description>
+        <dataSource>
+          <title>USGS water data for the Nation: U.S. Geological Survey National Water Information System database</title>
+          <creator>
+            <individualName>
+              <givenName>U.S. Geological Survey</givenName>
+              <surName/>
+            </individualName>
+            <organizationName>U.S. Geological Survey</organizationName>
+          </creator>
+          <distribution>
+            <online>
+              <onlineDescription>This online link references the online data portal from which these data were retrieved</onlineDescription>
+              <url>https://doi.org/10.5066/F7P55KJN</url>
+            </online>
+          </distribution>
+          <contact>
+            <individualName>
+              <givenName>U.S. Geological Survey</givenName>
+              <surName/>
+            </individualName>
+            <organizationName>U.S. Geological Survey</organizationName>
+          </contact>
+        </dataSource>
+      </methodStep>
     </methods>
     <project>
       <title>No project title to report</title>
@@ -72764,8 +73212,8 @@
       <entityDescription>Integrated water quality database</entityDescription>
       <physical>
         <objectName>Delta_Integrated_WQ.csv</objectName>
-        <size unit="bytes">73223785</size>
-        <authentication method="MD5">e39e59d7e8c7dae3442e93b852a95881</authentication>
+        <size unit="bytes">73951160</size>
+        <authentication method="MD5">a7060359abc5bbd7c1ebdcc629f7bf86</authentication>
         <dataFormat>
           <textFormat>
             <numHeaderLines>1</numHeaderLines>
@@ -72836,12 +73284,16 @@
                     <definition>USBR Sacramento Deepwater Shipping Channel Survey</definition>
                   </codeDefinition>
                   <codeDefinition>
-                    <code>USGS</code>
+                    <code>USGS_SFBS</code>
                     <definition>USGS San Francisco Bay Survey</definition>
                   </codeDefinition>
                   <codeDefinition>
                     <code>YBFMP</code>
                     <definition>Yolo Bypass Fish Monitoring Program</definition>
+                  </codeDefinition>
+                  <codeDefinition>
+                    <code>USGS_CAWSC</code>
+                    <definition>USGS California Water Science Center discrete water quality data</definition>
                   </codeDefinition>
                 </enumeratedDomain>
               </nonNumericDomain>
@@ -73003,7 +73455,7 @@
         </attribute>
         <attribute>
           <attributeName>Sample_depth_nutr_surface</attributeName>
-          <attributeDefinition>Depth below surface of the surface nutrient sample. This is only used for the USGS survey, in which nutrients were sometimes collected at a deeper depth than the shallowest water quality samples</attributeDefinition>
+          <attributeDefinition>Depth below surface of the surface nutrient sample. This is only used for the USGS_SFBS survey, in which nutrients were sometimes collected at a deeper depth than the shallowest water quality samples</attributeDefinition>
           <storageType>float</storageType>
           <measurementScale>
             <ratio>
@@ -73021,7 +73473,7 @@
           </measurementScale>
           <missingValueCode>
             <code>NA</code>
-            <codeExplanation>Unknown or not measured. This is only used for USGS data</codeExplanation>
+            <codeExplanation>Unknown or not measured. This is only used for USGS_SFBS data</codeExplanation>
           </missingValueCode>
         </attribute>
         <attribute>
@@ -73526,7 +73978,7 @@
               <numericDomain>
                 <numberType>real</numberType>
                 <bounds>
-                  <minimum exclusive="false">0.00014007</minimum>
+                  <minimum exclusive="false">0</minimum>
                   <maximum exclusive="false">6.373185</maximum>
                 </bounds>
               </numericDomain>
@@ -73690,7 +74142,7 @@
                 <numberType>real</numberType>
                 <bounds>
                   <minimum exclusive="false">0.068</minimum>
-                  <maximum exclusive="false">11.6</maximum>
+                  <maximum exclusive="false">100</maximum>
                 </bounds>
               </numericDomain>
             </ratio>
@@ -73974,15 +74426,15 @@
           </missingValueCode>
         </attribute>
       </attributeList>
-      <numberOfRecords>315110</numberOfRecords>
+      <numberOfRecords>317274</numberOfRecords>
     </dataTable>
     <dataTable>
       <entityName>Delta_Integrated_WQ_metadata.csv</entityName>
       <entityDescription>Information on each survey included in the integrated database</entityDescription>
       <physical>
         <objectName>Delta_Integrated_WQ_metadata.csv</objectName>
-        <size unit="bytes">2402</size>
-        <authentication method="MD5">50cfa4d0a382b012ce5d8865a61cbff5</authentication>
+        <size unit="bytes">2570</size>
+        <authentication method="MD5">5c3e00f434e1eeac69bd23c4f4750111</authentication>
         <dataFormat>
           <textFormat>
             <numHeaderLines>1</numHeaderLines>
@@ -74164,7 +74616,7 @@
           </measurementScale>
         </attribute>
       </attributeList>
-      <numberOfRecords>14</numberOfRecords>
+      <numberOfRecords>15</numberOfRecords>
     </dataTable>
   </dataset>
   <additionalMetadata>

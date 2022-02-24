@@ -22,7 +22,7 @@ path_eml <- file.path(root, "eml")
 
 # Add data ----------------------------------------------------------------
 
-data<-discretewq::wq(Sources = c("EMP", "STN", "FMWT", "EDSM", "DJFMP", "SDO", "SKT", "SLS", "20mm", "Suisun", "Baystudy", "USBR", "USGS", "YBFMP"))%>%
+data<-discretewq::wq(Sources = c("EMP", "STN", "FMWT", "EDSM", "DJFMP", "SDO", "SKT", "SLS", "20mm", "Suisun", "Baystudy", "USBR", "USGS_SFBS", "YBFMP", "USGS_CAWSC"))%>%
   mutate(Date=as.character(Date, format="%Y-%m-%d"),
          Datetime=as.character(Datetime),
          Notes=stringr::str_replace_all(Notes, '"', "'"),# Replace full quotes with single quotes to avoid data read errors
@@ -98,8 +98,8 @@ wq_eml<-EMLassemblyline::make_eml(
   path = path_templates,
   data.path = path_data,
   eml.path = path_eml, 
-  dataset.title = "Six decades (1959-2020) of water quality in the upper San Francisco Estuary: an integrated database of 11 discrete monitoring surveys in the Sacramento San Joaquin Delta, Suisun Bay, and Suisun Marsh", 
-  temporal.coverage = c("1959-06-13", "2020-07-10"), 
+  dataset.title = "Six decades (1959-2021) of water quality in the upper San Francisco Estuary: an integrated database of 15 discrete monitoring surveys in the Sacramento San Joaquin Delta, Suisun Bay, Suisun Marsh, and San Francisco Bay", 
+  temporal.coverage = c("1959-06-13", "2022-08-25"), 
   maintenance.description = "ongoing", 
   data.table = c("Delta_Integrated_WQ.csv", "Delta_Integrated_WQ_metadata.csv"), 
   data.table.description = c("Integrated water quality database", "Information on each survey included in the integrated database"),
@@ -119,8 +119,9 @@ changelog<-list(list(changeScope="Metadata and data",
                      oldValue="See previous version (2)",
                      changeDate=Sys.Date(),
                      comment="1) Updated to newest versions of the source datasets.
-                              2) Added new surveys: Yolo Bypass Fish Monitoring Program, Stockton Dissolved Oxygen survey, and Smelt Larva Survey.
-                              3) Added USGS and EMP nutrient data."))
+                              2) Added new surveys: Yolo Bypass Fish Monitoring Program, Stockton Dissolved Oxygen survey, Smelt Larva Survey, and USGS California Water Science Center monitoring data.
+                              3) Renamed the USGS survey to USGS_SFBS because of the addition of the other USGS survey: USGS_CAWSC.
+                              4) Added USGS_SFBS and EMP nutrient data."))
 class(changelog)<-c("emld", "list")
 
 wq_eml$dataset$maintenance$changeHistory<-changelog

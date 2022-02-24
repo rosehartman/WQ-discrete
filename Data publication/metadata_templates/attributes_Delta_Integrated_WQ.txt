@@ -8,7 +8,7 @@ Date	Date sample was collected (America/Los_Angeles timezone)	Date		YYYY-MM-DD
 Datetime	Date and time when sample was collected (America/Los_Angeles timezone)	Date		YYYY-MM-DD hh:mm:ss	NA	Time not recorded
 Depth	"Bottom depth at the location the sample was collected. This can be either a depth measured at the time of sample collection or the average water depth for the sampling station, depending on the survey."	numeric	meter		NA	Unknown or not measured
 Sample_depth_surface	Depth below surface at which the surface samples were collected	numeric	meter		NA	Unknown or not measured
-Sample_depth_nutr_surface	"Depth below surface of the surface nutrient sample. This is only used for the USGS survey, in which nutrients were sometimes collected at a deeper depth than the shallowest water quality samples"	numeric	meter		NA	Unknown or not measured. This is only used for USGS data
+Sample_depth_nutr_surface	"Depth below surface of the surface nutrient sample. This is only used for the USGS_SFBS survey, in which nutrients were sometimes collected at a deeper depth than the shallowest water quality samples"	numeric	meter		NA	Unknown or not measured. This is only used for USGS_SFBS data
 Sample_depth_bottom	Depth below surface at which the bottom temperature measurement was taken	numeric	meter		NA	Unknown or not measured
 Tide	Tidal stage	categorical			NA	Unknown or not measured
 Temperature	Surface water temperature	numeric	celsius		NA	Unknown or not measured
