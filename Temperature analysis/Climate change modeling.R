@@ -393,8 +393,8 @@ p_CC_gam<-predict_plot(data=newdata_CC_pred_rast,
              breaks=(-6:7)/100, 
              name="Temperature change\nper year (°C)")
 
-ggsave(p_CC_gam, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure 4 Climate change signal.png",
-       device="png", width=7, height=5, units="in")
+ggsave(p_CC_gam, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure 3 Climate change signal.tiff",
+       device="tiff", dpi=400, width=7, height=5, units="in")
 
 # Plot all slopes, significant or not
 
@@ -553,8 +553,8 @@ ggsave(p_CC_gam_AR8, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet
 
 p_check<-model_validation(CC_gam8d7b_AR7, Data_CC4.3$Temperature)
 
-ggsave(p_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure 3 Climate change model validation.png",
-       device="png", width=10, height=7, units="in")
+ggsave(p_check, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure 2 Climate change model validation.tiff",
+       device="tiff", dpi=400, width=10, height=7, units="in")
 
 # Fit separate models to each 25 year period ------------------------------
 
@@ -679,8 +679,8 @@ p_period<-ggplot()+
   theme(strip.background=element_blank(), text=element_text(size=7), axis.text = element_blank(), axis.ticks=element_blank(), panel.grid=element_blank(),
         panel.spacing=unit(0, "lines"))
 
-ggsave(p_period, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure 5 Climate change signal over time rasters.png",
-       device="png", width=7, height=7, units="in")
+ggsave(p_period, filename="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure 4 Climate change signal over time rasters.tiff",
+       device="tiff", dpi=400, width=7, height=7, units="in")
 
 ###Maybe instead of rasters just plot the slope over time for each region
 
@@ -811,8 +811,8 @@ g_ggplot<-ggplotify::as.ggplot(g)
 
 p_PHRA<-p_map+g_ggplot+plot_layout(ncol=2, widths = c(1,1))+ plot_annotation(tag_levels = "A") & theme(plot.tag = element_text(size=18))
 
-ggsave(p_PHRA, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure 6 PHRA.png",
-       device="png", width=14, height=10, units="in")
+ggsave(p_PHRA, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure 5 PHRA.tiff",
+       device="tiff", dpi=400, width=14, height=10, units="in")
 
 ## Alternative plot of the climate change signal in each area ------------------------------------
 

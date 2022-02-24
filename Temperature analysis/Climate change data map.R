@@ -176,7 +176,7 @@ Data_CC4<-readRDS("Temperature analysis/Data_CC4.Rds")
 
 p_CC4_final<-mapplot(Data_CC4, point=NULL)
 
-ggsave("C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure 1 map.png", plot=p_CC4_final, device="png", width=8, height=8, units = "in")
+ggsave("C:/Users/sbashevkin/deltacouncil/Science Extranet - Discrete water quality synthesis/Temperature change/Figures/Figure 1 map.tiff", plot=p_CC4_final, device="tiff", dpi=400, width=8, height=8, units = "in")
 
 
 # Map for presentation
