@@ -55,7 +55,7 @@ suitability_data<-function(lower, higher){
 suitability_plot<-function(data, month){
   ggplot(filter(data, Month==month), aes(x=Year, y=Freq, fill=Suitability2, color=Suitability2, order=Suitability2))+
   geom_col()+
-  scale_fill_manual(values=c("#CE4257", "#FFE74C", "#111D4A"), drop=F, na.translate = FALSE, 
+  scale_fill_viridis_d(direction=-1, drop=F, na.translate = FALSE, 
                     name="Suitability", aesthetics=c("color", "fill"),
                     guide = guide_legend(direction="horizontal", title.position = "top",
                                          title.hjust=0.5, label.position="bottom", reverse=T))+
@@ -70,8 +70,35 @@ suitability_plot<-function(data, month){
 # Delta Smelt
 DS<-suitability_data(20,22)
 
+suitability_plot(DS, 7)
 suitability_plot(DS, 8)
+suitability_plot(DS, 9)
 
 # Chinook salmon
-suitability_plot(DS, 4)
+CS<-suitability_data(18,20)
+suitability_plot(CS, 6)
 
+newdata_all_sum_filt_av<-newdata_all_sum_filt%>%
+  group_by(SubRegion, Month, Year)%>%
+  summarise(N=n(), 
+            Temperature=mean(Monthly_mean),
+            .groups="drop")%>%
+  complete(SubRegion, Month, Year)
+
+av_plot<-function(month){
+  ggplot(filter(newdata_all_sum_filt_av, Month==month), aes(x=Year, y=Temperature))+
+    geom_line()+
+    geom_point(aes(color=Temperature))+
+    facet_geo(~SubRegion, grid=mygrid, labeller=label_wrap_gen(), scales="free_y")+
+    scale_color_viridis_c()+
+    coord_cartesian(expand = FALSE)+
+    theme_bw()+
+    theme(panel.grid=element_blank(), axis.text.x=element_text(angle=45, hjust=1),
+          legend.position=c(0.2,0.2), legend.background=element_rect(color="black"))
+}
+
+# Delta Smelt
+av_plot(8)
+
+# Chinook salmon
+av_plot(4)
