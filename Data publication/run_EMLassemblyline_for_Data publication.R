@@ -7,9 +7,10 @@
 #remotes::install_github("EDIorg/EMLassemblyline")
 devtools::install_github("sbashevkin/discretewq")
 library(EMLassemblyline)
-require(EML)
+library(EML)
 library(dplyr)
 library(readr)
+library(stringr)
 
 # Define paths for your metadata templates, data, and EML
 
@@ -25,12 +26,12 @@ path_eml <- file.path(root, "eml")
 data<-discretewq::wq(Sources = c("EMP", "STN", "FMWT", "EDSM", "DJFMP", "SDO", "SKT", "SLS", "20mm", "Suisun", "Baystudy", "USBR", "USGS_SFBS", "YBFMP", "USGS_CAWSC"))%>%
   mutate(Date=as.character(Date, format="%Y-%m-%d"),
          Datetime=as.character(Datetime),
-         Notes=stringr::str_replace_all(Notes, '"', "'"),# Replace full quotes with single quotes to avoid data read errors
-         Notes=stringr::str_replace_all(Notes, stringr::fixed('\n'), " "), # Replace line breaks with space to avoid data read errors
-  Notes=stringr::str_replace_all(Notes, stringr::fixed('\r'), " "))%>% # Replace line breaks with space to avoid data read errors
+         Notes=str_replace_all(Notes, '"', "'"),# Replace full quotes with single quotes to avoid data read errors
+         across(c(Notes, StationID), ~str_replace_all(.x, fixed('\n'), " ")), # Replace line breaks with space to avoid data read errors
+         across(c(Notes, StationID), ~str_replace_all(.x, fixed('\r'), " ")))%>% # Replace line breaks with space to avoid data read errors
   select(Source, Station=StationID, Latitude, Longitude, Field_coords, Date, Datetime, Depth, 
          Sample_depth_surface, Sample_depth_nutr_surface, Sample_depth_bottom, Tide, Temperature, Temperature_bottom, 
-         Conductivity, Conductivity_bottom, Salinity, Salinity_bottom, Secchi, Microcystis, Chlorophyll, 
+         Conductivity, Conductivity_bottom, Salinity, Salinity_bottom, Secchi, Microcystis, Chlorophyll_Sign, Chlorophyll, 
          DissolvedOxygen, DissolvedOxygen_bottom, DissolvedOxygenPercent, DissolvedOxygenPercent_bottom,
          pH, pH_bottom, TotAlkalinity, TotAmmonia, DissAmmonia_Sign, DissAmmonia, 
          DissBromide, DissCalcium, TotChloride, DissChloride, DissNitrateNitrite_Sign, 
@@ -104,6 +105,7 @@ wq_eml<-EMLassemblyline::make_eml(
   data.table = c("Delta_Integrated_WQ.csv", "Delta_Integrated_WQ_metadata.csv"), 
   data.table.description = c("Integrated water quality database", "Information on each survey included in the integrated database"),
   data.table.quote.character=c('"','"'),
+  data.table.url=c("https://deltacouncil.box.com/shared/static/si4d9w68g3p1yd4toir1jok9fljiwe78.csv", "https://deltacouncil.box.com/shared/static/2nlzvr1rid97k37rtjbco6y1qwu51pfi.csv"),
   user.id = "sbashevkin",
   user.domain = "EDI", 
   package.id = ID,

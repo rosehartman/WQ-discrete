@@ -9,4 +9,5 @@ specific conductivity	https://vocab.lternet.edu/
 salinity	https://vocab.lternet.edu/
 surveys	https://vocab.lternet.edu/
 long term monitoring	https://vocab.lternet.edu/
+nutrients	https://vocab.lternet.edu/
 data integration	

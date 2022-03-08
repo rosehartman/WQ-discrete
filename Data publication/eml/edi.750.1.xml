@@ -32,7 +32,17 @@
       <electronicMailAddress>Sarah.Perry@water.ca.gov</electronicMailAddress>
       <userId directory="https://orcid.org">https://orcid.org/0000-0002-3708-6675</userId>
     </creator>
-    <pubDate>2022-02-09</pubDate>
+    <creator>
+      <individualName>
+        <givenName>Elizabeth</givenName>
+        <givenName>B</givenName>
+        <surName>Stumpner</surName>
+      </individualName>
+      <organizationName>USGS-CAWSC</organizationName>
+      <electronicMailAddress>estumpner@usgs.gov</electronicMailAddress>
+      <userId directory="https://orcid.org">https://orcid.org/0000-0003-2356-2244</userId>
+    </creator>
+    <pubDate>2022-03-08</pubDate>
     <abstract>
       <para>
     The upper San Francisco Estuary (SFE) is simultaneously a central
@@ -68,6 +78,7 @@
       <keyword>salinity</keyword>
       <keyword>surveys</keyword>
       <keyword>long term monitoring</keyword>
+      <keyword>nutrients</keyword>
       <keywordThesaurus>https://vocab.lternet.edu/</keywordThesaurus>
     </keywordSet>
     <keywordSet>
@@ -71530,15 +71541,6 @@
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
-        <geographicDescription>USGS_CAWSC USGS-11455143</geographicDescription>
-        <boundingCoordinates>
-          <westBoundingCoordinate>-121.658186</westBoundingCoordinate>
-          <eastBoundingCoordinate>-121.658186</eastBoundingCoordinate>
-          <northBoundingCoordinate>38.3354111</northBoundingCoordinate>
-          <southBoundingCoordinate>38.3354111</southBoundingCoordinate>
-        </boundingCoordinates>
-      </geographicCoverage>
-      <geographicCoverage>
         <geographicDescription>USGS_CAWSC USGS-11455146</geographicDescription>
         <boundingCoordinates>
           <westBoundingCoordinate>-121.6675306</westBoundingCoordinate>
@@ -71671,6 +71673,15 @@
           <eastBoundingCoordinate>-121.6666667</eastBoundingCoordinate>
           <northBoundingCoordinate>38.2561111</northBoundingCoordinate>
           <southBoundingCoordinate>38.2561111</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <geographicCoverage>
+        <geographicDescription>USGS_CAWSC USGS-11455143</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-121.658186</westBoundingCoordinate>
+          <eastBoundingCoordinate>-121.658186</eastBoundingCoordinate>
+          <northBoundingCoordinate>38.3354111</northBoundingCoordinate>
+          <southBoundingCoordinate>38.3354111</southBoundingCoordinate>
         </boundingCoordinates>
       </geographicCoverage>
       <geographicCoverage>
@@ -71913,7 +71924,7 @@
       <changeHistory>
         <changeScope>Metadata and data</changeScope>
         <oldValue>See previous version (2)</oldValue>
-        <changeDate>2022-02-09</changeDate>
+        <changeDate>2022-03-08</changeDate>
         <comment>1) Updated to newest versions of the source datasets.
                               2) Added new surveys: Yolo Bypass Fish Monitoring Program, Stockton Dissolved Oxygen survey, Smelt Larva Survey, and USGS California Water Science Center monitoring data.
                               3) Renamed the USGS survey to USGS_SFBS because of the addition of the other USGS survey: USGS_CAWSC.
@@ -71941,8 +71952,8 @@
     measurements in the San Francisco Estuary, we combined data from 15
     boat-based surveys with the R statistical programming language (R
     Core Team 2020). The data integration code was packaged into the R
-    package discretewq v2.2.0: https://github.com/sbashevkin/discretewq
-    (Bashevkin and Perry 2022).
+    package discretewq v2.3.1: https://github.com/sbashevkin/discretewq
+    (Bashevkin et al. 2022).
   </para>
           <para>
     The surveys included in the integrated database are long-term
@@ -72100,16 +72111,16 @@
     field sampling. To remove duplicate values from the dataset, only
     one set of values was retained for each recorded date, time, and
     location. All data integration code can be found in the discretewq R
-    package v2.2.0 (https://github.com/sbashevkin/discretewq; Bashevkin
-    and Perry 2022).
+    package v2.3.1 (https://github.com/sbashevkin/discretewq; Bashevkin
+    et al. 2022).
   </para>
           <para>
     4. Literature cited
   </para>
           <para>
-    Bashevkin, S. M., and S. E. Perry. 2022. discretewq: An Integrated
-    Dataset of Discrete Water Quality in the San Francisco Estuary
-    v2.2.0. Zenodo. doi:10.5281/zenodo.5834909
+    Bashevkin, S. M., S. E. Perry, and E. B. Stumpner. 2022. discretewq:
+    An Integrated Dataset of Discrete Water Quality in the San Francisco
+    Estuary v2.3.1. Zenodo. doi:10.5281/zenodo.6335814
   </para>
           <para>
     Fofonoff, N. P., and R. C. Millard Jr. 1983. Algorithms for the
@@ -73212,8 +73223,8 @@
       <entityDescription>Integrated water quality database</entityDescription>
       <physical>
         <objectName>Delta_Integrated_WQ.csv</objectName>
-        <size unit="bytes">73951160</size>
-        <authentication method="MD5">a7060359abc5bbd7c1ebdcc629f7bf86</authentication>
+        <size unit="bytes">74896892</size>
+        <authentication method="MD5">7aa03fc32d266bb788f08a68b86aeb2b</authentication>
         <dataFormat>
           <textFormat>
             <numHeaderLines>1</numHeaderLines>
@@ -73225,6 +73236,11 @@
             </simpleDelimited>
           </textFormat>
         </dataFormat>
+        <distribution>
+          <online>
+            <url>https://deltacouncil.box.com/shared/static/si4d9w68g3p1yd4toir1jok9fljiwe78.csv</url>
+          </online>
+        </distribution>
       </physical>
       <attributeList>
         <attribute>
@@ -73735,8 +73751,37 @@
           </missingValueCode>
         </attribute>
         <attribute>
+          <attributeName>Chlorophyll_Sign</attributeName>
+          <attributeDefinition>Whether the Chlorophyll value is lower than reported (&lt; because it is below the reporting limit and the reporting limit is used as the value), estimated ~ (extrapolated at low end), or reported as the measured value =.</attributeDefinition>
+          <storageType>string</storageType>
+          <measurementScale>
+            <nominal>
+              <nonNumericDomain>
+                <enumeratedDomain>
+                  <codeDefinition>
+                    <code>&lt;</code>
+                    <definition>Below reporting limit. The value in the corresponding column represents the reporting limit, not the actual measured value (since the measured value was below the reporting limit and thus could not be measured). If the value in the correspondinc column is NA, the reporting value is unknown and the true value is below it.</definition>
+                  </codeDefinition>
+                  <codeDefinition>
+                    <code>=</code>
+                    <definition>The value in the corresponding column is the true mesasured value because the measured value was at or above the reporting limit</definition>
+                  </codeDefinition>
+                  <codeDefinition>
+                    <code>~</code>
+                    <definition>The value in the corresponding column is estimated.</definition>
+                  </codeDefinition>
+                </enumeratedDomain>
+              </nonNumericDomain>
+            </nominal>
+          </measurementScale>
+          <missingValueCode>
+            <code>NA</code>
+            <codeExplanation>Unknown or not measured. This is only used for USGS_CAWSC data</codeExplanation>
+          </missingValueCode>
+        </attribute>
+        <attribute>
           <attributeName>Chlorophyll</attributeName>
-          <attributeDefinition>Chlorophyll-a concentration at surface</attributeDefinition>
+          <attributeDefinition>Chlorophyll-a concentration at surface. For USGS_CAWSC data, if Chlorophyll_Sign is &lt;, this value is equal to the reporting limit and if Chlorophyll_Sign is ~ then this value is estimated (extrapolated at low end). Otherwise this value is the actual measured value.</attributeDefinition>
           <storageType>float</storageType>
           <measurementScale>
             <ratio>
@@ -73943,7 +73988,7 @@
         </attribute>
         <attribute>
           <attributeName>DissAmmonia_Sign</attributeName>
-          <attributeDefinition>Whether the Dissolved Ammonia value is below the reporting limit or equal to it.</attributeDefinition>
+          <attributeDefinition>Whether the DissAmmonia value is lower than reported (&lt; because it is below the reporting limit and the reporting limit is used as the value), estimated ~, or reported as the measured value =.</attributeDefinition>
           <storageType>string</storageType>
           <measurementScale>
             <nominal>
@@ -73957,6 +74002,10 @@
                     <code>=</code>
                     <definition>The value in the corresponding column is the true mesasured value because the measured value was at or above the reporting limit</definition>
                   </codeDefinition>
+                  <codeDefinition>
+                    <code>~</code>
+                    <definition>The value in the corresponding column is estimated.</definition>
+                  </codeDefinition>
                 </enumeratedDomain>
               </nonNumericDomain>
             </nominal>
@@ -73968,7 +74017,7 @@
         </attribute>
         <attribute>
           <attributeName>DissAmmonia</attributeName>
-          <attributeDefinition>Dissolved Ammonia. For EMP data, if DissAmmonia_Sign is &lt;, this value is equal to the reporting limit. Otherwise this value is the actual measured value.</attributeDefinition>
+          <attributeDefinition>Dissolved Ammonia. For EMP and USGS_CAWSC data, if DissAmmonia_Sign is &lt;, this value is equal to the reporting limit. For  USGS_CAWSC data, if DissAmmonia_Sign is ~ then this value is estimated. Otherwise this value is the actual measured value.</attributeDefinition>
           <storageType>float</storageType>
           <measurementScale>
             <ratio>
@@ -74083,7 +74132,7 @@
         </attribute>
         <attribute>
           <attributeName>DissNitrateNitrite_Sign</attributeName>
-          <attributeDefinition>Whether the Dissolved Nitrate Nitrite value is below the reporting limit or equal to it.</attributeDefinition>
+          <attributeDefinition>Whether the DissNitrateNitrite value is lower than reported (&lt; because it is below the reporting limit and the reporting limit is used as the value), estimated ~, or reported as the measured value =.</attributeDefinition>
           <storageType>string</storageType>
           <measurementScale>
             <nominal>
@@ -74097,6 +74146,10 @@
                     <code>=</code>
                     <definition>The value in the corresponding column is the true mesasured value because the measured value was at or above the reporting limit</definition>
                   </codeDefinition>
+                  <codeDefinition>
+                    <code>~</code>
+                    <definition>The value in the corresponding column is estimated.</definition>
+                  </codeDefinition>
                 </enumeratedDomain>
               </nonNumericDomain>
             </nominal>
@@ -74108,7 +74161,7 @@
         </attribute>
         <attribute>
           <attributeName>DissNitrateNitrite</attributeName>
-          <attributeDefinition>Dissolved Nitrate and Nitrite. For EMP data, if DissNitrateNitrite_Sign is &lt;, this value is equal to the reporting limit. Otherwise this value is the actual measured value.</attributeDefinition>
+          <attributeDefinition>Dissolved Nitrate and Nitrite. For EMP and USGS_CAWSC data, if DissNitrateNitrite_Sign is &lt;, this value is equal to the reporting limit. For  USGS_CAWSC data, if DissNitrateNitrite_Sign is ~ then this value is estimated. Otherwise this value is the actual measured value.</attributeDefinition>
           <storageType>float</storageType>
           <measurementScale>
             <ratio>
@@ -74223,7 +74276,7 @@
         </attribute>
         <attribute>
           <attributeName>DissOrthophos_Sign</attributeName>
-          <attributeDefinition>Whether the Dissolved Orthophos value is below the reporting limit or equal to it.</attributeDefinition>
+          <attributeDefinition>Whether the DissOrthophos value is lower than reported (&lt; because it is below the reporting limit and the reporting limit is used as the value), estimated ~, or reported as the measured value =.</attributeDefinition>
           <storageType>string</storageType>
           <measurementScale>
             <nominal>
@@ -74237,6 +74290,10 @@
                     <code>=</code>
                     <definition>The value in the corresponding column is the true mesasured value because the measured value was at or above the reporting limit</definition>
                   </codeDefinition>
+                  <codeDefinition>
+                    <code>~</code>
+                    <definition>The value in the corresponding column is estimated.</definition>
+                  </codeDefinition>
                 </enumeratedDomain>
               </nonNumericDomain>
             </nominal>
@@ -74248,7 +74305,7 @@
         </attribute>
         <attribute>
           <attributeName>DissOrthophos</attributeName>
-          <attributeDefinition>Dissolved Ortho-phosphate. For EMP data, if DissOrthophos_Sign is &lt;, this value is equal to the reporting limit. Otherwise this value is the actual measured value.</attributeDefinition>
+          <attributeDefinition>Dissolved Ortho-phosphate. For EMP and USGS_CAWSC data, if DissOrthophos_Sign is &lt;, this value is equal to the reporting limit. For  USGS_CAWSC data, if DissOrthophos_Sign is ~ then this value is estimated. Otherwise this value is the actual measured value.</attributeDefinition>
           <storageType>float</storageType>
           <measurementScale>
             <ratio>
@@ -74446,6 +74503,11 @@
             </simpleDelimited>
           </textFormat>
         </dataFormat>
+        <distribution>
+          <online>
+            <url>https://deltacouncil.box.com/shared/static/2nlzvr1rid97k37rtjbco6y1qwu51pfi.csv</url>
+          </online>
+        </distribution>
       </physical>
       <attributeList>
         <attribute>
