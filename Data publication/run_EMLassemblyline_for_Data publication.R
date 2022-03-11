@@ -90,10 +90,10 @@ EMLassemblyline::template_geographic_coverage(
 # the EML.
 
 # Sandbox
-ID<-"edi.750.1"
+#ID<-"edi.750.1"
 
 # EDI
-#ID<-"edi.731.3"
+ID<-"edi.731.3"
 
 wq_eml<-EMLassemblyline::make_eml(
   path = path_templates,
@@ -121,9 +121,9 @@ changelog<-list(list(changeScope="Metadata and data",
                      oldValue="See previous version (2)",
                      changeDate=Sys.Date(),
                      comment="1) Updated to newest versions of the source datasets.
-                              2) Added new surveys: Yolo Bypass Fish Monitoring Program, Stockton Dissolved Oxygen survey, Smelt Larva Survey, and USGS California Water Science Center monitoring data.
-                              3) Renamed the USGS survey to USGS_SFBS because of the addition of the other USGS survey: USGS_CAWSC.
-                              4) Added USGS_SFBS and EMP nutrient data."))
+                              2) Added USGS_SFBS and EMP nutrient data.
+                              3) Added new surveys: Yolo Bypass Fish Monitoring Program, Stockton Dissolved Oxygen survey, Smelt Larva Survey, and USGS California Water Science Center monitoring data.
+                              4) Renamed the USGS survey to USGS_SFBS because of the addition of the other USGS survey: USGS_CAWSC."))
 class(changelog)<-c("emld", "list")
 
 wq_eml$dataset$maintenance$changeHistory<-changelog
