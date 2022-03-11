@@ -349,81 +349,9 @@ modellf <- bam(Temperature ~ Year_fac + te(Longitude_s, Latitude_s, Julian_day_s
 
 # Data prediction ---------------------------------------------------------
 
-WQ_pred<-function(Full_data=Data,
-                  Delta_subregions=Delta,
-                  Delta_water=spacetools::Delta,
-                  Stations = WQ_stations,
-                  n=100, 
-                  Years=round(seq(min(Full_data$Year)+2, max(Full_data$Year)-2, length.out=9)),
-                  Julian_days=yday(ymd(paste("2001", c(1,4,7,10), "15", sep="-"))), #Jan, Apr, Jul, and Oct 15 for a non-leap year
-                  Time_num=12*60*60 # 12PM x 60 seconds x 60 minutes
-){
-  
-  # Create point locations on a grid for predictions
-  Points<-st_make_grid(Delta_subregions, n=n)%>%
-    st_as_sf(crs=st_crs(Delta_subregions))%>%
-    st_join(Delta_water%>% # Joining a map of delta waterways (from my spacetools package) to ensure all these points are over water.
-              dplyr::select(Shape_Area)%>%
-              st_transform(crs=st_crs(Delta_subregions)))%>%
-    filter(!is.na(Shape_Area))%>%
-    select(-Shape_Area)%>%
-    distinct()%>%
-    st_join(Stations%>% # Applying the same approach we did to the full data: remove any points outside the convex hull formed by major survey stations sampled >50 times
-              st_union()%>%
-              st_convex_hull()%>%
-              st_as_sf()%>%
-              mutate(IN=TRUE),
-            join=st_intersects)%>%
-    filter(IN)%>%
-    dplyr::select(-IN)%>%
-    st_centroid()%>% # The prior grid was actually a set of polygons, this picks the center point of each
-    st_transform(crs=4326)%>%
-    st_coordinates()%>%
-    as_tibble()%>%
-    mutate(Location=1:nrow(.))%>%
-    dplyr::select(Longitude=X, Latitude=Y, Location)
-  
-  # Create dataset for each year and season showing which subregions were sampled
-  Data_effort <- Full_data%>%
-    st_drop_geometry()%>%
-    group_by(SubRegion, Season, Year)%>%
-    summarise(N=n())%>%
-    ungroup()%>%
-    left_join(Delta_subregions, by="SubRegion")%>%
-    dplyr::select(-geometry)
-  
-  
-  # Create full dataset for predictions
-  newdata<-expand.grid(Year= Years,
-                       Location=1:nrow(Points),
-                       Julian_day=Julian_days,
-                       Time_num=Time_num)%>% # Create all combinations of predictor variables
-    left_join(Points, by="Location")%>% #Add Lat/Longs to each location
-    mutate(Latitude_s=(Latitude-mean(Full_data$Latitude, na.rm=T))/sd(Full_data$Latitude, na.rm=T), # Standardize each variable based on full dataset for model
-           Longitude_s=(Longitude-mean(Full_data$Longitude, na.rm=T))/sd(Full_data$Longitude, na.rm=T),
-           Year_s=(Year-mean(Full_data$Year, na.rm=T))/sd(Full_data$Year, na.rm=T),
-           Julian_day_s = (Julian_day-mean(Full_data$Julian_day, na.rm=T))/sd(Full_data$Julian_day, na.rm=T),
-           Time_num_s=(Time_num-mean(Full_data$Time_num, na.rm=T))/sd(Full_data$Time_num, na.rm=T),
-           Year_fac=factor(Year),
-           Season=case_when(Julian_day<=80 | Julian_day>=356 ~ "Winter", # Create a variable for season
-                            Julian_day>80 & Julian_day<=172 ~ "Spring",
-                            Julian_day>173 & Julian_day<=264 ~ "Summer",
-                            Julian_day>265 & Julian_day<=355 ~ "Fall"))%>%
-    st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)%>% # Turn into sf object
-    st_transform(crs=st_crs(Delta_subregions))%>% # transform to crs of Delta shapefile
-    st_join(Delta_subregions, join = st_intersects)%>%
-    filter(!is.na(SubRegion))%>% # Make sure all points are within our desired subregions
-    left_join(Data_effort, by=c("SubRegion", "Season", "Year"))%>% # Use the Data_effort key created above to remove points in subregions that were not sampled that region, season, and year.
-    filter(!is.na(N))
-  return(newdata)
-}
-
 modellf<-readRDS("Temperature analysis/Models/modellf.Rds")
 
-newdata_year <- WQ_pred(Full_data=Data, 
-                        Julian_days = yday(ymd(paste("2001", 1:12, "15", sep="-"))),
-                        Years=round(min(Data$Year):max(Data$Year)))%>%
-  mutate(Group=if_else(is.even(Year), 1, 2))
+
 
 newdata_all <- WQ_pred(Full_data=Data, 
                        Julian_days = 1:365,
@@ -454,7 +382,6 @@ newdata_all_sum<-newdata_all%>%
 #saveRDS(newdata_all_sum, file="Temperature analysis/Model outputs and validations/newdata_all_sum.Rds")
 newdata_all_sum<-readRDS("Temperature analysis/Model outputs and validations/newdata_all_sum.Rds")
 
-#saveRDS(newdata_year, file="Temperature analysis/Prediction Data.Rds")
 newdata_year<-readRDS("Temperature analysis/Prediction Data.Rds")
 modellf_predictions<-predict(modellf, newdata=newdata_year, type="response", se.fit=TRUE, discrete=T, n.threads=8) # Create predictions
 #saveRDS(modellf_predictions, file="Temperature analysis/Model outputs and validations/modellf_predictions.Rds")
