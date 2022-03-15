@@ -18,4 +18,4 @@ The code for this paper can be found in the [Drought analysis.R](<Temperature an
 
 ## Warming in the San Francisco Estuary
 
-The code for this paper can be found in the [Climate change modeling.R](<Temperature analysis/Climate change modeling.R>)
+The code for this paper can be found in the [Climate change modeling.R](<Temperature analysis/Climate change modeling.R>) and [Data simulation.R](<Temperature analysis/Data simulation.R>) files.
