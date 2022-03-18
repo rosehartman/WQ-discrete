@@ -1,4 +1,4 @@
-devtools::install_github("sbashevkin/discretewq", ref="v2.3.1")
+#devtools::install_github("sbashevkin/discretewq")
 require(dplyr)
 require(stringr)
 require(tidyr)
