@@ -102,7 +102,7 @@ plot(fn)
 fln <- fitdistcens(cens_dist_data, distr="lnorm")
 plot(fln)
 # Student's t
-ft <- fitdistcens(cens_dist_data, distr=dstudent_t, start=list(mu=0, sigma=2, df=3), control=list(trace=1, report=1))
+ft <- fitdistcens(cens_dist_data, distr=dstudent_t, start=list(mu=0, sigma=2, df=3))
 plot(ft)
 # lognormal seems best
 
@@ -141,13 +141,13 @@ cens_data_fill$fill <- .ExpLNrCens(l=cens_data_fill$left, u=cens_data_fill$right
 # GAMs --------------------------------------------------------------------
 
 
-SC_gam1_NOAR <- bam(Secchi ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+SC_gam1_NOAR <- bam(Secchi_cens ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
                       te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
                       s(Time_num_s, k=5), family=tobit1(right.threshold=470), data = Data_analysis, method="fREML", discrete=T, nthreads=4)
 r1 <- start_value_rho(SC_gam1_NOAR, plot=TRUE)
 
 
-CC_gam1_AR <- bam(Secchi ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+CC_gam1_AR <- bam(Secchi_cens ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
                     te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
                     s(Time_num_s, k=5), family=scat, rho=r1, AR.start=Start, data = Data_analysis, method="fREML", discrete=T, nthreads=4)
 
@@ -158,7 +158,8 @@ CC_gam1_AR <- bam(Secchi ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), b
 iterations <- 5e3
 warmup <- iterations/4
 
-SC_brm_cens <- brm(Secchi | cens(Censored) ~ t2(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(10, 5)) + 
+SC_brm_cens <- brm(Secchi_cens | cens(Censored) ~ t2(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                     t2(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
                      s(Time_num_s, k=5), 
                    family=student, 
                    data = Data_analysis_cens,
@@ -169,7 +170,7 @@ SC_brm_cens <- brm(Secchi | cens(Censored) ~ t2(Latitude_s, Longitude_s, Julian_
                    iter = iterations, warmup = warmup,
                    backend = "cmdstanr", threads = threading(4))
 
-SC_brm1 <- brm(Secchi ~ t2(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+SC_brm1 <- brm(Secchi_cens ~ t2(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
                  t2(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
                  s(Time_num_s, k=5), 
                family=student, 
