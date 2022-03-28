@@ -38,3 +38,5 @@ Tide	Flood	Flood tide
 Tide	High Slack	High Slack tide
 Tide	Low Slack	Low Slack tide
 Tide	Overtopping	Periods of floodplain inundation that drown out tidal effects. Only used by YBFMP
+Secchi_estimated	TRUE	Secchi depth was estimated
+Secchi_estimated	FALSE	Secchi depth was not estimated

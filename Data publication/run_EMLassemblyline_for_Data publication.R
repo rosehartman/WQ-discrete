@@ -31,7 +31,7 @@ data<-discretewq::wq(Sources = c("EMP", "STN", "FMWT", "EDSM", "DJFMP", "SDO", "
          across(c(Notes, StationID), ~str_replace_all(.x, fixed('\r'), " ")))%>% # Replace line breaks with space to avoid data read errors
   select(Source, Station=StationID, Latitude, Longitude, Field_coords, Date, Datetime, Depth, 
          Sample_depth_surface, Sample_depth_nutr_surface, Sample_depth_bottom, Tide, Temperature, Temperature_bottom, 
-         Conductivity, Conductivity_bottom, Salinity, Salinity_bottom, Secchi, Microcystis, Chlorophyll_Sign, Chlorophyll, 
+         Conductivity, Conductivity_bottom, Salinity, Salinity_bottom, Secchi, Secchi_estimated, Microcystis, Chlorophyll_Sign, Chlorophyll, 
          DissolvedOxygen, DissolvedOxygen_bottom, DissolvedOxygenPercent, DissolvedOxygenPercent_bottom,
          pH, pH_bottom, TotAlkalinity, TotAmmonia, DissAmmonia_Sign, DissAmmonia, 
          DissBromide, DissCalcium, TotChloride, DissChloride, DissNitrateNitrite_Sign, 
@@ -93,7 +93,7 @@ EMLassemblyline::template_geographic_coverage(
 #ID<-"edi.750.1"
 
 # EDI
-ID<-"edi.731.3"
+ID<-"edi.731.4"
 
 wq_eml<-EMLassemblyline::make_eml(
   path = path_templates,
@@ -119,11 +119,16 @@ changelog<-list(list(changeScope="Metadata and data",
                               are now correctly in local Pacific time."),
                 list(changeScope="Metadata and data",
                      oldValue="See previous version (2)",
-                     changeDate=Sys.Date(),
+                     changeDate="2022-03-10",
                      comment="1) Updated to newest versions of the source datasets.
                               2) Added USGS_SFBS and EMP nutrient data.
                               3) Added new surveys: Yolo Bypass Fish Monitoring Program, Stockton Dissolved Oxygen survey, Smelt Larva Survey, and USGS California Water Science Center monitoring data.
-                              4) Renamed the USGS survey to USGS_SFBS because of the addition of the other USGS survey: USGS_CAWSC."))
+                              4) Renamed the USGS survey to USGS_SFBS because of the addition of the other USGS survey: USGS_CAWSC."),
+                list(changeScope="Metadata and data",
+                     oldValue="See previous version (3)",
+                     changeDate=Sys.Date(),
+                     comment="1) Fixed error with YBFMP Secchi Depth Data (it was previously in m instead of cm). 
+                              2) Added 'Secchi_estimated' column from FMWT data"))
 class(changelog)<-c("emld", "list")
 
 wq_eml$dataset$maintenance$changeHistory<-changelog
