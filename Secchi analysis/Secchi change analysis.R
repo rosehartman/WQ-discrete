@@ -81,6 +81,7 @@ censored_years<-tibble(
 Data_analysis_cens<-Data_analysis%>%
   left_join(censored_years, by=c("Source", "Year"))%>%
   mutate(Censored=if_else(Secchi>=Censor_level, "right", "none"),
+         Censored_Surv=if_else(Secchi>=Censor_level, 0, 1),
          Secchi_cens=if_else(Censored=="right", Censor_level, Secchi))
 
 # Test censoring approaches -----------------------------------------------
@@ -181,3 +182,24 @@ SC_brm1 <- brm(Secchi_cens ~ t2(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1),
                chains=1, cores=1,
                iter = iterations, warmup = warmup,
                backend = "cmdstanr", threads = threading(4))
+
+
+# gamlss ------------------------------------------------------------------
+
+library(gamlss)
+library(gamlss.cens)
+library(gamlss.add)
+library(survival)
+
+SC_gamlss1_NOAR <- gamlss(Surv(Secchi_cens, Censored_Surv) ~ ba(~te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                      te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
+                      s(Time_num_s, k=5), method="fREML", discrete=T, nthreads=4), 
+                      family=cens(TF),
+                      data = dplyr::select(Data_analysis_cens, Secchi_cens, Censored_Surv, Latitude_s, Longitude_s, Julian_day_s,
+                                    Year_s, Time_num_s))
+r1 <- start_value_rho(SC_gam1_NOAR, plot=TRUE)
+
+
+CC_gam1_AR <- bam(Secchi_cens ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
+                    s(Time_num_s, k=5), family=scat, rho=r1, AR.start=Start, data = Data_analysis, method="fREML", discrete=T, nthreads=4)
