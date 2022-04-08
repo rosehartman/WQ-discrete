@@ -40,12 +40,12 @@ ggsave(p_effort, file="C:/Users/sbashevkin/deltacouncil/Science Extranet - Discr
 # First fit model with AR term to find optimal AR rho parameter
 
 SC_gam_NOAR <- bam(Salinity ~ te(Latitude_s, Longitude_s, Julian_day_s, Tide, d=c(2,1, 1), bs=c("tp", "cc", "fs"), k=c(25, 13, 5)) + 
-                          te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s),
-                          family=scat, data = Data_analysis, method="fREML", discrete=T, nthreads=4)
+                     te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s),
+                   family=scat, data = Data_analysis, method="fREML", discrete=T, nthreads=4)
 
 SC_gam_NOAR2 <- bam(Salinity ~ te(Latitude_s, Longitude_s, Julian_day_s, Tide, d=c(2,1, 1), bs=c("tp", "cc", "fs"), k=c(25, 13, 5)) + 
-                     te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s),
-                   family=gaussian, data = Data_analysis, method="fREML", discrete=T, nthreads=4)
+                      te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s),
+                    family=gaussian, data = Data_analysis, method="fREML", discrete=T, nthreads=4)
 
 SC_gam_NOAR3 <- bam(log(Salinity) ~ te(Latitude_s, Longitude_s, Julian_day_s, Tide, d=c(2,1, 1), bs=c("tp", "cc", "fs"), k=c(25, 13, 5)) + 
                       te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s),
@@ -58,6 +58,12 @@ SC_gam_NOAR4 <- bam(log(Salinity) ~ te(Latitude_s, Longitude_s, Julian_day_s, Ti
 SC_gam_NOAR5 <- bam(log(Salinity) ~ te(Latitude_s, Longitude_s, Julian_day_s, Tide, d=c(2,1, 1), bs=c("tp", "cc", "fs"), k=c(25, 13, 5)) + 
                       te(Latitude_s, Longitude_s, Julian_day_s, Year_s, d=c(2,1,1), bs=c("tp", "cc", "tp"), k=c(25, 13, 5)),
                     family=scat, data = Data_analysis, method="fREML", discrete=T, nthreads=4)
+
+SC_gam_NOAR6 <- gam(list(Salinity ~ 
+                           te(Latitude_s, Longitude_s, Julian_day_s, Tide, d=c(2,1, 1), bs=c("tp", "cc", "fs"), k=c(25, 13, 5)) + 
+                           te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s),
+                         ~1, ~1, ~1),
+family=shash, data = Data_analysis, method="REML", control=list(nthreads=4))
 r <- start_value_rho(SC_gam_NOAR, plot=TRUE)
 
 #########Best Model####################
