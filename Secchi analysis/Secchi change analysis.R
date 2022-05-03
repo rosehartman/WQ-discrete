@@ -193,13 +193,36 @@ library(survival)
 
 SC_gamlss1_NOAR <- gamlss(Surv(Secchi_cens, Censored_Surv) ~ ba(~te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
                       te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
-                      s(Time_num_s, k=5), method="fREML", discrete=T, nthreads=4), 
+                      s(Time_num_s, k=5), method="fREML", discrete=T, nthreads=15), 
                       family=cens(TF),
                       data = dplyr::select(Data_analysis_cens, Secchi_cens, Censored_Surv, Latitude_s, Longitude_s, Julian_day_s,
                                     Year_s, Time_num_s))
-r1 <- start_value_rho(SC_gam1_NOAR, plot=TRUE)
+#Warning message:
+#In RS() : Algorithm RS has not yet converged
 
+disttest<-chooseDist(SC_gamlss1_NOAR, type="realAll", parallel = "multicore", ncpus=15)
+# doesn't work, returns all NAs, maybe because model didn't converge?
 
-CC_gam1_AR <- bam(Secchi_cens ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
-                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
-                    s(Time_num_s, k=5), family=scat, rho=r1, AR.start=Start, data = Data_analysis, method="fREML", discrete=T, nthreads=4)
+fittest<-fitDist(Secchi_cens, type="realAll", data=Data_analysis_cens)
+fittest$fits # Extract distributions in order of fit
+
+# Trying another family
+SC_gamlss2_NOAR <- gamlss(Surv(Secchi_cens, Censored_Surv) ~ ba(~te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                                                                  te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
+                                                                  s(Time_num_s, k=5), method="fREML", discrete=T, nthreads=15), 
+                          family=cens(SEP4),
+                          data = dplyr::select(Data_analysis_cens, Secchi_cens, Censored_Surv, Latitude_s, Longitude_s, Julian_day_s,
+                                               Year_s, Time_num_s))
+#Error in glim.fit(f = sigma.object, X = sigma.X, y = y, w = w, fv = sigma,  : 
+#NA's in the working vector or weights for parameter sigma
+#Maybe this family doesn't work? https://stackoverflow.com/questions/45759025/why-am-i-getting-nas-for-sigma-in-this-gamlss-call
+
+SC_gamlss3_NOAR <- gamlss(Surv(Secchi_cens, Censored_Surv) ~ ba(~te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                                                                  te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
+                                                                  s(Time_num_s, k=5), method="fREML", discrete=T, nthreads=15), 
+                          family=cens(ST2),
+                          data = dplyr::select(Data_analysis_cens, Secchi_cens, Censored_Surv, Latitude_s, Longitude_s, Julian_day_s,
+                                               Year_s, Time_num_s))
+#Warning message:
+#In RS() : Algorithm RS has not yet converged
+SC_gamlss3_NOAR<-refit(SC_gamlss3_NOAR)
