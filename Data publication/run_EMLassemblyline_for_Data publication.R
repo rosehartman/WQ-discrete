@@ -93,7 +93,7 @@ EMLassemblyline::template_geographic_coverage(
 #ID<-"edi.750.1"
 
 # EDI
-ID<-"edi.731.4"
+ID<-"edi.731.5"
 
 wq_eml<-EMLassemblyline::make_eml(
   path = path_templates,
@@ -126,9 +126,13 @@ changelog<-list(list(changeScope="Metadata and data",
                               4) Renamed the USGS survey to USGS_SFBS because of the addition of the other USGS survey: USGS_CAWSC."),
                 list(changeScope="Metadata and data",
                      oldValue="See previous version (3)",
-                     changeDate=Sys.Date(),
+                     changeDate="2022-03-28",
                      comment="1) Fixed error with YBFMP Secchi Depth Data (it was previously in m instead of cm). 
-                              2) Added 'Secchi_estimated' column from FMWT data"))
+                              2) Added 'Secchi_estimated' column from FMWT data"),
+                list(changeScope="Metadata and data",
+                     oldValue="See previous version (3)",
+                     changeDate=Sys.Date(),
+                     comment="1) Fixed error with previous version where only the metadata file was uploaded and the full dataset was not included."))
 class(changelog)<-c("emld", "list")
 
 wq_eml$dataset$maintenance$changeHistory<-changelog

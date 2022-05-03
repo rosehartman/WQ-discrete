@@ -18,7 +18,7 @@ Conductivity_bottom	Bottom specific conductivity	numeric	microSeimenPerCentimete
 Salinity	Surface salinity	numeric	dimensionless		NA	Unknown or not measured
 Salinity_bottom	Bottom salinity	numeric	dimensionless		NA	Unknown or not measured
 Secchi	"Secchi depth (NOTE data are right censored in certain time periods, since in some cases the disk was still visible at the deepest depth to which it could be extended"	numeric	centimeter		NA	Unknown or not measured
-Secchi_estimated	Was Secchi depth estimated?	categorical 			NA	This is only used for FMWT data
+Secchi_estimated	Was Secchi depth estimated?	categorical			NA	This is only used for FMWT data
 Microcystis	Qualitative abundance of the toxic microalga Microcystis	categorical			NA	Unknown or not measured
 Chlorophyll_Sign	"Whether the Chlorophyll value is lower than reported (< because it is below the reporting limit and the reporting limit is used as the value), estimated ~ (extrapolated at low end), or reported as the measured value =."	categorical			NA	Unknown or not measured. This is only used for USGS_CAWSC data
 Chlorophyll	"Chlorophyll-a concentration at surface. For USGS_CAWSC data, if Chlorophyll_Sign is <, this value is equal to the reporting limit and if Chlorophyll_Sign is ~ then this value is estimated (extrapolated at low end). Otherwise this value is the actual measured value."	numeric	microgramsPerLiter		NA	Unknown or not measured
