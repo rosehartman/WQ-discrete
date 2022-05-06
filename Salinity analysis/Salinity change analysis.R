@@ -63,11 +63,5 @@ SC_gam_NOAR6 <- gam(list(Salinity ~
                            te(Latitude_s, Longitude_s, Julian_day_s, Tide, d=c(2,1, 1), bs=c("tp", "cc", "fs"), k=c(25, 13, 5)) + 
                            te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s),
                          ~1, ~1, ~1),
-family=shash, data = Data_analysis, method="REML", control=list(nthreads=4))
+                    family=shash, data = Data_analysis, method="REML", control=list(nthreads=15, trace=TRUE))
 r <- start_value_rho(SC_gam_NOAR, plot=TRUE)
-
-#########Best Model####################
-
-CC_gam8d7b_AR7 <- bam(Temperature ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
-                        te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
-                        s(Time_num_s, k=5), family=scat, rho=r6, AR.start=Start, data = Data_CC4.3, method="fREML", discrete=T, nthreads=4)
