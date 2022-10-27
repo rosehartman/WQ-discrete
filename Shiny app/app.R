@@ -172,8 +172,8 @@ ui <- fluidPage(
     # Application title
     titlePanel(title=div(h1("Delta Discrete Temperature Model", style="display: inline-block"), 
                          a(img(src="DSP_Logo_Horizontal.png", height = 100, align="right", style="display: inline-block"), href="https://deltacouncil.ca.gov/delta-science-program/"),
-                         h5("If you encounter any issues, please email ", a("sam.bashevkin@deltacouncil.ca.gov.", 
-                                                                            href="mailto:sam.bashevkin@deltacouncil.ca.gov?subject=Discrete%20Temperature%20Shiny%20app"))), 
+                         h5("If you encounter any issues, please email ", a("sam.bashevkin@waterboards.ca.gov.", 
+                                                                            href="mailto:sam.bashevkin@waterboards.ca.gov?subject=Discrete%20Temperature%20Shiny%20app"))), 
                windowTitle = "Delta Discrete Temperature"),
     
     sidebarLayout(
@@ -334,8 +334,8 @@ server <- function(input, output, session) {
                                         tags$p("Use the data filters to control the range of dates and months included in the plots."),
                                         tags$p("The raw data can be plotted in a time-series within your region of interest on the 'Raw data' tab."),
                                         "------------------------------------------",
-                                        tags$p(tags$b("Dataset, model, and app created and maintained by Sam Bashevkin (Delta Science Program) in collaboration with Brian Mahardja (USFWS) and Larry Brown (USGS). 
-                                                      Please email", a("Sam", href="mailto:sam.bashevkin@deltacouncil.ca.gov?subject=Discrete%20Temperature%20Shiny%20app"), "with any questions.")),
+                                        tags$p(tags$b("Dataset, model, and app created and maintained by Sam Bashevkin in collaboration with Brian Mahardja and Larry Brown. 
+                                                      Please email", a("Sam", href="mailto:sam.bashevkin@waterboards.ca.gov?subject=Discrete%20Temperature%20Shiny%20app"), "with any questions.")),
                                         tags$p(tags$i("The integrated dataset used to fit this model included data from the", 
                                                       tags$a("Environmental Monitoring Program, ", href = "https://portal.edirepository.org/nis/mapbrowse?packageid=edi.458.2", target="_blank"), 
                                                       tags$a("Summer Townet, ", href = "https://wildlife.ca.gov/Conservation/Delta/Townet-Survey", target="_blank"),
