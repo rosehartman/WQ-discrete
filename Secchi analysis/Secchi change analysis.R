@@ -142,9 +142,14 @@ cens_data_fill$fill <- .ExpLNrCens(l=cens_data_fill$left, u=cens_data_fill$right
 # GAMs --------------------------------------------------------------------
 
 
-SC_gam1_NOAR <- bam(Secchi_cens ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
-                      te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
-                      s(Time_num_s, k=5), family=tobit1(right.threshold=470), data = Data_analysis, method="fREML", discrete=T, nthreads=4)
+Data_analysis_cens = filter(Data_analysis_cens, !is.na(Secchi_cens))
+
+SC_gam1_NOAR <- bam(Secchi ~ s(Time_num_s, k = 5),
+                      #te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)),# + 
+  #                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
+                    #  s(Time_num_s, k=5), 
+  family=tobit1(right.threshold = 470), data = Data_analysis_cens, method="fREML", 
+                    discrete=T, nthreads=4)
 r1 <- start_value_rho(SC_gam1_NOAR, plot=TRUE)
 
 
@@ -152,11 +157,29 @@ CC_gam1_AR <- bam(Secchi_cens ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,
                     te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
                     s(Time_num_s, k=5), family=scat, rho=r1, AR.start=Start, data = Data_analysis, method="fREML", discrete=T, nthreads=4)
 
+#I don't know why that's not working, let's try without the censoring stuff
+# I don't think the scaled t distribution is appropriate here. Maybe just log transform it?
+SC_gam1_NOAR <- bam(Secchi ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                                        te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
+                      s(Time_num_s, k=5), 
+                    family=nb, data = Data_analysis_cens, method="fREML", 
+                    discrete=T, nthreads=4)
+r1 <- start_value_rho(SC_gam1_NOAR, plot=TRUE)
+
+
+CC_gam1_AR <- bam(Secchi ~ te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13)) + 
+                    te(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("tp", "cc"), k=c(25, 13), by=Year_s) + 
+                    s(Time_num_s, k=5), family=nb, rho=r1, AR.start=Start, data = Data_analysis_cens, method="fREML", discrete=T, nthreads=4)
+
+
+plot(CC_gam1_AR)
+gam.check(CC_gam1_AR)
+summary(CC_gam1_AR)
 
 
 # brms --------------------------------------------------------------------
 
-iterations <- 5e3
+iterations <- 500
 warmup <- iterations/4
 
 SC_brm_cens <- brm(Secchi_cens | cens(Censored) ~ t2(Latitude_s, Longitude_s, Julian_day_s, d=c(2,1), bs=c("cs", "cc"), k=c(25, 13)) + 

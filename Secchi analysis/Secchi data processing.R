@@ -1,4 +1,4 @@
-#devtools::install_github("sbashevkin/discretewq", ref="v2.3.2")
+#devtools::install_github("InteragencyEcologicalProgram/discretewq")
 require(dplyr)
 require(stringr)
 require(tidyr)
@@ -30,7 +30,7 @@ Delta<-st_read("Delta Subregions")%>%
 
 ## Load data
 Data <- wq(Sources=c("EMP", "STN", "FMWT", "EDSM", "DJFMP", 
-                     "SDO", "SKT", "SLS", "20mm", "Suisun", 
+                     "SDO", "SKT", "SLS", "20mm", "Suisun", "NCRO",
                      "Baystudy", "YBFMP"))%>% # "USBR", "USGS_SFBS", and "USGS_CAWSC" don't have secchi data
   filter(!is.na(Secchi) & !is.na(Datetime) & !is.na(Latitude) & !is.na(Longitude) & !is.na(Date))%>% #Remove any rows with NAs in our key variables
   filter(hour(Datetime)>=5 & hour(Datetime)<=20)%>% # Only keep data between 5AM and 8PM
@@ -59,7 +59,7 @@ Data <- wq(Sources=c("EMP", "STN", "FMWT", "EDSM", "DJFMP",
 ### This will be used to set a boundary for this analysis focused on well-sampled regions.
 WQ_stations<-Data%>%
   st_drop_geometry()%>%
-  filter(Source%in%c("FMWT", "STN", "SKT", "20mm", "EMP", "Suisun", "YBFMP", "DJFMP"))%>%
+  filter(Source%in%c("FMWT", "STN", "SKT", "20mm", "EMP", "Suisun", "YBFMP", "DJFMP", "NCRO"))%>%
   group_by(StationID, Source, Latitude, Longitude)%>%
   summarise(N=n(), .groups="drop")%>% # Calculate how many times each station was sampled
   filter(N>50 & !StationID%in%c("20mm 918", "STN 918"))%>% # Only keep stations sampled >50 times when deciding which regions to retain. 
@@ -98,7 +98,7 @@ saveRDS(Data, file="Secchi analysis/Discrete Secchi Data.Rds")
 #Data<-readRDS("Secchi analysis/Discrete Secchi Data.Rds")
 
 Data_analysis<-Data%>%
-  filter(Source%in%c("FMWT", "Baystudy", "STN", "Suisun", "SDO", "SKT", "SLS", "20mm", "DJFMP", "EMP", "YBFMP") & !str_detect(Station, "EZ") & 
+  filter(Source%in%c("FMWT", "Baystudy", "STN", "Suisun", "SDO", "SKT", "SLS", "20mm", "DJFMP", "EMP", "YBFMP", "DWR_NCRO") & !str_detect(Station, "EZ") & 
            !(Source=="SKT" & Station=="799" & Latitude>38.2) & !(Source=="SKT" & Station=="999"))%>%
   mutate(Station=paste(Source, Station),
          Noon_diff=abs(hms(hours=12)-as_hms(Datetime)),
